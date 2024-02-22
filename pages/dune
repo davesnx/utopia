@@ -1,0 +1,5 @@
+(library
+ (name pages)
+ (libraries server-reason-react.react)
+ (preprocess
+  (pps server-reason-react.ppx)))
