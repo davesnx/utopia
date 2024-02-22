@@ -7,4 +7,4 @@ module Page = {
   };
 };
 
-Utopia.Loader.p := Some((module Page): (module Utopia.Loader.PLUG));
+Utopia.Loader.push((module Page));

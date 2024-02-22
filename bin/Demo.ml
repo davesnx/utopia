@@ -27,13 +27,10 @@ let () =
 
   load_plug "_build/default/pages/pages.cmo";
 
-  let module M = (val Utopia.Loader.get_plugin () : Utopia.Loader.PLUG) in
+  let list_of_pages = Utopia.Loader.get_plugin () in
 
-  print_endline (M.path)
-
-  (* Pages.list_of_pages |>
+  list_of_pages |>
     (List.iter
-       (fun (module Page: Pages.Page) ->
+       (fun (module Page: Utopia.Loader.PLUG) ->
           let file = "_utopia/" ^ (Page.path ^ ".html") in
-          write_file file (ReactDOM.renderToStaticMarkup (Page.make ~key:"" ()))); *)
-
+          write_file file (ReactDOM.renderToStaticMarkup (Page.make ~key:"" ()))));
