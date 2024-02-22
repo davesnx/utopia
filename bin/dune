@@ -1,10 +1,12 @@
 (executable
- (name Index)
- (public_name utopia)
+ (name Demo)
+ (public_name demo)
+ (flags -linkall)
  (libraries
+  utopia
   server-reason-react.react
   server-reason-react.reactDom
   unix
-  pages)
+  dynlink)
  (preprocess
   (pps server-reason-react.ppx)))
