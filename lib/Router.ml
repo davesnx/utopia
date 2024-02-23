@@ -4,12 +4,12 @@ module type Page =
     val make: ?key: string -> unit -> React.element
   end
 
-let p = ref []
+let pages = ref []
 
-let push (module P: Page) =
-  p := (module P:Page) :: !p
+let register (module P: Page) =
+  pages := (module P:Page) :: !pages
 
 let get_pages () : (module Page) list =
-  match !p with
-  | []-> failwith "No Pagein loaded"
+  match !pages with
+  | []-> failwith "There are no registered Pages"
   | pages -> pages

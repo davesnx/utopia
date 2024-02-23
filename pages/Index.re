@@ -7,4 +7,4 @@ module Page = {
   };
 };
 
-Utopia.Loader.push((module Page));
+Utopia.Router.register((module Page));
