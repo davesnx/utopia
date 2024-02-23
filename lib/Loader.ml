@@ -1,4 +1,4 @@
-module type PLUG =
+module type Page =
   sig
     val path: string
     val make: ?key: string -> unit -> React.element
@@ -6,10 +6,10 @@ module type PLUG =
 
 let p = ref []
 
-let push (module P: PLUG) =
-  p := (module P:PLUG) :: !p
+let push (module P: Page) =
+  p := (module P:Page) :: !p
 
-let get_plugin () : (module PLUG) list =
+let get_pages () : (module Page) list =
   match !p with
-  | []-> failwith "No plugin loaded"
+  | []-> failwith "No Pagein loaded"
   | pages -> pages

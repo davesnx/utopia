@@ -3,7 +3,7 @@ module Page = {
 
   [@react.component]
   let make = () => {
-    <div> {React.string("index")} </div>;
+    <div> {React.string("Hello")} </div>;
   };
 };
 
