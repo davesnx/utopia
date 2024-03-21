@@ -26,10 +26,9 @@ let () =
 
   load_pages "_build/default/pages/pages.cmo";
 
-  let list_of_pages = Router.get_pages () in
-
-  list_of_pages |>
+  Router.get_pages () |>
     (List.iter
        (fun (module Page: Router.Page) ->
           let file = "_utopia/" ^ (Page.path ^ ".html") in
-          write_file file (ReactDOM.renderToStaticMarkup (Page.make ~key:"" ()))));
+          let content = ReactDOM.renderToStaticMarkup (Page.make ~key:"" ()) in
+          write_file file content));
