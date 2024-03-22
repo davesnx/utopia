@@ -1,0 +1,7 @@
+(executable
+ (name markdown)
+ (public_name utopia.markdown)
+ (libraries cmarkit))
+
+(cram
+ (deps %{bin:utopia.markdown}))

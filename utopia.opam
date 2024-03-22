@@ -11,6 +11,7 @@ depends: [
   "ocaml" {>= "5.0.0"}
   "reason" {>= "3.10.0"}
   "pcre" {<= "7.5.0"}
+  "cmarkit"
   "alcotest" {with-test}
   "alcotest-lwt" {with-test}
   "odoc" {with-doc}
