@@ -115,7 +115,10 @@ let buffer_add_html_escaped_string b s =
   in
   loop 0 0
 
-let html_escaped_string c s = buffer_add_html_escaped_string (C.buffer c) s
+let html_escaped_string c s =
+  C.string c "{React.string(\"";
+  buffer_add_html_escaped_string (C.buffer c) s;
+  C.string c "\")}"
 
 let buffer_add_pct_encoded_string b s =
   (* Percent encoded + HTML escaped *)
@@ -288,7 +291,7 @@ let link_footnote c l fn =
     pct_encoded_string c label;
     C.string c "\" id=\"";
     html_escaped_string c ref;
-    C.string c "\" role=\"doc-noteref\" class=\"fn-label\">";
+    C.string c "\" role=\"doc-noteref\" className=\"fn-label\">";
     C.string c text;
     C.string c "</a></sup>")
 
@@ -413,7 +416,7 @@ let code_block c cb =
       (match lang with
       | None -> ()
       | Some (lang, _env) ->
-          C.string c " class=\"language-";
+          C.string c " className=\"language-";
           html_escaped_string c lang;
           C.byte c '\"');
       C.byte c '>';
@@ -430,7 +433,7 @@ let heading c h =
       let id = unique_id c id in
       C.string c " id=\"";
       C.string c id;
-      C.string c "\"><a class=\"anchor\" aria-hidden=\"true\" href=\"#";
+      C.string c "\"><a className=\"anchor\" aria-hidden=\"true\" href=\"#";
       C.string c id;
       C.string c "\"></a>");
   C.inline c (Block.Heading.inline h);
@@ -475,16 +478,16 @@ let list_item ~tight c (i, _) =
         match Block.List_item.task_status_of_task_marker mark with
         | `Unchecked ->
             C.string c
-              "<div class=\"task\"><input type=\"checkbox\" disabled><div>";
+              "<div className=\"task\"><input type=\"checkbox\" disabled><div>";
             "</div></div></li>\n"
         | `Checked | `Other _ ->
             C.string c
-              "<div class=\"task\"><input type=\"checkbox\" disabled \
+              "<div className=\"task\"><input type=\"checkbox\" disabled \
                checked><div>";
             "</div></div></li>\n"
         | `Cancelled ->
             C.string c
-              "<div class=\"task\"><input type=\"checkbox\" disabled><del>";
+              "<div className=\"task\"><input type=\"checkbox\" disabled><del>";
             "</del></div></li>\n"
       in
       item_block ~tight c (Block.List_item.block i);
@@ -534,9 +537,9 @@ let table c t =
     C.string c tag;
     match align with
     | None -> C.byte c '>'
-    | Some `Left -> C.string c " class=\"left\">"
-    | Some `Center -> C.string c " class=\"center\">"
-    | Some `Right -> C.string c " class=\"right\">"
+    | Some `Left -> C.string c " className=\"left\">"
+    | Some `Center -> C.string c " className=\"center\">"
+    | Some `Right -> C.string c " className=\"right\">"
   in
   let close c tag =
     C.string c "</";
@@ -663,7 +666,7 @@ let footnotes c fns =
     for r = 1 to !refc do
       C.string c "<a href=\"#";
       pct_encoded_string c (footnote_ref_id id r);
-      C.string c "\" role=\"doc-backlink\" class=\"fn-label\">↩︎︎";
+      C.string c "\" role=\"doc-backlink\" className=\"fn-label\">↩︎︎";
       if !refc > 1 then (
         C.string c "<sup>";
         C.string c (Int.to_string r);

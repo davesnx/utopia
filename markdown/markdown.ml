@@ -16,11 +16,11 @@ let () =
   print_endline
     (Printf.sprintf
        {|module Page = {
-      let path = "TODO";
+      let path = "markdown";
     
       [@react.component]
       let make = () => {
-       <> %s; </>
+       <> %s </>
       };
     };
     

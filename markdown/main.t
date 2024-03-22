@@ -15,50 +15,33 @@ Test markdown
   > 
   > <small>Sample content borrowed from [markdown-to-jsx](https://markdown-to-jsx.quantizor.dev/), thanks! ❤️</small>
   > 
-  > Custom handling of code blocks (or any rule!) is possible with the [`renderRule` option](https://github.com/quantizor/markdown-to-jsx#optionsrenderrule). For example, LaTeX support via [`@matejmazur/react-katex`](https://www.npmjs.com/package/@matejmazur/react-katex):
-  > 
-  > ```latex
-  > \mathbb{N} = \{ a \in \mathbb{Z} : a > 0 \}
-  > ```
-  > 
-  > Or any other typical language, using [`highlight.js`](https://highlightjs.org/):
-  > 
-  > ```javascript
-  > function App() {
-  >   return <div>Hello world!</div>;
-  > }
-  > ```
-  > 
-  > You can even include custom React components if you declare them in the [`overrides` option](https://github.com/quantizor/markdown-to-jsx/blob/main/README.md#optionsoverrides---rendering-arbitrary-react-components).
-  > 
-  > <MyComponent>Isn't that cool?</MyComponent>
   > EOF
   module Page = {
         let path = "TODO";
       
         [@react.component]
         let make = () => {
-         <> <h1>This is Markdown</h1>
-  <h4>You can edit me!</h4>
-  <p><a href="http://daringfireball.net/projects/markdown/">Markdown</a> lets you write content in a really natural way.</p>
+         <> <h1>{React.string("This is Markdown")}</h1>
+  <h4>{React.string("You can edit me!")}</h4>
+  <p><a href="http://daringfireball.net/projects/markdown/">{React.string("Markdown")}</a>{React.string(" lets you write content in a really natural way.")}</p>
   <ul>
-  <li>You can have lists, like this one</li>
-  <li>Make things <strong>bold</strong> or <em>italic</em></li>
-  <li>Embed snippets of <code>code</code></li>
-  <li>Create <a href="/">links</a></li>
-  <li>...</li>
+  <li>{React.string("You can have lists, like this one")}</li>
+  <li>{React.string("Make things ")}<strong>{React.string("bold")}</strong>{React.string(" or ")}<em>{React.string("italic")}</em></li>
+  <li>{React.string("Embed snippets of ")}<code>{React.string("code")}</code></li>
+  <li>{React.string("Create ")}<a href="/">{React.string("links")}</a></li>
+  <li>{React.string("...")}</li>
   </ul>
-  <p><small>Sample content borrowed from <a href="https://markdown-to-jsx.quantizor.dev/">markdown-to-jsx</a>, thanks! ❤️</small></p>
-  <p>Custom handling of code blocks (or any rule!) is possible with the <a href="https://github.com/quantizor/markdown-to-jsx#optionsrenderrule"><code>renderRule</code> option</a>. For example, LaTeX support via <a href="https://www.npmjs.com/package/@matejmazur/react-katex"><code>@matejmazur/react-katex</code></a>:</p>
-  <pre><code class="language-latex">\mathbb{N} = \{ a \in \mathbb{Z} : a &gt; 0 \}
+  <p><small>{React.string("Sample content borrowed from ")}<a href="https://markdown-to-jsx.quantizor.dev/">{React.string("markdown-to-jsx")}</a>{React.string(", thanks! ❤️")}</small></p>
+  <p>{React.string("Custom handling of code blocks (or any rule!) is possible with the ")}<a href="https://github.com/quantizor/markdown-to-jsx#optionsrenderrule"><code>{React.string("renderRule")}</code>{React.string(" option")}</a>{React.string(". For example, LaTeX support via ")}<a href="https://www.npmjs.com/package/@matejmazur/react-katex"><code>{React.string("@matejmazur/react-katex")}</code></a>{React.string(":")}</p>
+  <pre><code class="language-{React.string("latex")}">{React.string("\mathbb{N} = \{ a \in \mathbb{Z} : a &gt; 0 \}")}
   </code></pre>
-  <p>Or any other typical language, using <a href="https://highlightjs.org/"><code>highlight.js</code></a>:</p>
-  <pre><code class="language-javascript">function App() {
-    return &lt;div&gt;Hello world!&lt;/div&gt;;
-  }
+  <p>{React.string("Or any other typical language, using ")}<a href="https://highlightjs.org/"><code>{React.string("highlight.js")}</code></a>{React.string(":")}</p>
+  <pre><code class="language-{React.string("javascript")}">{React.string("function App() {")}
+  {React.string("  return &lt;div&gt;Hello world!&lt;/div&gt;;")}
+  {React.string("}")}
   </code></pre>
-  <p>You can even include custom React components if you declare them in the <a href="https://github.com/quantizor/markdown-to-jsx/blob/main/README.md#optionsoverrides---rendering-arbitrary-react-components"><code>overrides</code> option</a>.</p>
-  <p><MyComponent>Isn't that cool?</MyComponent></p>
+  <p>{React.string("You can even include custom React components if you declare them in the ")}<a href="https://github.com/quantizor/markdown-to-jsx/blob/main/README.md#optionsoverrides---rendering-arbitrary-react-components"><code>{React.string("overrides")}</code>{React.string(" option")}</a>{React.string(".")}</p>
+  <p><MyComponent>{React.string("Isn't that cool?")}</MyComponent></p>
   ; </>
         };
       };
