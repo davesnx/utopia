@@ -727,9 +727,21 @@ let rec block_to_element ~state block =
                 ]
                 [];
             ])
+  | List (list, _meta) -> (
+      (* let tight = List'.tight list in *)
+      match List'.type' list with
+      | `Unordered _ ->
+          React.createElement "ul" []
+            (List.map (list_item ~state) (List'.items list))
+      | `Ordered (start, _) -> (
+          match start with
+          | 1 -> React.createElement "ol" [] []
+          | non_one ->
+              React.createElement "ol"
+                [ React.JSX.int "start" non_one ]
+                (List.map (list_item ~state) (List'.items list))))
   | Blank_line (_blank_node, _meta) -> React.createElement "div" [] []
   | Block_quote (_block_quote, _meta) -> React.createElement "div" [] []
-  | List _list -> React.createElement "div" [] []
   | Code_block (_code, _meta) -> React.createElement "code" [] []
   | Html_block (_html, _meta) -> React.createElement "div" [] []
   | Link_reference_definition (_link_def, _meta) ->
@@ -737,6 +749,81 @@ let rec block_to_element ~state block =
   | Thematic_break (_thematic_break, _meta) -> React.createElement "div" [] []
   | _ -> assert false
 
+(* TODO: Add tight case *)
+and list_item ~state (item, _) =
+  match Block.List_item.ext_task_marker item with
+  | None ->
+      React.createElement "li" []
+        [ block_to_element ~state (Block.List_item.block item) ]
+  | Some (mark, _) -> (
+      match Block.List_item.task_status_of_task_marker mark with
+      | `Unchecked ->
+          React.createElement "li" []
+            [
+              React.createElement "div"
+                [ React.JSX.string "className" "task" ]
+                [
+                  React.createElement "input"
+                    [
+                      React.JSX.string "type" "checkbox";
+                      React.JSX.string "disabled" "";
+                    ]
+                    [];
+                  React.createElement "div" [] [];
+                ];
+            ]
+      | `Checked | `Other _ ->
+          React.createElement "li" []
+            [
+              React.createElement "div"
+                (* Classname task? *)
+                [ React.JSX.string "class" "task" ]
+                [
+                  React.createElement "input"
+                    [
+                      React.JSX.string "type" "checkbox";
+                      React.JSX.bool "checked" true;
+                    ]
+                    [];
+                ];
+            ]
+      | `Cancelled ->
+          (* TODO: Does it need a del? *)
+          React.createElement "li" []
+            [
+              React.createElement "div"
+                (* Classname task? *)
+                [ React.JSX.string "class" "task" ]
+                [
+                  React.createElement "input"
+                    [
+                      React.JSX.string "type" "checkbox";
+                      React.JSX.bool "disabled" true;
+                    ]
+                    [];
+                ];
+            ])
+
+(* let item_block ~tight c = function
+     | Block.Blank_line _ -> ()
+     | Block.Paragraph (p, _) when tight -> C.inline c (Block.Paragraph.inline p)
+     | Block.Blocks (bs, _) ->
+         let rec loop c add_nl = function
+           | Block.Blank_line _ :: bs -> loop c add_nl bs
+           | Block.Paragraph (p, _) :: bs when tight ->
+               C.inline c (Block.Paragraph.inline p);
+               loop c true bs
+           | b :: bs ->
+               if add_nl then C.byte c '\n';
+               C.block c b;
+               loop c false bs
+           | [] -> ()
+         in
+         loop c true bs
+     | b ->
+         C.byte c '\n';
+         C.block c b
+*)
 and inline_to_element ~state inline =
   let open Cmarkit in
   let open Inline in
