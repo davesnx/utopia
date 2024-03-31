@@ -1,6 +1,6 @@
 (library
  (name pages)
- (libraries utopia server-reason-react.react)
+ (libraries utopia server-reason-react.react riot)
  (preprocess
   (pps server-reason-react.ppx)))
 
