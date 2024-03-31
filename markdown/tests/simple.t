@@ -51,3 +51,17 @@ Heading
   > Generic code block
   > ```
   <pre><code>Generic code block</code></pre>
+
+  $ utopia.markdown <<\EOF
+  > <script type="text/javascript">
+  > // JavaScript example
+  > document.getElementById("demo").innerHTML = "Hello JavaScript!";
+  > </script>
+  <script type="text/javascript">
+  // JavaScript example
+  document.getElementById("demo").innerHTML = "Hello JavaScript!";
+  </script>
+
+$ utopia.markdown <<\EOF
+> <small>Sample content borrowed from [markdown-to-jsx](https://markdown-to-jsx.quantizor.dev/), thanks! ❤️</small>
+<pre><code>Generic code block</code></pre>

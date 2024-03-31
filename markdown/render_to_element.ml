@@ -760,11 +760,14 @@ let rec block_to_element ~state block =
                 [ React.JSX.string "className" ("language-" ^ lang) ]
                 contents;
             ])
-  | Html_block (_html, _meta) -> React.createElement "div" [] []
+  (* TODO: Make sure blank_line goes to null *)
+  | Blank_line (_blank_node, _meta) -> React.null
+  | Html_block (html, _meta) ->
+      (* TODO: Make sure about "safe" *)
+      React.InnerHtml (String.concat "\n" (List.map (fun (l, _) -> l) html))
+  | Thematic_break (_thematic_break, _meta) -> React.createElement "hr" [] []
   | Link_reference_definition (_link_def, _meta) ->
       React.createElement "div" [] []
-  | Thematic_break (_thematic_break, _meta) -> React.createElement "div" [] []
-  | Blank_line (_blank_node, _meta) -> React.createElement "div" [] []
   | _ -> assert false
 
 (* TODO: Add tight case *)
