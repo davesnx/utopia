@@ -914,7 +914,18 @@ and inline_to_element ~state inline =
       | Some _ ->
           inline_to_element ~state (Link.text link)
           (* comment_unknown_def_type c l) *))
-  | Raw_html (_raw_html, _meta) -> React.createElement "div" [] []
+  | Raw_html (raw_html, _meta) -> (
+      match raw_html with
+      | [] -> React.string "boom"
+      | not_empty_html ->
+          let html =
+            not_empty_html
+            (* TODO: What's l? *)
+            |> List.map (fun (_l, line) ->
+                   React.string (Block_line.to_string line))
+            |> Array.of_list
+          in
+          React.Fragment (React.List html))
   | Ext_strikethrough (strikethrough, _meta) ->
       let inline = Strikethrough.inline strikethrough in
       React.createElement "del" [] [ inline_to_element ~state inline ]
