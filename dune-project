@@ -27,7 +27,6 @@
   (reason (>= 3.10.0))
 
   ;; Library dependencies
-  (pcre (<= 7.5.0))
   cmarkit
 
   ;; Test dependencies
