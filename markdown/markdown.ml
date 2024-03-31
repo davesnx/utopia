@@ -1,7 +1,7 @@
 let process_cmark : strict:bool -> string -> React.element =
  fun ~strict md ->
   let doc = Cmarkit.Doc.of_string ~layout:true ~strict md in
-  Render_to_element.of_doc ~safe:false doc
+  Render.of_doc ~safe:false doc
 
 let maybe_read_line () = try Some (read_line ()) with End_of_file -> None
 
