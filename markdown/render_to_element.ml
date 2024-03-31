@@ -9,8 +9,6 @@
 open Cmarkit
 module String_set = Set.Make (String)
 
-(* Renderer state *)
-
 module State = struct
   type t = {
     safe : bool;
@@ -684,8 +682,6 @@ let pct_encoded_string s = buffer_add_pct_encoded_string s
      if Label.Map.is_empty st.footnotes then () else footnotes c st.footnotes;
      true *)
 
-(* Renderer *)
-
 (*
   TODO: Add error handling with Textloc.t from Cmarkit
 
@@ -735,18 +731,40 @@ let rec block_to_element ~state block =
             (List.map (list_item ~state) (List'.items list))
       | `Ordered (start, _) -> (
           match start with
-          | 1 -> React.createElement "ol" [] []
-          | non_one ->
+          | 1 ->
+              React.createElement "ol" []
+                (List.map (list_item ~state) (List'.items list))
+          | not_one ->
               React.createElement "ol"
-                [ React.JSX.int "start" non_one ]
+                [ React.JSX.int "start" not_one ]
                 (List.map (list_item ~state) (List'.items list))))
-  | Blank_line (_blank_node, _meta) -> React.createElement "div" [] []
-  | Block_quote (_block_quote, _meta) -> React.createElement "div" [] []
-  | Code_block (_code, _meta) -> React.createElement "code" [] []
+  | Block_quote (block_quote, _meta) ->
+      React.createElement "blockquote" []
+        [ block_to_element ~state (Block_quote.block block_quote) ]
+  | Code_block (code_block, _meta) -> (
+      let info_string = Option.map fst (Code_block.info_string code_block) in
+      let lang = Option.bind info_string Code_block.language_of_info_string in
+      let contents =
+        List.map
+          (fun (l, _) -> React.string (html_escaped_string l))
+          (Code_block.code code_block)
+      in
+      match lang with
+      | None ->
+          React.createElement "pre" []
+            [ React.createElement "code" [] contents ]
+      | Some (lang, _env) ->
+          React.createElement "pre" []
+            [
+              React.createElement "code"
+                [ React.JSX.string "className" ("language-" ^ lang) ]
+                contents;
+            ])
   | Html_block (_html, _meta) -> React.createElement "div" [] []
   | Link_reference_definition (_link_def, _meta) ->
       React.createElement "div" [] []
   | Thematic_break (_thematic_break, _meta) -> React.createElement "div" [] []
+  | Blank_line (_blank_node, _meta) -> React.createElement "div" [] []
   | _ -> assert false
 
 (* TODO: Add tight case *)
@@ -804,26 +822,6 @@ and list_item ~state (item, _) =
                 ];
             ])
 
-(* let item_block ~tight c = function
-     | Block.Blank_line _ -> ()
-     | Block.Paragraph (p, _) when tight -> C.inline c (Block.Paragraph.inline p)
-     | Block.Blocks (bs, _) ->
-         let rec loop c add_nl = function
-           | Block.Blank_line _ :: bs -> loop c add_nl bs
-           | Block.Paragraph (p, _) :: bs when tight ->
-               C.inline c (Block.Paragraph.inline p);
-               loop c true bs
-           | b :: bs ->
-               if add_nl then C.byte c '\n';
-               C.block c b;
-               loop c false bs
-           | [] -> ()
-         in
-         loop c true bs
-     | b ->
-         C.byte c '\n';
-         C.block c b
-*)
 and inline_to_element ~state inline =
   let open Cmarkit in
   let open Inline in

@@ -1,5 +1,3 @@
-Test markdown
-
   $ utopia.markdown <<\EOF
   > # This is Markdown
   > 
@@ -12,6 +10,12 @@ Test markdown
   >   * Embed snippets of `code`
   >   * Create [links](/)
   >   * ...
+  > 
+  >   1. You can have lists, like this one
+  >   2. Make things **bold** or *italic*
+  >   3. Embed snippets of `code`
+  >   4. Create [links](/)
+  >   5. ...
   > 
   > <small>Sample content borrowed from [markdown-to-jsx](https://markdown-to-jsx.quantizor.dev/), thanks! ❤️</small>
   > 

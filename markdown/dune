@@ -6,6 +6,3 @@
   utopia
   server-reason-react.react
   server-reason-react.reactDom))
-
-(cram
- (deps %{bin:utopia.markdown}))
