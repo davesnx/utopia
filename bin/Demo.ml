@@ -20,22 +20,27 @@ let rec empty_folder path =
 let load_pages fname =
   let fname = Dynlink.adapt_filename fname in
   if Sys.file_exists fname then
-    try
-      Dynlink.loadfile fname
-    with
-    | (Dynlink.Error err) as e -> print_endline ("ERROR loading plugin: " ^ (Dynlink.error_message err) ); raise e
+    try Dynlink.loadfile fname with
+    | Dynlink.Error err as e ->
+        print_endline ("ERROR loading plugin: " ^ Dynlink.error_message err);
+        raise e
     | _ -> failwith "Unknow error while loading plugin"
-  else
-    failwith "Plugin file does not exist"
+  else failwith "Plugin file does not exist"
+
+let render_html_page ~title content =
+  let component = Html.make ~key:"html" ~title ~body:content () in
+  let output = ReactDOM.renderToStaticMarkup component in
+  Printf.sprintf "<!DOCTYPE html>%s" output
 
 let () =
   empty_folder "_utopia";
 
   load_pages "_build/default/pages/pages.cmo";
 
-  Router.get_pages () |>
-    (List.iter
-       (fun (module Page: Router.Page) ->
-          let file = "_utopia/" ^ (Page.path ^ ".html") in
-          let content = ReactDOM.renderToStaticMarkup (Page.make ~key:"" ()) in
-          write_file file content));
+  Router.get_pages ()
+  |> List.iter (fun (module Page : Router.Page) ->
+         let file = "_utopia/" ^ Page.path ^ ".html" in
+         let content =
+           render_html_page ~title:Page.path (Page.make ~key:"" ())
+         in
+         write_file file content)

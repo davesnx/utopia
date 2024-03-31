@@ -1,5 +1,4 @@
-let process_cmark : strict:bool -> string -> React.element =
- fun ~strict md ->
+let process_cmark ~strict md =
   let doc = Cmarkit.Doc.of_string ~layout:true ~strict md in
   Render.of_doc ~safe:false doc
 
