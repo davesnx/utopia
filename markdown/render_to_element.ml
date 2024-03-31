@@ -698,8 +698,6 @@ let rec block_to_element ~state block =
   let open Cmarkit in
   let open Block in
   match (block : Block.t) with
-  | Blank_line (_blank_node, _meta) -> React.createElement "div" [] []
-  | Block_quote (_block_quote, _meta) -> React.createElement "div" [] []
   | Blocks (blocks, _meta) ->
       let list =
         blocks
@@ -707,15 +705,9 @@ let rec block_to_element ~state block =
         |> Array.of_list
       in
       React.Fragment (React.List list)
-  | List _list -> React.createElement "div" [] []
-  | Code_block (_code, _meta) -> React.createElement "code" [] []
-  | Html_block (_html, _meta) -> React.createElement "div" [] []
-  | Link_reference_definition (_link_def, _meta) ->
-      React.createElement "div" [] []
   | Paragraph (paragraph, _meta) ->
       let inline = Paragraph.inline paragraph in
       React.createElement "p" [] [ inline_to_element ~state inline ]
-  | Thematic_break (_thematic_break, _meta) -> React.createElement "div" [] []
   | Heading (heading, _meta) -> (
       let level = Heading.level heading in
       let inline = Heading.inline heading in
@@ -735,6 +727,14 @@ let rec block_to_element ~state block =
                 ]
                 [];
             ])
+  | Blank_line (_blank_node, _meta) -> React.createElement "div" [] []
+  | Block_quote (_block_quote, _meta) -> React.createElement "div" [] []
+  | List _list -> React.createElement "div" [] []
+  | Code_block (_code, _meta) -> React.createElement "code" [] []
+  | Html_block (_html, _meta) -> React.createElement "div" [] []
+  | Link_reference_definition (_link_def, _meta) ->
+      React.createElement "div" [] []
+  | Thematic_break (_thematic_break, _meta) -> React.createElement "div" [] []
   | _ -> assert false
 
 and inline_to_element ~state inline =
