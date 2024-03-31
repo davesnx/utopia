@@ -1,7 +1,11 @@
 (executable
  (name markdown)
  (public_name utopia.markdown)
- (libraries cmarkit))
+ (libraries
+  cmarkit
+  utopia
+  server-reason-react.react
+  server-reason-react.reactDom))
 
 (cram
  (deps %{bin:utopia.markdown}))
