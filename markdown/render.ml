@@ -1,10 +1,4 @@
-(* Adapted from https://github.com/dbuenzli/cmarkit/blob/be89f00c3a996bc92b3513464542a3a7009eb2c0/src/cmarkit_html.ml
-   Original license: *)
-
-(*---------------------------------------------------------------------------
-   Copyright (c) 2021 The cmarkit programmers. All rights reserved.
-   SPDX-License-Identifier: ISC
-  ---------------------------------------------------------------------------*)
+(* It's a render to React.element, taked inspiration from https://github.com/dbuenzli/cmarkit/blob/be89f00c3a996bc92b3513464542a3a7009eb2c0/src/cmarkit_html.ml *)
 
 open Cmarkit
 module String_set = Set.Make (String)
