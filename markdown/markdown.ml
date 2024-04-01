@@ -1,6 +1,6 @@
 let process_cmark ~strict md =
   let doc = Cmarkit.Doc.of_string ~layout:true ~strict md in
-  Render.of_doc ~safe:false doc
+  Render.of_doc ~safe:false ~components:(Render.Custom_components.make ()) doc
 
 let maybe_read_line () = try Some (read_line ()) with End_of_file -> None
 
