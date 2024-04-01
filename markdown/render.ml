@@ -146,16 +146,7 @@ let pct_encoded_string s =
 
 (* Rendering functions *)
 
-(*
-  TODO: Add error handling with Textloc.t from Cmarkit
-
-  type output =
-  | Ok of React.element
-  | Error of (Textloc.t * string)
-  | Warning of (Textloc.t * string) *)
-
 let rec block_to_element ~state block =
-  let open Cmarkit in
   let open Block in
   match (block : Block.t) with
   | Blocks (blocks, _meta) ->
@@ -290,7 +281,6 @@ and list_item ~state (item, _) =
             ])
 
 and inline_to_element ~state inline =
-  let open Cmarkit in
   let open Inline in
   match inline with
   | Text (text, _meta) -> React.string text
