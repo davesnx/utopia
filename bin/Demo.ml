@@ -28,7 +28,16 @@ let load_pages fname =
   else failwith "Plugin file does not exist"
 
 let render_html_page ~title content =
-  let component = Html.make ~key:"html" ~title ~body:content () in
+  let component =
+    Html.make ~key:"html" ~title
+      ~scripts:
+        [
+          React.createElement "script"
+            [ React.JSX.string "src" "https://cdn.tailwindcss.com" ]
+            [];
+        ]
+      ~body:content ()
+  in
   let output = ReactDOM.renderToStaticMarkup component in
   Printf.sprintf "<!DOCTYPE html>%s" output
 

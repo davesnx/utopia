@@ -28,7 +28,7 @@ module State = struct
   let get_defs state = state.defs
 end
 
-let unique_id (state : State.t) id =
+let unique_id ~(state : State.t) id =
   let rec loop ids id c =
     let id' = if c = 0 then id else String.concat "-" [ id; Int.to_string c ] in
     match String_set.mem id' ids with
@@ -158,44 +158,51 @@ let rec block_to_element ~state block =
       React.Fragment (React.List list)
   | Paragraph (paragraph, _meta) ->
       let inline = Paragraph.inline paragraph in
-      React.createElement "p" [] [ inline_to_element ~state inline ]
+      Components.P.make ~children:[ inline_to_element ~state inline ]
   | Heading (heading, _meta) -> (
       let level = Heading.level heading in
       let inline = Heading.inline heading in
-      let tag = "h" ^ Int.to_string level in
+      let component =
+        match level with
+        | 1 -> Components.H1.make
+        | 2 -> Components.H2.make
+        | 3 -> Components.H3.make
+        | 4 -> Components.H4.make
+        | 5 -> Components.H5.make
+        | 6 -> Components.H6.make
+        | _ -> assert false
+      in
       match Heading.id heading with
-      | None -> React.createElement tag [] [ inline_to_element ~state inline ]
+      | None -> component ~children:[ inline_to_element ~state inline ] ()
       | Some (`Auto id | `Id id) ->
-          let id = unique_id state id in
-          React.createElement tag
-            [ React.JSX.string "id" id ]
-            [
-              React.createElement "a"
-                [
-                  React.JSX.string "class" "anchor";
-                  React.JSX.string "aria-hidden" "true";
-                  React.JSX.string "href" ("#" ^ id);
-                ]
-                [];
-            ])
+          component ~id:(unique_id ~state id)
+            ~children:
+              [
+                Components.A.make ~className:"anchor" ~ariaHidden:"true"
+                  ~href:("#" ^ id)
+                  ~children:[ inline_to_element ~state inline ]
+                  ();
+              ]
+            ())
   | List (list, _meta) -> (
       (* let tight = List'.tight list in *)
       match List'.type' list with
       | `Unordered _ ->
-          React.createElement "ul" []
-            (List.map (list_item ~state) (List'.items list))
+          Components.Ul.make
+            ~children:(List.map (list_item ~state) (List'.items list))
       | `Ordered (start, _) -> (
           match start with
           | 1 ->
-              React.createElement "ol" []
-                (List.map (list_item ~state) (List'.items list))
+              Components.Ol.make
+                ~children:(List.map (list_item ~state) (List'.items list))
+                ()
           | not_one ->
-              React.createElement "ol"
-                [ React.JSX.int "start" not_one ]
-                (List.map (list_item ~state) (List'.items list))))
+              Components.Ol.make ~start:not_one
+                ~children:(List.map (list_item ~state) (List'.items list))
+                ()))
   | Block_quote (block_quote, _meta) ->
-      React.createElement "blockquote" []
-        [ block_to_element ~state (Block_quote.block block_quote) ]
+      Components.Blockquote.make
+        ~children:[ block_to_element ~state (Block_quote.block block_quote) ]
   | Code_block (code_block, _meta) -> (
       let info_string = Option.map fst (Code_block.info_string code_block) in
       let lang = Option.bind info_string Code_block.language_of_info_string in
@@ -206,21 +213,21 @@ let rec block_to_element ~state block =
       in
       match lang with
       | None ->
-          React.createElement "pre" []
-            [ React.createElement "code" [] contents ]
+          Components.Pre.make
+            ~children:[ Components.Code.make ~children:contents () ]
       | Some (lang, _env) ->
-          React.createElement "pre" []
-            [
-              React.createElement "code"
-                [ React.JSX.string "className" ("language-" ^ lang) ]
-                contents;
-            ])
+          Components.Pre.make
+            ~children:
+              [
+                Components.Code.make ~className:("language-" ^ lang)
+                  ~children:contents ();
+              ])
   (* TODO: Make sure blank_line goes to null *)
   | Blank_line (_blank_node, _meta) -> React.null
   | Html_block (html, _meta) ->
       (* TODO: Make sure about "safe" *)
       React.InnerHtml (String.concat "\n" (List.map (fun (l, _) -> l) html))
-  | Thematic_break (_thematic_break, _meta) -> React.createElement "hr" [] []
+  | Thematic_break (_thematic_break, _meta) -> Components.Hr.make ()
   | Link_reference_definition (_link_def, _meta) ->
       React.createElement "div" [] []
   | _ -> assert false
@@ -229,56 +236,28 @@ let rec block_to_element ~state block =
 and list_item ~state (item, _) =
   match Block.List_item.ext_task_marker item with
   | None ->
-      React.createElement "li" []
-        [ block_to_element ~state (Block.List_item.block item) ]
+      Components.Li.make
+        ~children:[ block_to_element ~state (Block.List_item.block item) ]
+        ()
   | Some (mark, _) -> (
       match Block.List_item.task_status_of_task_marker mark with
       | `Unchecked ->
-          React.createElement "li" []
-            [
-              React.createElement "div"
-                [ React.JSX.string "className" "task" ]
-                [
-                  React.createElement "input"
-                    [
-                      React.JSX.string "type" "checkbox";
-                      React.JSX.string "disabled" "";
-                    ]
-                    [];
-                  React.createElement "div" [] [];
-                ];
-            ]
+          Components.Li.make ~disabled:true
+            ~children:[ block_to_element ~state (Block.List_item.block item) ]
+            ()
       | `Checked | `Other _ ->
-          React.createElement "li" []
-            [
-              React.createElement "div"
-                (* Classname task? *)
-                [ React.JSX.string "class" "task" ]
-                [
-                  React.createElement "input"
-                    [
-                      React.JSX.string "type" "checkbox";
-                      React.JSX.bool "checked" true;
-                    ]
-                    [];
-                ];
-            ]
+          Components.Li.make ~checked:true
+            ~children:[ block_to_element ~state (Block.List_item.block item) ]
+            ()
       | `Cancelled ->
-          (* TODO: Does it need a del? *)
-          React.createElement "li" []
-            [
-              React.createElement "div"
-                (* Classname task? *)
-                [ React.JSX.string "class" "task" ]
-                [
-                  React.createElement "input"
-                    [
-                      React.JSX.string "type" "checkbox";
-                      React.JSX.bool "disabled" true;
-                    ]
-                    [];
-                ];
-            ])
+          Components.Li.make ~checked:true
+            ~children:
+              [
+                Components.Del.make
+                  ~children:
+                    [ block_to_element ~state (Block.List_item.block item) ];
+              ]
+            ())
 
 and inline_to_element ~state inline =
   let open Inline in
@@ -289,21 +268,21 @@ and inline_to_element ~state inline =
       let url = pre ^ fst (Autolink.link autolink) in
       let url = if Link.is_unsafe url then "" else url in
       let content, _meta = Autolink.link autolink in
-      React.createElement "a"
-        [ React.JSX.string "href" (pct_encoded_string url) ]
-        [ React.string (html_escaped_string content) ]
+      Components.A.make ~href:url ~children:[ React.string content ] ()
   | Break (break, _meta) -> (
       match Break.type' break with
-      | `Hard -> React.createElement "br" [] []
+      | `Hard -> Components.Br.make ()
       | `Soft -> (* Unsure about the ouput *) React.null)
   | Code_span (code_span, _meta) ->
-      React.createElement "code" [] [ React.string (Code_span.code code_span) ]
+      Components.Code.make
+        ~children:[ React.string (Code_span.code code_span) ]
+        ()
   | Emphasis (emphasis, _meta) ->
       let inline = Emphasis.inline emphasis in
-      React.createElement "em" [] [ inline_to_element ~state inline ]
+      Components.Em.make ~children:[ inline_to_element ~state inline ]
   | Strong_emphasis (emphasis, _meta) ->
       let inline = Emphasis.inline emphasis in
-      React.createElement "strong" [] [ inline_to_element ~state inline ]
+      Components.String.make ~children:[ inline_to_element ~state inline ]
   | Inlines (inlines, _meta) ->
       let list =
         inlines
@@ -317,16 +296,14 @@ and inline_to_element ~state inline =
           let href, title = link_dest_and_title ~state ld in
           match title with
           | "" ->
-              React.createElement "a"
-                [ React.JSX.string "href" (pct_encoded_string href) ]
-                [ inline_to_element ~state (Inline.Link.text link) ]
+              Components.A.make ~href:(pct_encoded_string href)
+                ~children:[ inline_to_element ~state (Inline.Link.text link) ]
+                ()
           | some_title ->
-              React.createElement "a"
-                [
-                  React.JSX.string "href" (pct_encoded_string href);
-                  React.JSX.string "title" (html_escaped_string some_title);
-                ]
-                [ inline_to_element ~state (Link.text link) ])
+              Components.A.make ~href:(pct_encoded_string href)
+                ~title:(html_escaped_string some_title)
+                ~children:[ inline_to_element ~state (Inline.Link.text link) ]
+                ())
       (* | Some (Block.Footnote.Def (fn, _)) -> link_footnote c l fn *)
       | Some (Block.Footnote.Def (_fn, _)) -> assert false
       | None ->
@@ -346,20 +323,16 @@ and inline_to_element ~state inline =
           let alt = Link.text link in
           match title with
           | "" ->
-              React.createElement "img"
-                [
-                  React.JSX.string "src" (pct_encoded_string src);
-                  React.JSX.string "alt" (plain_text alt);
-                ]
-                [ inline_to_element ~state (Inline.Link.text link) ]
+              Components.Img.make ~src:(pct_encoded_string src)
+                ~alt:(plain_text alt)
+                ~children:[ inline_to_element ~state (Link.text link) ]
+                ()
           | some_title ->
-              React.createElement "img"
-                [
-                  React.JSX.string "src" (pct_encoded_string src);
-                  React.JSX.string "alt" (plain_text alt);
-                  React.JSX.string "title" (html_escaped_string some_title);
-                ]
-                [ inline_to_element ~state (Link.text link) ])
+              Components.Img.make ~src:(pct_encoded_string src)
+                ~alt:(plain_text alt)
+                ~title:(html_escaped_string some_title)
+                ~children:[ inline_to_element ~state (Link.text link) ]
+                ())
       (* | Some (Block.Footnote.Def (fn, _)) -> link_footnote c l fn *)
       | Some (Block.Footnote.Def (_fn, _)) -> assert false
       | None ->
@@ -370,7 +343,7 @@ and inline_to_element ~state inline =
           (* comment_unknown_def_type c l) *))
   | Raw_html (raw_html, _meta) -> (
       match raw_html with
-      | [] -> React.string "boom"
+      | [] -> React.null
       | not_empty_html ->
           let html =
             not_empty_html
@@ -382,10 +355,10 @@ and inline_to_element ~state inline =
           React.Fragment (React.List html))
   | Ext_strikethrough (strikethrough, _meta) ->
       let inline = Strikethrough.inline strikethrough in
-      React.createElement "del" [] [ inline_to_element ~state inline ]
+      Components.Del.make ~children:[ inline_to_element ~state inline ]
   | Ext_math_span (math_span, _meta) ->
       let content = Math_span.tex math_span in
-      React.createElement "span" [] [ React.string content ]
+      Components.Math_span.make ~children:[ React.string content ]
   | _ -> assert false
 
 let of_doc ~safe:_ d =
