@@ -6,7 +6,7 @@ module String_set = Set.Make (String)
 let add kind value map =
   match value with Some i -> map |> List.cons (kind i) | None -> map
 
-module Default_components = struct
+module Default_elements = struct
   module P = struct
     let make ?className ~children () =
       React.createElement "p"
@@ -230,7 +230,7 @@ module Default_components = struct
   end
 end
 
-module Custom_components = struct
+module Custom_elements = struct
   type t = {
     p :
       ?className:string -> children:React.element list -> unit -> React.element;
@@ -324,30 +324,30 @@ module Custom_components = struct
   let make ?p ?a ?blockquote ?ol ?ul ?pre ?hr ?br ?code ?em ?strong ?del
       ?math_span ?li ?div ?img ?h1 ?h2 ?h3 ?h4 ?h5 ?h6 () =
     {
-      p = Option.value ~default:Default_components.P.make p;
-      a = Option.value ~default:Default_components.A.make a;
+      p = Option.value ~default:Default_elements.P.make p;
+      a = Option.value ~default:Default_elements.A.make a;
       blockquote =
-        Option.value ~default:Default_components.Blockquote.make blockquote;
-      ol = Option.value ~default:Default_components.Ol.make ol;
-      ul = Option.value ~default:Default_components.Ul.make ul;
-      pre = Option.value ~default:Default_components.Pre.make pre;
-      hr = Option.value ~default:Default_components.Hr.make hr;
-      br = Option.value ~default:Default_components.Br.make br;
-      code = Option.value ~default:Default_components.Code.make code;
-      em = Option.value ~default:Default_components.Em.make em;
-      strong = Option.value ~default:Default_components.Strong.make strong;
-      del = Option.value ~default:Default_components.Del.make del;
+        Option.value ~default:Default_elements.Blockquote.make blockquote;
+      ol = Option.value ~default:Default_elements.Ol.make ol;
+      ul = Option.value ~default:Default_elements.Ul.make ul;
+      pre = Option.value ~default:Default_elements.Pre.make pre;
+      hr = Option.value ~default:Default_elements.Hr.make hr;
+      br = Option.value ~default:Default_elements.Br.make br;
+      code = Option.value ~default:Default_elements.Code.make code;
+      em = Option.value ~default:Default_elements.Em.make em;
+      strong = Option.value ~default:Default_elements.Strong.make strong;
+      del = Option.value ~default:Default_elements.Del.make del;
       math_span =
-        Option.value ~default:Default_components.Math_span.make math_span;
-      li = Option.value ~default:Default_components.Li.make li;
-      div = Option.value ~default:Default_components.Div.make div;
-      img = Option.value ~default:Default_components.Img.make img;
-      h1 = Option.value ~default:Default_components.H1.make h1;
-      h2 = Option.value ~default:Default_components.H2.make h2;
-      h3 = Option.value ~default:Default_components.H3.make h3;
-      h4 = Option.value ~default:Default_components.H4.make h4;
-      h5 = Option.value ~default:Default_components.H5.make h5;
-      h6 = Option.value ~default:Default_components.H6.make h6;
+        Option.value ~default:Default_elements.Math_span.make math_span;
+      li = Option.value ~default:Default_elements.Li.make li;
+      div = Option.value ~default:Default_elements.Div.make div;
+      img = Option.value ~default:Default_elements.Img.make img;
+      h1 = Option.value ~default:Default_elements.H1.make h1;
+      h2 = Option.value ~default:Default_elements.H2.make h2;
+      h3 = Option.value ~default:Default_elements.H3.make h3;
+      h4 = Option.value ~default:Default_elements.H4.make h4;
+      h5 = Option.value ~default:Default_elements.H5.make h5;
+      h6 = Option.value ~default:Default_elements.H6.make h6;
     }
 end
 
@@ -355,7 +355,7 @@ module State = struct
   type t = {
     safe : bool;
     backend_blocks : bool;
-    components : Custom_components.t;
+    components : Custom_elements.t;
     mutable defs : Label.defs;
     mutable ids : String_set.t;
     mutable footnote_count : int;
@@ -720,7 +720,7 @@ and inline_to_element ~state inline =
       state.components.math_span ~children:[ React.string content ] ()
   | _ -> assert false
 
-let of_doc ~safe:_ ~(components : Custom_components.t) d =
+let of_doc ~safe:_ ~(components : Custom_elements.t) d =
   let blocks = Doc.block d in
   let defs = Doc.defs d in
   let state =
