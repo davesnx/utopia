@@ -1,7 +1,7 @@
 Utopia.register(
   ~path="home",
-  ~loader=() => Api.fetchAllTopRankings(),
-  rankings => <div> {React.string("Hello " ++ data)} </div>,
+  ~loader=() => "home",
+  data => <div> {React.string("Hello " ++ data)} </div>,
 );
 
 Utopia.page(~path="index", () => <div> {React.string("Static page")} </div>);
