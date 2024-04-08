@@ -20,7 +20,8 @@
 
 (package
  (name utopia)
- (synopsis "")
+ (synopsis "The SSG for server-reason-react")
+ (description "A static site generator for server-reason-react")
  (depends
   ;; General system dependencies
   (ocaml (>= 5.0.0))

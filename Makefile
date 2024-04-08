@@ -70,12 +70,6 @@ install:
 
 .PHONY: pin
 pin: ## Pin dependencies
-	# opam pin config.dev "git+https://github.com/ocaml-sys/config.ml" -y
-	# opam pin libc.dev "git+https://github.com/ocaml-sys/libc.ml" -y
-	# opam pin rio.dev "git+https://github.com/riot-ml/riot" -y
-	# opam pin gluon.dev "git+https://github.com/riot-ml/riot" -y
-	# opam pin add bytestring.dev "https://github.com/riot-ml/riot.git#622c6d67b964a3110a1166fce294f0c6eceeb93a" -y
-	# opam pin add riot.dev "https://github.com/riot-ml/riot.git#622c6d67b964a3110a1166fce294f0c6eceeb93a" -y
 	opam pin add server-reason-react.dev "https://github.com/ml-in-barcelona/server-reason-react.git#68d958d856c87b0b5dd24e7ed400164c206ad56a" -y
 
 .PHONY: init
