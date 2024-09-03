@@ -6,11 +6,14 @@
   utopia
   server-reason-react.react
   server-reason-react.reactDom
+  dynlink
   unix
   eio.unix
   eio.core
-  dynlink
   eio
-  eio_main)
+  lwt
+  lwt_eio
+  eio_main
+  ppx_deriving_router.runtime_lib)
  (preprocess
-  (pps server-reason-react.ppx)))
+  (pps server-reason-react.ppx ppx_deriving_router)))

@@ -1,8 +1,3 @@
-(* module type Page = sig
-     val path : string
-     val make : unit -> React.element
-   end *)
-
 module type Loader_page = sig
   type data
 
@@ -11,15 +6,8 @@ module type Loader_page = sig
   val make : data -> React.element
 end
 
-(* This should not live here *)
-(* let make path element : (module Page) =
-   (module struct
-     let path = path
-     let make ?key:_ () = element ()
-   end) *)
-
 (* let static_pages : (module Page) list ref = ref [] *)
-let loaded_pages : (module Loader_page) Seq.t ref = ref (List.to_seq [])
+let loaded_pages : (module Loader_page) Seq.t ref = ref Seq.empty
 
 let register (type a) ~path ~(loader : unit -> a)
     (component : a -> React.element) =

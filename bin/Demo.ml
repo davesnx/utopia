@@ -42,6 +42,16 @@ let render_html_page ~title content =
   let output = ReactDOM.renderToStaticMarkup component in
   Printf.sprintf "<!DOCTYPE html>%s" output
 
+module Pages = struct
+  open Ppx_deriving_router_runtime
+
+  type t =
+    | Home [@GET "/"]
+    | About
+    | Hello of { name : string; repeat : int option } [@GET "/hello/:name"]
+  [@@deriving router]
+end
+
 let () =
   empty_folder "_utopia";
 
@@ -60,7 +70,7 @@ let () =
     ~loader:(fun () -> ())
     (fun _ -> (div ~children:[ React.string "This page is slow!" ] () [@JSX]));
 
-  Array.make 50_000 "mock_page"
+  Array.make 500 "mock_page"
   |> Array.iteri (fun index fixture ->
          Eio.traceln "Register page: %d" index;
          Utopia.register
@@ -89,7 +99,7 @@ let () =
     write_to_file file content
   in
 
-  let treshold = 1000 in
+  let treshold = 1024 in
 
   let split_at n lst =
     let rec aux n lst acc =
