@@ -10,10 +10,14 @@
   unix
   eio.unix
   eio.core
+  eio_main
+  http
+  logs.fmt
+  fmt
+  cohttp-eio
   eio
   lwt
   lwt_eio
-  eio_main
   ppx_deriving_router.runtime_lib)
  (preprocess
   (pps server-reason-react.ppx ppx_deriving_router)))
