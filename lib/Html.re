@@ -1,5 +1,5 @@
 [@react.component]
-let make = (~title, ~scripts, ~body) => {
+let make = (~title, ~scripts, ~children) => {
   <html>
     <head>
       <meta charSet="utf-8" />
@@ -7,6 +7,6 @@ let make = (~title, ~scripts, ~body) => {
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       {scripts |> List.map(script => script) |> React.list}
     </head>
-    <body> body </body>
+    <body> children </body>
   </html>;
 };

@@ -1,3 +1,5 @@
 (library
  (name utopia)
- (libraries server-reason-react.react))
+ (libraries server-reason-react.react)
+ (preprocess
+  (pps server-reason-react.ppx)))
