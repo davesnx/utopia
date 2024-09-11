@@ -19,26 +19,6 @@ let render_html_page ~title ~(layout : layout) children =
   let output = ReactDOM.renderToStaticMarkup component in
   Printf.sprintf "<!DOCTYPE html>%s" output
 
-let split_at n lst =
-  let rec aux n lst acc =
-    if n <= 0 then (List.rev acc, lst)
-    else
-      match lst with
-      | [] -> (List.rev acc, [])
-      | head :: tail -> aux (n - 1) tail (head :: acc)
-  in
-  aux n lst []
-
-let split_list_into_max_size_lists lst max_size =
-  let rec aux lst acc =
-    match lst with
-    | [] -> List.rev acc
-    | _ ->
-        let chunk, rest = split_at max_size lst in
-        aux rest (chunk :: acc)
-  in
-  aux lst []
-
 let bootstrap =
   Printexc.record_backtrace true;
   Logs.set_level (Some Info);
