@@ -1,9 +1,3 @@
-(library
- (name pages)
- (libraries utopia server-reason-react.react)
- (preprocess
-  (pps server-reason-react.ppx)))
-
 ; (rule
 ; (deps markdown.md)
 ; (target markdown.re)

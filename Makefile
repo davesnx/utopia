@@ -71,6 +71,7 @@ install:
 .PHONY: pin
 pin: ## Pin dependencies
 	opam pin add server-reason-react.dev "https://github.com/ml-in-barcelona/server-reason-react.git#68d958d856c87b0b5dd24e7ed400164c206ad56a" -y
+	opam pin add ppx_deriving_router.dev "https://github.com/andreypopp/ppx_deriving_router.git#2dec47e1f710c2cdf9ca0997e5dd60defa68cb0b" -y
 
 .PHONY: init
 init: setup-githooks create-switch pin install ## Create a local dev enviroment

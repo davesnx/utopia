@@ -1,43 +1,41 @@
-(* module type Page = sig
-     val path : string
-     val make : unit -> React.element
-   end *)
-
 module type Loader_page = sig
   type data
 
   val loader : unit -> data
   val path : string
   val make : data -> React.element
+
+  val layout :
+    ?key:string ->
+    title:string ->
+    scripts:React.element list ->
+    children:React.element ->
+    unit ->
+    React.element
 end
 
-(* This should not live here *)
-(* let make path element : (module Page) =
-   (module struct
-     let path = path
-     let make ?key:_ () = element ()
-   end) *)
-
 (* let static_pages : (module Page) list ref = ref [] *)
-let loaded_pages : (module Loader_page) Seq.t ref = ref (List.to_seq [])
+let loaded_pages : (module Loader_page) Seq.t ref = ref Seq.empty
 
-let register (type a) ~path ~(loader : unit -> a)
+let register (type a) ~path ~(loader : unit -> a) ?(layout = Html.make)
     (component : a -> React.element) =
   let module P = struct
     type data = a
 
     let path = path
     let loader = loader
+    let layout = layout
     let make = component
   end in
   loaded_pages := Seq.cons (module P : Loader_page) !loaded_pages
 
-let page ~path (component : unit -> React.element) =
+let page ~path ?(layout = Html.make) (component : unit -> React.element) =
   let module P = struct
     type data = unit
 
     let path = path
     let loader () = ()
+    let layout = layout
     let make = component
   end in
   loaded_pages := Seq.cons (module P : Loader_page) !loaded_pages
