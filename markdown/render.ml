@@ -6,356 +6,11 @@ module String_set = Set.Make (String)
 let add kind value map =
   match value with Some i -> map |> List.cons (kind i) | None -> map
 
-module Default_elements = struct
-  module P = struct
-    let make ?className ~children () =
-      React.createElement "p"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module A = struct
-    let make ?title ?className ?(ariaHidden = "false") ~href ~children () =
-      React.createElement "a"
-        ([
-           React.JSX.string "aria-hidden" ariaHidden;
-           React.JSX.string "href" href;
-         ]
-        |> add (React.JSX.string "class") className
-        |> add (React.JSX.string "title") title)
-        children
-  end
-
-  module Blockquote = struct
-    let make ?className ~children () =
-      React.createElement "blockquote"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Ol = struct
-    let make ?className ?start ~children () =
-      match start with
-      | None ->
-          React.createElement "ol"
-            ([] |> add (React.JSX.string "class") className)
-            children
-      | Some start ->
-          React.createElement "ol" [ React.JSX.int "start" start ] children
-  end
-
-  module Ul = struct
-    let make ?className ~children () =
-      React.createElement "ul"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Pre = struct
-    let make ?className ~children () =
-      React.createElement "pre"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Hr = struct
-    let make ?className () =
-      React.createElement "hr"
-        ([] |> add (React.JSX.string "class") className)
-        []
-  end
-
-  module Br = struct
-    let make ?className () =
-      React.createElement "br"
-        ([] |> add (React.JSX.string "class") className)
-        []
-  end
-
-  module Code = struct
-    let make ?className ~children () =
-      React.createElement "code"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Em = struct
-    let make ?className ~children () =
-      React.createElement "em"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Strong = struct
-    let make ?className ~children () =
-      React.createElement "strong"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Del = struct
-    let make ?className ~children () =
-      React.createElement "del"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Math_span = struct
-    let make ?className ~children () =
-      React.createElement "span"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Li = struct
-    let make ?className ?(disabled = false) ?(checked = false) ~children () =
-      match (disabled, checked) with
-      | false, false ->
-          React.createElement "li"
-            ([] |> add (React.JSX.string "class") className)
-            children
-      | true, false ->
-          React.createElement "li" []
-            [
-              React.createElement "div"
-                [ React.JSX.string "class" "task" ]
-                [
-                  React.createElement "input"
-                    [
-                      React.JSX.string "type" "checkbox";
-                      React.JSX.bool "disabled" true;
-                    ]
-                    children;
-                ];
-            ]
-      | false, true ->
-          React.createElement "li" []
-            [
-              React.createElement "div"
-                [ React.JSX.string "class" "task" ]
-                [
-                  React.createElement "input"
-                    [
-                      React.JSX.string "type" "checkbox";
-                      React.JSX.bool "checked" true;
-                    ]
-                    children;
-                ];
-            ]
-      | true, true ->
-          React.createElement "li" []
-            [
-              React.createElement "div"
-                [ React.JSX.string "class" "task" ]
-                [
-                  React.createElement "input"
-                    [
-                      React.JSX.string "type" "checkbox";
-                      React.JSX.bool "disabled" true;
-                      React.JSX.bool "checked" true;
-                    ]
-                    children;
-                ];
-            ]
-  end
-
-  module Div = struct
-    let make ?className ~children () =
-      React.createElement "li"
-        ([] |> add (React.JSX.string "class") className)
-        children
-  end
-
-  module Img = struct
-    let make ?className ?title ~src ~alt ~children () =
-      React.createElement "img"
-        ([ React.JSX.string "src" src; React.JSX.string "alt" alt ]
-        |> add (React.JSX.string "class") className
-        |> add (React.JSX.string "title") title)
-        children
-  end
-
-  module H1 = struct
-    let make ?className ?id ~children () =
-      React.createElement "h1"
-        ([]
-        |> add (React.JSX.string "class") className
-        |> add (React.JSX.string "id") id)
-        children
-  end
-
-  module H2 = struct
-    let make ?className ?id ~children () =
-      React.createElement "h2"
-        ([]
-        |> add (React.JSX.string "class") className
-        |> add (React.JSX.string "id") id)
-        children
-  end
-
-  module H3 = struct
-    let make ?className ?id ~children () =
-      React.createElement "h3"
-        ([]
-        |> add (React.JSX.string "class") className
-        |> add (React.JSX.string "id") id)
-        children
-  end
-
-  module H4 = struct
-    let make ?className ?id ~children () =
-      React.createElement "h4"
-        ([]
-        |> add (React.JSX.string "class") className
-        |> add (React.JSX.string "id") id)
-        children
-  end
-
-  module H5 = struct
-    let make ?className ?id ~children () =
-      React.createElement "h5"
-        ([]
-        |> add (React.JSX.string "class") className
-        |> add (React.JSX.string "id") id)
-        children
-  end
-
-  module H6 = struct
-    let make ?className ?id ~children () =
-      React.createElement "h6"
-        ([]
-        |> add (React.JSX.string "class") className
-        |> add (React.JSX.string "id") id)
-        children
-  end
-end
-
-module Custom_elements = struct
-  type t = {
-    p :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    a :
-      ?title:string ->
-      ?className:string ->
-      ?ariaHidden:string ->
-      href:string ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    blockquote :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    ol :
-      ?className:string ->
-      ?start:int ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    ul :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    pre :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    hr : ?className:string -> unit -> React.element;
-    br : ?className:string -> unit -> React.element;
-    code :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    em :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    strong :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    del :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    math_span :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    li :
-      ?className:string ->
-      ?disabled:bool ->
-      ?checked:bool ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    div :
-      ?className:string -> children:React.element list -> unit -> React.element;
-    img :
-      ?className:string ->
-      ?title:string ->
-      src:string ->
-      alt:string ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    h1 :
-      ?className:string ->
-      ?id:string ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    h2 :
-      ?className:string ->
-      ?id:string ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    h3 :
-      ?className:string ->
-      ?id:string ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    h4 :
-      ?className:string ->
-      ?id:string ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    h5 :
-      ?className:string ->
-      ?id:string ->
-      children:React.element list ->
-      unit ->
-      React.element;
-    h6 :
-      ?className:string ->
-      ?id:string ->
-      children:React.element list ->
-      unit ->
-      React.element;
-  }
-
-  let make ?p ?a ?blockquote ?ol ?ul ?pre ?hr ?br ?code ?em ?strong ?del
-      ?math_span ?li ?div ?img ?h1 ?h2 ?h3 ?h4 ?h5 ?h6 () =
-    {
-      p = Option.value ~default:Default_elements.P.make p;
-      a = Option.value ~default:Default_elements.A.make a;
-      blockquote =
-        Option.value ~default:Default_elements.Blockquote.make blockquote;
-      ol = Option.value ~default:Default_elements.Ol.make ol;
-      ul = Option.value ~default:Default_elements.Ul.make ul;
-      pre = Option.value ~default:Default_elements.Pre.make pre;
-      hr = Option.value ~default:Default_elements.Hr.make hr;
-      br = Option.value ~default:Default_elements.Br.make br;
-      code = Option.value ~default:Default_elements.Code.make code;
-      em = Option.value ~default:Default_elements.Em.make em;
-      strong = Option.value ~default:Default_elements.Strong.make strong;
-      del = Option.value ~default:Default_elements.Del.make del;
-      math_span =
-        Option.value ~default:Default_elements.Math_span.make math_span;
-      li = Option.value ~default:Default_elements.Li.make li;
-      div = Option.value ~default:Default_elements.Div.make div;
-      img = Option.value ~default:Default_elements.Img.make img;
-      h1 = Option.value ~default:Default_elements.H1.make h1;
-      h2 = Option.value ~default:Default_elements.H2.make h2;
-      h3 = Option.value ~default:Default_elements.H3.make h3;
-      h4 = Option.value ~default:Default_elements.H4.make h4;
-      h5 = Option.value ~default:Default_elements.H5.make h5;
-      h6 = Option.value ~default:Default_elements.H6.make h6;
-    }
-end
-
 module State = struct
   type t = {
     safe : bool;
     backend_blocks : bool;
-    components : Custom_elements.t;
+    components : Components.t;
     mutable defs : Label.defs;
     mutable ids : String_set.t;
     mutable footnote_count : int;
@@ -510,7 +165,7 @@ let rec block_to_element ~(state : State.t) block =
   | Paragraph (paragraph, _meta) ->
       let inline = Paragraph.inline paragraph in
       state.components.p
-        ~children:[ inline_to_element ~state inline ]
+        ~children:(inline_to_element ~state inline)
         ~className:"" ()
   | Heading (heading, _meta) -> (
       let level = Heading.level heading in
@@ -526,58 +181,58 @@ let rec block_to_element ~(state : State.t) block =
         | _ -> assert false
       in
       match Heading.id heading with
-      | None -> component ~children:[ inline_to_element ~state inline ] ()
+      | None -> component ~children:(inline_to_element ~state inline) ()
       | Some (`Auto id | `Id id) ->
           component ~id:(unique_id ~state id)
             ~children:
-              [
-                state.components.a ~className:"anchor" ~ariaHidden:"true"
-                  ~href:("#" ^ id)
-                  ~children:[ inline_to_element ~state inline ]
-                  ();
-              ]
+              (state.components.a ~className:"anchor" ~ariaHidden:true
+                 ~href:("#" ^ id)
+                 ~children:(inline_to_element ~state inline)
+                 ())
             ())
   | List (list, _meta) -> (
       (* let tight = List'.tight list in *)
       match List'.type' list with
       | `Unordered _ ->
           state.components.ul
-            ~children:(List.map (list_item ~state) (List'.items list))
+            ~children:
+              (React.list (List.map (list_item ~state) (List'.items list)))
             ()
       | `Ordered (start, _) -> (
           match start with
           | 1 ->
               state.components.ol
-                ~children:(List.map (list_item ~state) (List'.items list))
+                ~children:
+                  (React.list (List.map (list_item ~state) (List'.items list)))
                 ()
           | not_one ->
               state.components.ol ~start:not_one
-                ~children:(List.map (list_item ~state) (List'.items list))
+                ~children:
+                  (React.list (List.map (list_item ~state) (List'.items list)))
                 ()))
   | Block_quote (block_quote, _meta) ->
       state.components.blockquote
-        ~children:[ block_to_element ~state (Block_quote.block block_quote) ]
+        ~children:(block_to_element ~state (Block_quote.block block_quote))
         ()
   | Code_block (code_block, _meta) -> (
       let info_string = Option.map fst (Code_block.info_string code_block) in
       let lang = Option.bind info_string Code_block.language_of_info_string in
       let contents =
-        List.map
-          (fun (l, _) -> React.string (html_escaped_string l))
-          (Code_block.code code_block)
+        React.list
+          (List.map
+             (fun (l, _) -> React.string (html_escaped_string l))
+             (Code_block.code code_block))
       in
       match lang with
       | None ->
           state.components.pre
-            ~children:[ state.components.code ~children:contents () ]
+            ~children:(state.components.code ~children:contents ())
             ()
       | Some (lang, _env) ->
           state.components.pre
             ~children:
-              [
-                state.components.code ~className:("language-" ^ lang)
-                  ~children:contents ();
-              ]
+              (state.components.code ~className:("language-" ^ lang)
+                 ~children:contents ())
             ())
   (* TODO: Make sure blank_line goes to null *)
   | Blank_line (_blank_node, _meta) -> React.null
@@ -595,27 +250,25 @@ and list_item ~state (item, _) =
   match Block.List_item.ext_task_marker item with
   | None ->
       state.components.li
-        ~children:[ block_to_element ~state (Block.List_item.block item) ]
+        ~children:(block_to_element ~state (Block.List_item.block item))
         ()
   | Some (mark, _) -> (
       match Block.List_item.task_status_of_task_marker mark with
       | `Unchecked ->
           state.components.li ~disabled:true
-            ~children:[ block_to_element ~state (Block.List_item.block item) ]
+            ~children:(block_to_element ~state (Block.List_item.block item))
             ()
       | `Checked | `Other _ ->
           state.components.li ~checked:true
-            ~children:[ block_to_element ~state (Block.List_item.block item) ]
+            ~children:(block_to_element ~state (Block.List_item.block item))
             ()
       | `Cancelled ->
           state.components.li ~checked:true
             ~children:
-              [
-                state.components.del
-                  ~children:
-                    [ block_to_element ~state (Block.List_item.block item) ]
-                  ();
-              ]
+              (state.components.del
+                 ~children:
+                   (block_to_element ~state (Block.List_item.block item))
+                 ())
             ())
 
 and inline_to_element ~state inline =
@@ -627,21 +280,21 @@ and inline_to_element ~state inline =
       let url = pre ^ fst (Autolink.link autolink) in
       let url = if Link.is_unsafe url then "" else url in
       let content, _meta = Autolink.link autolink in
-      state.components.a ~href:url ~children:[ React.string content ] ()
+      state.components.a ~href:url ~children:(React.string content) ()
   | Break (break, _meta) -> (
       match Break.type' break with
       | `Hard -> state.components.br ()
       | `Soft -> (* Unsure about the ouput *) React.null)
   | Code_span (code_span, _meta) ->
       state.components.code
-        ~children:[ React.string (Code_span.code code_span) ]
+        ~children:(React.string (Code_span.code code_span))
         ()
   | Emphasis (emphasis, _meta) ->
       let inline = Emphasis.inline emphasis in
-      state.components.em ~children:[ inline_to_element ~state inline ] ()
+      state.components.em ~children:(inline_to_element ~state inline) ()
   | Strong_emphasis (emphasis, _meta) ->
       let inline = Emphasis.inline emphasis in
-      state.components.strong ~children:[ inline_to_element ~state inline ] ()
+      state.components.strong ~children:(inline_to_element ~state inline) ()
   | Inlines (inlines, _meta) ->
       let list =
         inlines
@@ -656,12 +309,12 @@ and inline_to_element ~state inline =
           match title with
           | "" ->
               state.components.a ~href:(pct_encoded_string href)
-                ~children:[ inline_to_element ~state (Inline.Link.text link) ]
+                ~children:(inline_to_element ~state (Inline.Link.text link))
                 ()
           | some_title ->
               state.components.a ~href:(pct_encoded_string href)
                 ~title:(html_escaped_string some_title)
-                ~children:[ inline_to_element ~state (Inline.Link.text link) ]
+                ~children:(inline_to_element ~state (Inline.Link.text link))
                 ())
       (* | Some (Block.Footnote.Def (fn, _)) -> link_footnote c l fn *)
       | Some (Block.Footnote.Def (_fn, _)) -> assert false
@@ -684,13 +337,13 @@ and inline_to_element ~state inline =
           | "" ->
               state.components.img ~src:(pct_encoded_string src)
                 ~alt:(plain_text alt)
-                ~children:[ inline_to_element ~state (Link.text link) ]
+                ~children:(inline_to_element ~state (Link.text link))
                 ()
           | some_title ->
               state.components.img ~src:(pct_encoded_string src)
                 ~alt:(plain_text alt)
                 ~title:(html_escaped_string some_title)
-                ~children:[ inline_to_element ~state (Link.text link) ]
+                ~children:(inline_to_element ~state (Link.text link))
                 ())
       (* | Some (Block.Footnote.Def (fn, _)) -> link_footnote c l fn *)
       | Some (Block.Footnote.Def (_fn, _)) -> assert false
@@ -714,13 +367,13 @@ and inline_to_element ~state inline =
           React.Fragment (React.List html))
   | Ext_strikethrough (strikethrough, _meta) ->
       let inline = Strikethrough.inline strikethrough in
-      state.components.del ~children:[ inline_to_element ~state inline ] ()
+      state.components.del ~children:(inline_to_element ~state inline) ()
   | Ext_math_span (math_span, _meta) ->
       let content = Math_span.tex math_span in
-      state.components.math_span ~children:[ React.string content ] ()
+      state.components.math_span ~children:(React.string content) ()
   | _ -> assert false
 
-let of_doc ~safe:_ ~(components : Custom_elements.t) d =
+let of_doc ~safe:_ ~(components : Components.t) d =
   let blocks = Doc.block d in
   let defs = Doc.defs d in
   let state =
