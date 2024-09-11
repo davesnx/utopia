@@ -1,4 +1,6 @@
 (executable
  (name markdown)
  (public_name utopia.markdown)
- (libraries cmarkit server-reason-react.react server-reason-react.reactDom))
+ (libraries cmarkit server-reason-react.react server-reason-react.reactDom)
+ (preprocess
+  (pps server-reason-react.ppx)))
