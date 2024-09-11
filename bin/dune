@@ -3,21 +3,17 @@
  (public_name demo)
  (flags -linkall)
  (libraries
-  utopia
   server-reason-react.react
   server-reason-react.reactDom
   dynlink
   unix
-  eio.unix
-  eio.core
-  eio_main
-  http
   logs.fmt
   fmt
-  cohttp-eio
-  eio
+  http
+  cohttp
+  cohttp-lwt-unix
   lwt
-  lwt_eio
+  routes
   ppx_deriving_router.runtime_lib)
  (preprocess
   (pps server-reason-react.ppx ppx_deriving_router)))

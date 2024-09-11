@@ -1,5 +1,3 @@
-module Default_layout = Html
-
 module type Loader_page = sig
   type data
 
@@ -19,8 +17,8 @@ end
 (* let static_pages : (module Page) list ref = ref [] *)
 let loaded_pages : (module Loader_page) Seq.t ref = ref Seq.empty
 
-let register (type a) ~path ~(loader : unit -> a)
-    ?(layout = Default_layout.make) (component : a -> React.element) =
+let register (type a) ~path ~(loader : unit -> a) ?(layout = Html.make)
+    (component : a -> React.element) =
   let module P = struct
     type data = a
 
@@ -31,8 +29,7 @@ let register (type a) ~path ~(loader : unit -> a)
   end in
   loaded_pages := Seq.cons (module P : Loader_page) !loaded_pages
 
-let page ~path ?(layout = Default_layout.make)
-    (component : unit -> React.element) =
+let page ~path ?(layout = Html.make) (component : unit -> React.element) =
   let module P = struct
     type data = unit
 
