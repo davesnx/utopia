@@ -1,11 +1,19 @@
-- React based
-- BOYD (but recommends this https://github.com/tjdevries/octane.ml + mysql)
-- Wrap dune (it generates dune rules for you)
-- Lib folder where BANANAS can happen
+# Vision
+
+- React based (reason-react and server-reason-react)
+- It wraps dune (it generates dune rules for you)
+- BOYD, but recommends:
+  - https://github.com/tjdevries/octane.ml + mysql
+  - ppx_rapper + catqui (a bit hard to use and ugly but it works well)
+- "lib" folder where BANANAS can happen
 - Expose via utopia.??? a config
-- Define pages (could be with markdown, or components)
-  - How to create router?
-- Have a "RemoteData" or "RPC" module to help handle data
+  - How people will configure dependencies of pages?
+- A CLI to run (compiler, server, etc)
+- Define pages (could be markdown, or components)
+  - How to create the router?
+  - How to extend the router?
+- Provide a "RemoteData" or "RPC" module to help handle data
+- Should have a way to SSG static pages (wget ...)
 - Integrates with Dream
 - Deployments
  - https://coolify.io
