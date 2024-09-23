@@ -25,7 +25,7 @@ module Router = struct
     | Home [@GET "/"]
     | About [@GET "/about"]
     | Blog [@GET "/blog"]
-    | Blog_post of { slug : string } [@GET "/blog/:slug"]
+    | Blog_post of { slug : string; wat : string } [@GET "/blog/:slug"]
     | Work [@GET "/work"]
     | Talks [@GET "/talks"]
   [@@deriving router]

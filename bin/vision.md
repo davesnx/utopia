@@ -1,0 +1,14 @@
+- React based
+- BOYD (but recommends this https://github.com/tjdevries/octane.ml + mysql)
+- Wrap dune (it generates dune rules for you)
+- Lib folder where BANANAS can happen
+- Expose via utopia.??? a config
+- Define pages (could be with markdown, or components)
+  - How to create router?
+- Have a "RemoteData" or "RPC" module to help handle data
+- Integrates with Dream
+- Deployments
+ - https://coolify.io
+ - https://www.flightcontrol.dev
+ - ???
+ - Simply docker

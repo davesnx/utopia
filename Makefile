@@ -82,11 +82,11 @@ lib-test: ## Run library tests
 
 .PHONY: demo
 demo: build ## Run demo executable
-	$(DUNE) exec --display-separate-messages --no-print-directory bin/Demo.exe
+	$(DUNE) exec --display-separate-messages --no-print-directory bin/utopia.exe
 
 .PHONY: demo-watch
 demo-watch: build ## Run demo executable in watch mode
-	$(DUNE) exec --display-separate-messages --no-print-directory bin/Demo.exe --watch
+	$(DUNE) exec --display-separate-messages --no-print-directory bin/utopia.exe --watch
 
 .PHONY: subst
 subst: ## Run dune substitute
