@@ -179,7 +179,7 @@ let generate_dune_rules files =
            Printf.sprintf
              {|(rule
  (deps ../pages/%s%s)
- (target %s.re)
+ (target %s.html)
  (action
   (with-stdout-to %%{target}
   (with-stdin-from %%{deps}
