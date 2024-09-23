@@ -80,29 +80,38 @@ type t = {
     React.element;
 }
 
-let make ?p ?a ?blockquote ?ol ?ul ?pre ?hr ?br ?code ?em ?strong ?del
-    ?math_span ?li ?div ?img ?h1 ?h2 ?h3 ?h4 ?h5 ?h6 () =
+let make ?(p = Elements.P.make) ?(a = Elements.A.make)
+    ?(blockquote = Elements.Blockquote.make)
+    ?(math_span = Elements.Math_span.make) ?(ol = Elements.Ol.make)
+    ?(ul = Elements.Ul.make) ?(pre = Elements.Pre.make) ?(hr = Elements.Hr.make)
+    ?(br = Elements.Br.make) ?(code = Elements.Code.make)
+    ?(em = Elements.Em.make) ?(strong = Elements.Strong.make)
+    ?(del = Elements.Del.make) ?(li = Elements.Li.make)
+    ?(div = Elements.Div.make) ?(img = Elements.Img.make)
+    ?(h1 = Elements.H1.make) ?(h2 = Elements.H2.make) ?(h3 = Elements.H3.make)
+    ?(h4 = Elements.H4.make) ?(h5 = Elements.H5.make) ?(h6 = Elements.H6.make)
+    () =
   {
-    p = Option.value ~default:Elements.P.make p;
-    a = Option.value ~default:Elements.A.make a;
-    blockquote = Option.value ~default:Elements.Blockquote.make blockquote;
-    ol = Option.value ~default:Elements.Ol.make ol;
-    ul = Option.value ~default:Elements.Ul.make ul;
-    pre = Option.value ~default:Elements.Pre.make pre;
-    hr = Option.value ~default:Elements.Hr.make hr;
-    br = Option.value ~default:Elements.Br.make br;
-    code = Option.value ~default:Elements.Code.make code;
-    em = Option.value ~default:Elements.Em.make em;
-    strong = Option.value ~default:Elements.Strong.make strong;
-    del = Option.value ~default:Elements.Del.make del;
-    math_span = Option.value ~default:Elements.Math_span.make math_span;
-    li = Option.value ~default:Elements.Li.make li;
-    div = Option.value ~default:Elements.Div.make div;
-    img = Option.value ~default:Elements.Img.make img;
-    h1 = Option.value ~default:Elements.H1.make h1;
-    h2 = Option.value ~default:Elements.H2.make h2;
-    h3 = Option.value ~default:Elements.H3.make h3;
-    h4 = Option.value ~default:Elements.H4.make h4;
-    h5 = Option.value ~default:Elements.H5.make h5;
-    h6 = Option.value ~default:Elements.H6.make h6;
+    p;
+    a;
+    blockquote;
+    math_span;
+    ol;
+    ul;
+    pre;
+    hr;
+    br;
+    code;
+    em;
+    strong;
+    del;
+    li;
+    div;
+    img;
+    h1;
+    h2;
+    h3;
+    h4;
+    h5;
+    h6;
   }

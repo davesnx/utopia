@@ -13,10 +13,10 @@ module Blockquote = {
 };
 
 module Ol = {
-  let make = (~className="", ~start=?, ~children, ()) =>
+  let make = (~className=?, ~start=?, ~children, ()) =>
     switch (start) {
-    | None => <ol className> children </ol>
-    | Some(start) => <ol className start> children </ol>
+    | None => <ol ?className> children </ol>
+    | Some(start) => <ol ?className start> children </ol>
     };
 };
 

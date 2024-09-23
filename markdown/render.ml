@@ -164,9 +164,7 @@ let rec block_to_element ~(state : State.t) block =
       React.Fragment (React.List list)
   | Paragraph (paragraph, _meta) ->
       let inline = Paragraph.inline paragraph in
-      state.components.p
-        ~children:(inline_to_element ~state inline)
-        ~className:"" ()
+      state.components.p ~children:(inline_to_element ~state inline) ()
   | Heading (heading, _meta) -> (
       let level = Heading.level heading in
       let inline = Heading.inline heading in
