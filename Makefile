@@ -63,11 +63,6 @@ install:
 	$(DUNE) build @install
 	opam install . --deps-only --with-test
 
-# opam pin add reason-react-ppx.dev "https://github.com/reasonml/reason-react.git#4ee2eda353628090eda95e0b8dabe4e2be50f954" -y
-# opam pin add reason-react.dev "https://github.com/reasonml/reason-react.git#4ee2eda353628090eda95e0b8dabe4e2be50f954" -y
-# opam pin add melange-fetch.dev "git+https://github.com/melange-community/melange-fetch.git#master" -y
-# opam pin add melange-webapi.dev "git+https://github.com/melange-community/melange-webapi.git#master" -y
-
 .PHONY: pin
 pin: ## Pin dependencies
 	opam pin add server-reason-react.dev "https://github.com/ml-in-barcelona/server-reason-react.git#68d958d856c87b0b5dd24e7ed400164c206ad56a" -y
@@ -76,34 +71,22 @@ pin: ## Pin dependencies
 .PHONY: init
 init: setup-githooks create-switch pin install ## Create a local dev enviroment
 
-.PHONY: lib-test
-lib-test: ## Run library tests
-	$(DUNE) exec test/test.exe
-
-.PHONY: demo
-demo: build ## Run demo executable
+.PHONY: run-demo
+run-demo: build ## Run demo executable
 	$(DUNE) exec --display-separate-messages --no-print-directory bin/utopia.exe
 
-.PHONY: demo-watch
-demo-watch: build ## Run demo executable in watch mode
+.PHONY: run-demo-watch
+run-demo-watch: build ## Run demo executable in watch mode
 	$(DUNE) exec --display-separate-messages --no-print-directory bin/utopia.exe --watch
 
-.PHONY: subst
-subst: ## Run dune substitute
-	$(DUNE) subst
+.PHONY: compile-demo
+compile-demo: build ## compile demo executable
+	opam exec -- dune exec --display-separate-messages --no-print-directory bin/compiler.exe
 
-.PHONY: docs
-docs: ## Generate odoc documentation
-	$(DUNE) build --root . @doc-new
+.PHONY: compile-demo-watch
+compile-demo-watch: build ## compile demo executable in watch mode
+	opam exec -- dune exec --display-separate-messages --no-print-directory bin/compiler.exe --watch
 
-# Because if the hack above, we can't have watch mode
-.PHONY: docs-watch
-docs-watch: ## Generate odoc docs
-	$(DUNE) build --root . -w @doc-new
-
-.PHONY: docs-open
-docs-open: ## Open odoc docs with default web browser
-	open _build/default/_doc_new/html/docs/local/server-reason-react/index.html
-
-.PHONY: docs-serve
-docs-serve: docs docs-open ## Open odoc docs with default web browser
+.PHONY: build-generated
+build-generated: ## Run generated tests
+	$(DUNE) build @_utopia/all

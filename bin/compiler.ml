@@ -178,7 +178,7 @@ let generate_dune_rules files =
     |> List.map (fun (file, extension) ->
            Printf.sprintf
              {|(rule
- (deps %s%s)
+ (deps ../pages/%s%s)
  (target %s.re)
  (action
   (with-stdout-to %%{target}
@@ -207,7 +207,7 @@ let generate_dune_rules files =
   let library_rules =
     let modules =
       ml_pages
-      |> List.map (fun (page, _extension) -> Printf.sprintf "%s_melange" page)
+      |> List.map (fun (page, _extension) -> Printf.sprintf "%s_native" page)
       |> String.concat " "
     in
 
