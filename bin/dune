@@ -1,34 +1,25 @@
-; (executable
-; (name Server)
-; (public_name utopia.server)
-; (flags -linkall)
-; (libraries
-; server-reason-react.react
-; server-reason-react.reactDom
-; dynlink
-; unix
-; logs.fmt
-; fmt
-; http
-; cohttp
-; cohttp-lwt-unix
-; lwt
-; routes
-; ppx_deriving_router.runtime_lib
-; cmdliner)
-; (preprocess
-; (pps server-reason-react.ppx ppx_deriving_router)))
-
 (executable
- (name compiler)
- (public_name utopia.compiler)
- (flags -linkall)
+ (name Server)
+ (modules server html)
+ (public_name utopia.server)
  (libraries
   server-reason-react.react
   server-reason-react.reactDom
-  dynlink
   unix
   logs.fmt
   fmt
-  http
-  eio))
+  dream
+  lwt)
+ (preprocess
+  (pps server-reason-react.ppx)))
+
+(executable
+ (name compiler)
+ (modules compiler)
+ (public_name utopia.compiler)
+ (libraries
+  server-reason-react.react
+  server-reason-react.reactDom
+  unix
+  logs.fmt
+  fmt))

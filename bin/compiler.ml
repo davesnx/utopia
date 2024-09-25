@@ -143,8 +143,7 @@ let read_files path =
       Ok pages
 
 let write_to_file file content =
-  let output_lines oc = output_string oc content in
-  Out_channel.with_open_bin file output_lines
+  Out_channel.with_open_bin file (fun channel -> output_string channel content)
 
 (* TODO: Probably we want to use sexp expresions or any abstraction on top *)
 let generate_dune_rules files =

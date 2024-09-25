@@ -1,3 +1,8 @@
+---
+path: lola
+title: This is a Markdown file
+---
+
 # This is a Markdown file
 
 #### You can edit me!
