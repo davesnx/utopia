@@ -30,6 +30,7 @@
 
   ;; Library dependencies
   cmarkit
+  server-reason-react
 
   ;; Test dependencies
   (alcotest :with-test)
@@ -39,9 +40,9 @@
   (odoc :with-doc)
 
   ;; Dev dependencies, using with-test so that consumers don't install them (until package is released in opam)
-  (ocamlformat
-   (and
-    (= 0.26.1)
-    :with-test))
+   (ocamlformat
+    (and
+     (= 0.28.1)
+     :with-test))
   (ocaml-lsp-server :with-test)
 ))

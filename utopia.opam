@@ -12,10 +12,11 @@ depends: [
   "ocaml" {>= "5.0.0"}
   "reason" {>= "3.10.0"}
   "cmarkit"
+  "server-reason-react"
   "alcotest" {with-test}
   "alcotest-lwt" {with-test}
   "odoc" {with-doc}
-  "ocamlformat" {= "0.26.1" & with-test}
+  "ocamlformat" {= "0.28.1" & with-test}
   "ocaml-lsp-server" {with-test}
 ]
 build: [
