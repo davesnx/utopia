@@ -17,6 +17,5 @@ If a PR or commit introduces a concept that is not yet in `plan/primitives.md`, 
 - `plan/spec.md` -- North-star feature specification (target state, AI-agent-optimized)
 - `plan/primitives.md` -- Canonical glossary of all concepts and terms
 - `bin/vision.md` -- Original vision document (historical context)
-- `plan/design.md` -- Internal routing architecture notes
 - `plan/cli-subcommands-plan.md` -- CLI implementation roadmap
 - `plan/melange-page-scripts-plan.md` -- Page scripts feature plan (deprecated, replaced by RSC)
