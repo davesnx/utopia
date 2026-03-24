@@ -57,7 +57,8 @@ let component = (~data) => {
 };
 
 module Form = {
-  let%client make = (~form) => {
+  [@react.client.component]
+  let make = (~form) => {
     <form>
       <input type="text" name="name" />
       <button type="submit">Submit</button>

@@ -20,3 +20,17 @@
  - https://www.flightcontrol.dev
  - ???
  - Simply docker
+
+# CLI
+
+## pages
+- Pages will contain our melange code (inject code)
+- Pages will contain user melange code (inject users code)
+- Pages have the folder "lib" -open Lib. We recommend (include qualified) under lib
+-
+
+## dev
+- Runs the dev server
+  - Compiles the code
+  - Setups the router and loads all pages
+- Hot reloads

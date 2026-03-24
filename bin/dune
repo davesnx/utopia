@@ -3,6 +3,7 @@
  (modules server html)
  (public_name utopia.server)
  (libraries
+  cmarkit
   server-reason-react.react
   server-reason-react.reactDom
   unix
@@ -23,3 +24,9 @@
   unix
   logs.fmt
   fmt))
+
+(executable
+ (name cli)
+ (modules cli)
+ (public_name utopia)
+ (libraries unix lwt lwt.unix dune-rpc dune-rpc-lwt csexp pp))

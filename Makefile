@@ -73,20 +73,28 @@ init: setup-githooks create-switch pin install ## Create a local dev enviroment
 
 .PHONY: run-demo
 run-demo: build ## Run demo executable
-	$(DUNE) exec --display-separate-messages --no-print-directory bin/utopia.exe
+	cd demo/basic && $(DUNE) exec --display-separate-messages --no-print-directory utopia.server
 
 .PHONY: run-demo-watch
 run-demo-watch: build ## Run demo executable in watch mode
-	$(DUNE) exec --display-separate-messages --no-print-directory bin/utopia.exe --watch
+	cd demo/basic && $(DUNE) exec --display-separate-messages --no-print-directory utopia.server --watch
 
 .PHONY: compile-demo
 compile-demo: build ## compile demo executable
-	opam exec -- dune exec --display-separate-messages --no-print-directory bin/compiler.exe
+	cd demo/basic && $(DUNE) exec --display-separate-messages --no-print-directory utopia.compiler
 
 .PHONY: compile-demo-watch
 compile-demo-watch: build ## compile demo executable in watch mode
-	opam exec -- dune exec --display-separate-messages --no-print-directory bin/compiler.exe --watch
+	cd demo/basic && $(DUNE) exec --display-separate-messages --no-print-directory utopia.compiler --watch
 
 .PHONY: build-generated
 build-generated: ## Run generated tests
-	$(DUNE) build @_utopia/all
+	$(DUNE) build @demo/basic/_utopia/all
+
+.PHONY: bench
+bench: ## Run routing micro-benchmarks
+	$(DUNE) exec bench/bench_routing.exe
+
+.PHONY: bench-http
+bench-http: ## Run HTTP benchmarks with wrk (requires wrk)
+	./bench/bench_http.sh

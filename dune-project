@@ -28,9 +28,14 @@
   (ocaml (>= 5.0.0))
   (reason (>= 3.10.0))
 
-  ;; Library dependencies
-  cmarkit
-  server-reason-react
+   ;; Library dependencies
+   cmarkit
+   server-reason-react
+   dune-rpc
+   dune-rpc-lwt
+   (csexp (>= 1.5.0))
+   (lwt (>= 5.6.0))
+   pp
 
   ;; Test dependencies
   (alcotest :with-test)
