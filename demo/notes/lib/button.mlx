@@ -1,0 +1,44 @@
+module Navigate = Utopia.Router.Navigate
+
+let join_classes class_names =
+  class_names
+  |> List.filter (fun class_name -> String.trim class_name <> "")
+  |> String.concat " "
+
+let class_name ?(accent = false) ?(full_width = false) ?(link = false)
+    ?(extra = "") () =
+  join_classes
+    [ (if link then "js-route-link" else "");
+      "notes-button";
+      (if accent then "notes-button-accent" else "");
+      (if full_width then "notes-button-full-width" else "");
+      extra ]
+
+module Action = struct
+  let[@react.component] make ~(children : React.element) ~onClick
+      ?(disabled = false) ?(accent = false) ?(full_width = false)
+      ?(className = "") () =
+    <button type_="button" onClick disabled
+      className=(class_name ~accent ~full_width ~extra:className ())>
+      children
+    </button>
+end
+
+module Submit = struct
+  let[@react.component] make ~(children : React.element) ?(disabled = false)
+      ?(accent = false) ?(full_width = false) ?(className = "") () =
+    <button type_="submit" disabled
+      className=(class_name ~accent ~full_width ~extra:className ())>
+      children
+    </button>
+end
+
+module Link = struct
+  let[@react.component] make ~(children : React.element)
+      ~(to_ : Utopia.Route.t) ?(accent = false) ?(full_width = false)
+      ?(className = "") () =
+    <Navigate to_
+      className=(class_name ~accent ~full_width ~link:true ~extra:className ())>
+      children
+    </Navigate>
+end

@@ -91,10 +91,10 @@ module Sidebar_tag_creation = struct
         ignore request)
     in
     <div className="relative border-b border-[#d8d7d2] px-4 py-4">
-      <button type_="button" onClick=open_popup
-        className="block w-full border border-[#d8d7d2] px-4 py-2 text-[13px] font-medium text-[#1d1d1f] hover:bg-[#f1f0ea]">
+      <Button.Action onClick=open_popup accent=true full_width=true
+        className="px-4 py-2 text-[13px]">
         (React.string "Create Tag")
-      </button>
+      </Button.Action>
       (if not is_open then React.null
        else
           <div role="dialog" onKeyDown=on_key_down
@@ -114,21 +114,21 @@ module Sidebar_tag_creation = struct
                 placeholder="Optional" />
               (if save_error = "" then React.null
                else
-                  <p className="mt-3 text-[12px] text-[#b42318]">
-                    (React.string save_error)
-                  </p>)
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button type_="button" onClick=close_popup disabled=is_pending
-                  className="border border-[#d8d7d2] px-3 py-2 text-[12px] font-medium text-[#5d5c57] disabled:text-[#b2b1ac] enabled:hover:bg-[#f1f0ea]">
-                  (React.string "Cancel")
-                </button>
-                <button type_="submit" disabled=submit_disabled
-                  className="border border-[#d8d7d2] px-3 py-2 text-[12px] font-medium text-[#1d1d1f] disabled:text-[#b2b1ac] enabled:hover:bg-[#f1f0ea]">
-                  (React.string (if is_pending then "Creating..." else "Accept"))
-                </button>
-              </div>
-            </form>
-          </div>)
+                   <p className="mt-3 text-[12px] text-[#b42318]">
+                     (React.string save_error)
+                   </p>)
+               <div className="mt-4 flex w-full items-center gap-2">
+                  <Button.Action onClick=close_popup disabled=is_pending full_width=true
+                    className="px-3 py-2 text-[12px] text-[#5d5c57] disabled:text-[#b2b1ac]">
+                   (React.string "Cancel")
+                 </Button.Action>
+                  <Button.Submit disabled=submit_disabled accent=true full_width=true
+                    className="px-3 py-2 text-[12px]">
+                   (React.string (if is_pending then "Creating..." else "Accept"))
+                 </Button.Submit>
+               </div>
+             </form>
+           </div>)
     </div>
 end
 
@@ -151,12 +151,12 @@ let[@react.component] make ~(children : React.element) () =
                    description=(description_text summary.description) />)
                tags))
        </nav>
-      <div className="mt-auto border-t border-[#d8d7d2] px-4 py-4">
-        <Navigate to_=new_note_route
-          className="js-route-link block w-full border border-[#d8d7d2] px-4 py-3 text-center text-[13px] font-medium text-[#1d1d1f] hover:bg-[#f1f0ea]">
-          (React.string "New Note")
-        </Navigate>
-      </div>
-    </aside>
+       <div className="mt-auto border-t border-[#d8d7d2] px-4 py-4">
+          <Button.Link to_=new_note_route accent=true full_width=true
+            className="px-4 py-3 text-[13px]">
+           (React.string "New Note")
+         </Button.Link>
+       </div>
+     </aside>
     <div className="min-w-0 flex-1 bg-[#fbfaf7]">children</div>
   </div>

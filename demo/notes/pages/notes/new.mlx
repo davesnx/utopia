@@ -266,12 +266,10 @@ module New_note_editor = struct
               (React.string "Compose")
             </h2>
           </div>
-          <button
-            type_="submit"
-            disabled=save_disabled
-            className="border border-[#d8d7d2] px-4 py-2 text-[13px] font-medium text-[#1d1d1f] disabled:text-[#b2b1ac] enabled:hover:bg-[#f1f0ea]">
+          <Button.Submit disabled=save_disabled accent=true
+            className="px-4 py-2 text-[13px]">
             (React.string (if is_pending then "Saving..." else "Save Note"))
-          </button>
+          </Button.Submit>
         </div>
         (if save_error = "" then React.null
          else
@@ -350,10 +348,9 @@ module New_note_editor = struct
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
               (React.string "Checklist")
             </p>
-            <button type_="button" onClick=add_checklist_item
-              className="border border-[#d8d7d2] px-3 py-1 text-[12px] font-medium text-[#1d1d1f] hover:bg-[#f1f0ea]">
+            <Button.Action onClick=add_checklist_item className="px-3 py-1 text-[12px]">
               (React.string "Add Item")
-            </button>
+            </Button.Action>
           </div>
           <div className="mt-4 border-y border-[#ebe9e2] divide-y divide-[#ebe9e2]">
             (react_array

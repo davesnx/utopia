@@ -26,6 +26,60 @@
 }
 
 @layer components {
+  .notes-button {
+    align-items: center;
+    border: 1px solid #d8d7d2;
+    color: #1d1d1f;
+    cursor: pointer;
+    display: inline-flex;
+    font-weight: 500;
+    justify-content: center;
+    line-height: 1.2;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .notes-button:hover {
+    background: #f1f0ea;
+  }
+
+  .notes-button:disabled {
+    color: #b2b1ac;
+    cursor: default;
+  }
+
+  .notes-button:disabled:hover {
+    background: transparent;
+  }
+
+  .notes-button-accent {
+    background: #1a1917;
+    border-color: #1a1917;
+    color: #ddd9d1;
+  }
+
+  .notes-button-accent:hover {
+    background: #262521;
+    border-color: #262521;
+    color: #f3efe7;
+  }
+
+  .notes-button-accent:disabled {
+    background: #2f2d29;
+    border-color: #2f2d29;
+    color: #97938a;
+  }
+
+  .notes-button-accent:disabled:hover {
+    background: #2f2d29;
+  }
+
+  .notes-button-full-width {
+    width: 100%;
+  }
+
   .notes-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgb(140 118 79 / 35%) transparent;

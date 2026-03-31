@@ -600,3 +600,32 @@
 - `lib/server/server.ml` now treats `PORT` as a preferred starting port rather than a single fixed bind target: invalid values still fall back to `8080`, and `EADDRINUSE` now retries on higher ports so direct `utopia.server` or generated `server_main.exe` launches also recover from contention.
 - Added `bin/tests/cli_dev_reassigns_busy_port.t` and `bin/tests/server_reassigns_busy_port.t` to cover both the CLI preflight path and the shared server-runtime fallback path.
 - Verification passed for `opam exec -- dune runtest bin/tests/cli_dev_uses_generated_server_main.t bin/tests/cli_dev_reassigns_busy_port.t bin/tests/cli_prod_uses_generated_server_main.t bin/tests/server_reassigns_busy_port.t`.
+
+## Active slice
+
+- [completed] Add reusable notes-demo button variants for accent and full-width actions
+- [completed] Apply the new button styling to the new-tag popover and notes primary actions, including a full-width popover button row
+- [completed] Rebuild `demo/notes/` and update notes/primitives tracking for the new button treatment
+
+## Review
+
+- `demo/notes/styles.css` now defines local `notes-button` classes with shared neutral styling plus `accent` and `full-width` variants, using an almost-black `#1a1917` background and accessible gray `#ddd9d1` text for the accent treatment.
+- `demo/notes/pages/notes/layout.mlx` now uses those variants for the sidebar `Create Tag` and `New Note` actions, and the new-tag popover button row is explicitly `w-full` so both `Cancel` and `Accept` can stretch across the dialog width.
+- `demo/notes/pages/notes/new.mlx` now uses the accent button treatment for `Save Note` and the shared neutral button styling for `Add Item`, keeping the repeated action styling consistent across the demo.
+- `plan/primitives.md` now documents the notes demo's local `notes-button` action classes so the new UI primitive is recorded alongside the rest of the checked-in demo behavior.
+- Verification passed for `GOMAXPROCS=1 RAYON_NUM_THREADS=1 DUNE_JOBS=1 opam exec -- npm run build` in `demo/notes/`, and the accent text/background contrast checks came out to `12.48:1` on the base color and `10.90:1` on hover.
+
+## Active slice
+
+- [completed] Add a shared `demo/notes/lib/button.mlx` component for the notes demo action buttons
+- [completed] Switch the repeated notes action button markup to the shared component and add `cursor: pointer`
+- [completed] Rebuild `demo/notes/` and update the notes demo primitives/review notes for the new shared button abstraction
+
+## Review
+
+- Added `demo/notes/lib/button.mlx`, which centralizes the repeated notes demo button class composition and exposes shared `Button.Action`, `Button.Submit`, and `Button.Link` components.
+- `demo/notes/pages/notes/layout.mlx` now uses that shared button module for the sidebar `Create Tag`, `Cancel`, `Accept`, and `New Note` actions instead of repeating the raw `notes-button` class combinations inline.
+- `demo/notes/pages/notes/new.mlx` now uses the same shared button module for `Save Note` and `Add Item`, so the repeated action surfaces in the composer cannot drift from the sidebar/popover treatment.
+- `demo/notes/styles.css` now sets `cursor: pointer` on `.notes-button` while keeping the existing disabled-state `cursor: default` override.
+- `plan/primitives.md` now records the new `demo/notes/lib/button.mlx` abstraction alongside the existing notes demo button-style primitive.
+- Verification passed for `opam exec -- npm run build` in `demo/notes/`.
