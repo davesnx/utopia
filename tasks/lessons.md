@@ -1,0 +1,22 @@
+# Lessons
+
+- When a new helper becomes the canonical way to build compiler output across files, extract it into a dedicated library instead of leaving it nested inside an executable module.
+- When introducing framework-facing router APIs, prefer a stable top-level `Utopia.*` surface instead of exposing internal generated module names directly.
+- When claiming SPA navigation works, verify an actual client-side click path end-to-end instead of inferring behavior from generated markup or server-only diff responses.
+- `href` links are not the bug by themselves; SPA navigation only happens once the demo actually serves `dist/client_entry_melange.js` and the client bundle registers its delegated click handler.
+- If the user wants the demo to showcase programmatic navigation, update the demo surfaces to call `Utopia.useRouter().navigate(...)` directly instead of leaving navigation hidden behind delegated anchor interception.
+- When refining router behavior, model it after the upstream `server-reason-react` nested-router flow: navigation fetches an RSC response from the server, and the client mounts that payload at the correct shared route boundary instead of inventing a separate purely client-side routing model.
+- For RSC HTML streamed with a full `<html>` document root, hydrate the browser `document` itself; hydrating only `#root` causes a document-vs-subtree mismatch.
+- When adopting `.mlx`, update the workspace dialect/dependencies and verify a real build; generated `_utopia/dune` coverage alone will miss missing `mlx-pp` integration.
+- Checked-in demo helpers and benchmarks must launch the generated `server_main.exe` runtime, not the standalone `utopia.server` source fallback, or code pages will render raw source.
+- When the CLI is run from `dune exec`, strip Dune's nested-exec environment variables before shelling out to `dune`, and prefer direct built executables in nested demo helpers instead of `dune exec` from subprojects.
+- Never leave temporary repro projects in the repo root; root-level `dune build` and `make build` will discover them and fail on unrelated generated fixtures.
+- In RSC pages, don't hide interactive navigation behind `switch%platform` inside a server component; use a client component boundary (for example `Utopia_router_link`) so the server HTML still carries real links and the client can enhance them.
+- If a demo uses Tailwind utility classes, make the stylesheet a first-class build artifact and inject its `<link rel="stylesheet">` tag from the server; utility-heavy markup alone is not enough.
+- When a project already has ppx-generated server functions plus Dream POST handling, don't bypass them with ad hoc client fetches; call the generated `server_function.call(...)` path or form action wiring so the request flows through the registered action ID and function registry.
+- When extracting compiler support code, move static generated sources into real files under `lib/` and make the compiler consume those files; don't leave source blobs or static `write-file` rules in `bin/compiler.ml` or helper modules.
+- When the user corrects an architectural name or ownership boundary (for example `project_support` vs `runtime`, or path ownership moving into `lib/utopia_path`), stop the refactor and realign the module layout before doing more file-splitting work.
+- When runtime support files are copied into generated `_utopia/` artifacts, fixing only the library/template source is incomplete; regenerate or patch the checked-in generated copies before claiming the build is fixed.
+- When a demo refactor changes generated route/data-model code, clean stale `demo/.../_utopia/dist` and `target/.../_utopia` outputs and restart old generated demo servers; otherwise removed JS chunks or old processes can keep executing pre-migration SQLite queries against the new schema.
+- When a user refines a tag model, separate stored slug, display name, and optional description explicitly, and confirm which UI surfaces should show the description instead of assuming slug-based labels everywhere.
+- In the nested notes router, any mutation that changes layout-owned data (like the sidebar tag list) must navigate with `~revalidate:true`; otherwise sibling-route diff navigation updates only the page subtree and leaves the surrounding layout stale.

@@ -1,5 +1,7 @@
 _build
 _opam
 _utopia
+demo/notes/notes.sqlite3
+node_modules
 
 .vscode

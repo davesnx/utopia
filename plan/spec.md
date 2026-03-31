@@ -20,6 +20,10 @@ A utopia project has this layout:
 my-project/
   utopia.ml              # Project configuration (OCaml module)
   package.json           # npm dependencies (react, esbuild, etc.)
+  lib/                   # Shared code (auto-opened everywhere)
+    counter.re           # [@react.client.component] - interactive widget
+    db.ml                # Server-only database access
+    auth.ml
   pages/                 # Page files (routes)
     layout.re            # Root layout (optional)
     index.re             # Root page (/)
@@ -31,10 +35,10 @@ my-project/
     blog/
       [...slug].re       # /blog/* (catch-all)
     guide.md             # /guide (markdown page)
-    lib/                 # Shared code (auto-opened everywhere)
-      counter.re         # [@react.client.component] - interactive widget
-      db.ml              # Server-only database access
-      auth.ml
+  routes/                # Optional typed query/hash route schemas
+    search.re            # schema for /search
+    users/
+      [id].re            # schema for /users/:id
   api/                   # API route handlers
     _middleware.ml        # Global API middleware
     health.ml            # /api/health
@@ -44,6 +48,7 @@ my-project/
   _utopia/               # Generated (do not edit)
     dune                 # Copy rules + melange.emit + native library + esbuild rule + server exe
     routes.manifest      # Route -> page mapping
+    Utopia_routes.ml     # Generated typed route tree
     client_entry.re      # Generated RSC client shell
     esbuild.config.mjs   # Generated esbuild config with plugin
     server_main.ml       # Generated server executable (wires pages to server lib)
@@ -181,6 +186,10 @@ Note: `melange-json` and `melange-json-native` are not yet in the dependency lis
 
 A function annotated with `[@react.server.function]` executes on the server but can be called from client components. The PPX generates a unique ID and registers the function in a server-side registry. On the client side, a proxy is created via `ReactServerDOMEsbuild.createServerReference`. Server functions enable progressive enhancement: forms work without JavaScript (POST to the same page), and with JavaScript, the client calls the server function directly and receives an RSC response.
 
+Client-side direct calls use `ReactServerDOMEsbuild.encodeReply` to choose the POST body format. Plain argument lists travel as encoded `text/plain` bodies, while `Js.FormData.t` arguments travel as multipart form-data so the server can decode them through `ReactServerDOM.decodeFormDataReply`.
+
+When a server function returns `Utopia.Route.t`, the action payload serializes that route as a typed object carrying `pathname`, `request_path`, and `href`, so client components can pass the returned value straight into `Utopia.useRouter().navigate(...)`.
+
 ## Layouts (partial)
 
 ### Discovery (implemented)
@@ -258,6 +267,67 @@ The compiler normalizes routes into conflict keys (param names stripped). Two pa
 
 The compiler scans code page source files for `params.X` accesses and cross-references them against declared route parameters. Undeclared param accesses produce compile-time errors.
 
+### Typed route construction (implemented)
+
+The generated pages library exposes two route-related modules:
+
+- `Utopia.Route` -- the opaque route value API (`href`, `pathname`, `request_path`, equality helpers, and a `Nonempty` helper for catch-all builders)
+- `Utopia.Routes` -- a generated module tree that mirrors collected route paths and constructs `Utopia.Route.t` values
+- `Utopia.Routes.Current` -- a generated parser and sum type for decoding a `Utopia.Route.t` back into the matching route constructor with typed params/query/hash payloads
+
+Examples:
+
+```ocaml
+Utopia.Routes.Notes.route
+Utopia.Routes.Notes.New.route
+Utopia.Routes.Users.Param_id.make ~id:"42" ()
+Utopia.Routes.Docs.Optional_catch_all_slug.make ~slug:["api"; "intro"] ()
+```
+
+`Utopia.Router.Navigate` and `Utopia.useRouter().navigate(...)` accept `Utopia.Route.t`, not raw strings.
+
+When code needs to inspect the current route in a typed way, it can use either `Utopia.Routes.current(route)` or `Utopia.useRouter().current`:
+
+```ocaml
+match Utopia.Routes.current route with
+| Some (Utopia.Routes.Current.Search { query = Some query; hash = Some hash }) -> ...
+| _ -> ...
+```
+
+### Route schema modules (implemented)
+
+Projects may optionally define mirrored files under `routes/` to add typed query/hash support for a collected route. A route schema file matches the normalized route path, not necessarily the page source filename casing. For example, `pages/Search.re` maps to `/search`, so its route schema lives at `routes/search.re`.
+
+Supported optional nested modules inside a route schema file:
+
+```reason
+module Params = {
+  type t = {id: int};
+  let encode = value => [("id", Utopia_route.Params.one(string_of_int(value.id)))];
+  let decode = values => ...;
+};
+
+module Query = {
+  type t = {q: string};
+  let encode = value => [("q", value.q)];
+  let decode = entries => ...;
+};
+
+module Hash = {
+  type t = Details | Overview;
+  let encode = value =>
+    switch (value) {
+    | Details => "details"
+    | Overview => "overview"
+    };
+  let decode = value => ...;
+};
+```
+
+When present, the generated route builder exposes those types via `Route_params`, `Route_query`, and `Route_hash` nested modules. `Route_params` switches path construction from compiler-derived string args to `~params:Route_params.t`, while `Route_query` / `Route_hash` add optional `?query` / `?hash` arguments. Each declared schema module must provide both `encode` and `decode`: `encode` is required because the generated builders call it when constructing typed routes, and `decode` is required so the generated current-route matcher can reconstruct typed params/query/hash values from `Utopia.Route.t`.
+
+Route schema files should use `Utopia_route.Params` for path-param helpers rather than `Utopia.Route.Params`, because `Utopia` itself depends on the generated `Utopia.Routes` module and would otherwise create a compile-time module cycle.
+
 ## API Routes (not implemented)
 
 ### Location
@@ -307,10 +377,10 @@ Browser -> GET /about -> Server renders React tree -> DreamRSC.stream_html
 
 **Client-side navigation** (GET with `Accept: application/react.component`):
 ```
-Client JS -> fetch("/about", {headers: {"Accept": "application/react.component"}})
-  -> Server renders React tree -> DreamRSC.stream_model_value
-  -> RSC payload (binary flight stream)
-  -> Client reads stream via createFromFetch, updates UI without full page reload
+Client JS -> fetch("/about", {headers: {"Accept": "application/react.component", "X-Utopia-Current-Path": currentPath}})
+  -> Server renders either a full route tree or a parent-relative diff tree -> DreamRSC.stream_model_value
+  -> RSC payload (`["full", "", tree]` or `["diff", parentRoute, subtree]`)
+  -> Client reads stream via createFromFetch, updates the whole page or only the nested branch without a full page reload
 ```
 
 **Server function** (POST):
@@ -320,7 +390,7 @@ Client JS -> POST /about (with action ID + args)
   -> Executes server function, returns response
 ```
 
-Note: the server currently does not run compiled React components. Code pages are rendered as escaped source text in `<pre>` tags. Full RSC rendering is the target.
+The generated pages library now also exposes a public `Utopia.useRouter()` hook, an opaque `Utopia.Route.t`, a generated `Utopia.Routes` module tree, a generated `Utopia.Routes.Current` parser, and a `Utopia.Router.Navigate` client link component for user code. `Utopia.useRouter()` returns the current request path, the raw `Utopia.Route.t`, and a typed `current` match value when the active route can be decoded. Utopia's generated client shell intercepts same-origin `.js-route-link` anchors for SPA navigation and uses the hook for programmatic navigation.
 
 ### SSR (partial)
 
@@ -352,17 +422,17 @@ The `@utopia.script` directive is deprecated and will be removed. Client-side in
 
 ### Client-side code (RSC pipeline)
 
-Client components are marked with `[@react.client.component]`. The PPX handles server/client separation. esbuild bundles client components with code splitting. The RSC protocol handles hydration. Server functions (`[@react.server.function]`) enable server-side logic callable from client components.
+Client components are marked with `[@react.client.component]`. The PPX handles server/client separation. esbuild bundles client components with code splitting. The RSC protocol handles hydration. Server functions (`[@react.server.function]`) enable server-side logic callable from client components, including returning typed route values for post-action navigation.
 
 ## Shared Code (`lib/`) (implemented)
 
-The `pages/lib/` directory contains shared modules available everywhere:
+The project-root `lib/` directory contains shared modules available everywhere:
 - Pages (code and markdown custom components)
 - API routes
 - Layouts
 - Scripts
 
-The compiler generates namespace modules (`Lib_melange`, `Lib_native`) that re-export all `lib/` modules. These are automatically opened via `-open` flags in both the melange and native compilation stanzas.
+The compiler mirrors shared `lib/` files into generated build contexts under internal `Utopia_lib__*` module names, emits a public `Lib` alias module that re-exports them, and auto-opens that alias in generated page/layout mirrors.
 
 ## Markdown Pipeline
 
@@ -439,7 +509,7 @@ Custom components are provided via:
 1. Validate project shape
 2. Run initial `utopia.compiler` + `dune build`
 3. Start `dune build -w .` (watch mode with RPC server)
-4. Start `utopia.server` (dev server)
+4. Start the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects, or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects
 5. Connect to dune RPC, subscribe to progress and diagnostics
 6. Stream structured build status to terminal
 7. Handle SIGINT/SIGTERM for clean teardown
@@ -459,7 +529,7 @@ Custom components are provided via:
 
 1. Verify `_utopia/routes.manifest` and `_utopia/dune` exist
 2. Resolve `PORT` and `HOST` from environment
-3. Start `utopia.server` as subprocess
+3. Start the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects, or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects
 4. Forward exit code
 
 ### Environment variables (partial)
@@ -482,7 +552,7 @@ The CLI supports executable aliases: `utopia-build` is equivalent to `utopia bui
 
 Server framework logic stays in `bin/` as a **library** (`utopia.server_lib`). The compiler generates a per-project **executable** in `_utopia/server_main.ml` that:
 - Depends on `utopia.server_lib` (framework: routing, RSC rendering, asset serving)
-- Depends on `pages` library (user page modules)
+- Depends on a project-scoped generated pages library (user page modules)
 - Wires route definitions to page components and starts the Dream server
 
 This separation means the framework server logic is reusable and the user's page code is linked in at build time.
@@ -501,7 +571,7 @@ This separation means the framework server logic is reusable and the user's page
 
 **Target request handling (RSC)**:
 - **GET** (no RSC header): `DreamRSC.stream_html(~bootstrapModules, document_element)` returns full HTML page with embedded RSC payload and `<script>` tags for esbuild output
-- **GET** with `Accept: application/react.component`: `DreamRSC.stream_model_value(~location, element)` returns RSC payload for client-side navigation
+- **GET** with `Accept: application/react.component`: `DreamRSC.stream_model_value(~location, element)` returns an RSC payload for client-side navigation after normalizing route-tree/client props for serialization, while leaving client-component HTML fallback trees untouched
 - **POST**: `DreamRSC.streamFunctionResponse` handles server function invocations
 - **GET /dist/\***: Serve bundled JS assets from esbuild output
 
@@ -753,7 +823,7 @@ The RSC pipeline changes the generated dune rules to include new PPXes, the esbu
 ;; --- Melange stanza (NEW PPXes and libraries) ---
 (melange.emit
  (target target)
- (modules home_melange about_melange Lib__counter_melange Lib_melange client_entry_melange)
+ (modules home_melange about_melange counter_melange Lib_melange client_entry_melange)
  (libraries reason-react server-reason-react.react-server-dom-esbuild)
  (preprocess
   (pps server-reason-react.browser_ppx -js
@@ -762,8 +832,8 @@ The RSC pipeline changes the generated dune rules to include new PPXes, the esbu
 
 ;; --- Native library (NEW PPXes) ---
 (library
- (name pages)
- (modules home_native about_native Lib__counter_native Lib_native)
+ (name pages_<project-scope>)
+ (modules home_native about_native counter_native Lib_native)
  (libraries server-reason-react.react server-reason-react.reactDom)
  (preprocess
   (pps server-reason-react.ppx
@@ -779,7 +849,7 @@ The RSC pipeline changes the generated dune rules to include new PPXes, the esbu
 ;; --- Generated server executable (NEW) ---
 (executable
  (name server_main)
- (libraries utopia.server_lib pages dream lwt lwt.unix)
+ (libraries utopia.server_lib pages_<project-scope> dream lwt lwt.unix)
  (preprocess
   (pps server-reason-react.ppx
        server-reason-react.melange_ppx
@@ -830,10 +900,10 @@ _utopia/
         v
 dune build              Orchestrates all compilation
         |
-        +-> Native: pages -> library (server-reason-react SSR/RSC)
+        +-> Native: pages_<project-scope> -> library (server-reason-react SSR/RSC)
         +-> Melange: pages -> target/*.js (reason-react client)
         +-> esbuild: target/ -> dist/ (bundled, code-split JS + bootstrap.js)
-        +-> server_main: links utopia.server_lib + pages -> executable
+        +-> server_main: links utopia.server_lib + pages_<project-scope> -> executable
         |
         v
 Server (DreamRSC)

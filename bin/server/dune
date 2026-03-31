@@ -1,0 +1,4 @@
+(executable
+ (name Server)
+ (public_name utopia.server)
+ (libraries lib_server))

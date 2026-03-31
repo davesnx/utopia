@@ -1,0 +1,395 @@
+open Notes_data
+
+let react_array items = React.array (Array.of_list items)
+
+let create_note (formData : Js.FormData.t) =
+  (Js.Promise.resolve (create_note_from_form_data formData)
+    : Utopia.Route.t Js.Promise.t)
+[@@react.server.function]
+
+let event_value event =
+  ((Obj.magic (React.Event.Form.target event))##value : string)
+
+let event_key (event : React.Event.Keyboard.t) = React.Event.Keyboard.key event
+
+let prevent_key_default (event : React.Event.Keyboard.t) =
+  React.Event.Keyboard.preventDefault event
+
+let normalized_text text = text |> String.trim |> String.lowercase_ascii
+
+let starts_with ~prefix value =
+  let prefix_length = String.length prefix in
+  prefix_length <= String.length value
+  && String.sub value 0 prefix_length = prefix
+
+let substring_index value pattern = index_of_substring value pattern 0
+
+let is_subsequence query value =
+  let rec loop query_index value_index =
+    if query_index >= String.length query then true
+    else if value_index >= String.length value then false
+    else if query.[query_index] = value.[value_index] then
+      loop (query_index + 1) (value_index + 1)
+    else loop query_index (value_index + 1)
+  in
+  loop 0 0
+
+let score_text ~query ~value ~exact ~prefix ~contains ~fuzzy =
+  if value = "" then None
+  else if String.equal value query then Some exact
+  else if starts_with ~prefix:query value then Some prefix
+  else
+    match substring_index value query with
+    | Some index -> Some (contains + index)
+    | None -> if is_subsequence query value then Some fuzzy else None
+
+let min_score scores =
+  match scores with
+  | [] -> None
+  | score :: rest -> Some (List.fold_left min score rest)
+
+let choice_slug (slug, _name, _description) = slug
+
+let choice_name (_slug, name, _description) = name
+
+let choice_description (_slug, _name, description) = description
+
+let exact_choice_for_query tag_choices query =
+  let query = normalized_text query in
+  if query = "" then None
+  else
+    tag_choices
+    |> List.find_opt (fun choice ->
+           let name = choice_name choice |> normalized_text in
+           let slug = choice_slug choice |> normalized_text in
+           String.equal query name || String.equal query slug)
+
+let filtered_tag_choices ~query tag_choices =
+  let query = normalized_text query in
+  if query = "" then take 8 tag_choices
+  else
+    tag_choices
+    |> List.mapi (fun index choice ->
+           let name = choice_name choice |> normalized_text in
+           let slug = choice_slug choice |> normalized_text in
+           let description = choice_description choice |> normalized_text in
+           let scores =
+             [ score_text ~query ~value:name ~exact:0 ~prefix:10 ~contains:20
+                 ~fuzzy:40;
+               score_text ~query ~value:slug ~exact:2 ~prefix:12 ~contains:22
+                 ~fuzzy:42;
+               score_text ~query ~value:description ~exact:4 ~prefix:14
+                 ~contains:24 ~fuzzy:44 ]
+             |> List.filter_map (fun score -> score)
+           in
+           min_score scores |> Option.map (fun score -> (score, index, choice)))
+    |> List.filter_map (fun ranked_choice -> ranked_choice)
+    |> List.sort compare
+    |> List.map (fun (_score, _index, choice) -> choice)
+    |> take 8
+
+let choice_by_slug tag_choices slug =
+  tag_choices
+  |> List.find_opt (fun choice -> String.equal (choice_slug choice) slug)
+
+module New_note_editor = struct
+  type draft_checklist_item = {
+    id : int;
+    text : string;
+    done_ : bool;
+  }
+
+  let make_draft_item id = { id; text = ""; done_ = false }
+
+  let checklist_value items =
+    items
+    |> List.filter (fun item -> String.trim item.text <> "")
+    |> List.map (fun item -> { text = item.text; done_ = item.done_ })
+    |> encode_checklist
+
+  let[@react.client.component] make ~(tag_choices : (string * string * string) list) () =
+    let router = Utopia.useRouter () in
+    let initial_choice =
+      match tag_choices with
+      | choice :: _ -> Some choice
+      | [] -> None
+    in
+    let title, set_title = React.useState (fun () -> "") in
+    let tag_query, set_tag_query =
+      React.useState (fun () ->
+          initial_choice |> Option.map choice_name |> Option.value ~default:"")
+    in
+    let selected_tag_slug, set_selected_tag_slug =
+      React.useState (fun () -> initial_choice |> Option.map choice_slug)
+    in
+    let is_tag_list_open, set_is_tag_list_open = React.useState (fun () -> false) in
+    let highlighted_tag_index, set_highlighted_tag_index =
+      React.useState (fun () -> 0)
+    in
+    let body_html, set_body_html = React.useState (fun () -> "") in
+    let checklist_items, set_checklist_items =
+      React.useState (fun () -> [ make_draft_item 0 ])
+    in
+    let next_item_id, set_next_item_id = React.useState (fun () -> 1) in
+    let is_pending, set_is_pending = React.useState (fun () -> false) in
+    let save_error, set_save_error = React.useState (fun () -> "") in
+    let matching_tag_choices = filtered_tag_choices ~query:tag_query tag_choices in
+    let highlighted_tag_index =
+      if matching_tag_choices = [] then 0
+      else min highlighted_tag_index (List.length matching_tag_choices - 1)
+    in
+    let selected_choice =
+      Option.bind selected_tag_slug (choice_by_slug tag_choices)
+    in
+    let select_tag choice =
+      set_tag_query (fun _ -> choice_name choice);
+      set_selected_tag_slug (fun _ -> Some (choice_slug choice));
+      set_is_tag_list_open (fun _ -> false);
+      set_highlighted_tag_index (fun _ -> 0)
+    in
+    let on_title_change event = set_title (fun _ -> event_value event) in
+    let on_tag_change event =
+      let next_query = event_value event in
+      let exact_choice = exact_choice_for_query tag_choices next_query in
+      set_tag_query (fun _ -> next_query);
+      set_selected_tag_slug (fun _ -> exact_choice |> Option.map choice_slug);
+      set_is_tag_list_open (fun _ -> true);
+      set_highlighted_tag_index (fun _ -> 0)
+    in
+    let on_tag_focus _event =
+      if tag_choices <> [] then set_is_tag_list_open (fun _ -> true)
+    in
+    let on_tag_key_down (event : React.Event.Keyboard.t) =
+      match event_key event with
+      | "ArrowDown" ->
+          prevent_key_default event;
+          set_is_tag_list_open (fun _ -> true);
+          if matching_tag_choices <> [] then
+            set_highlighted_tag_index (fun current ->
+                min (current + 1) (List.length matching_tag_choices - 1))
+      | "ArrowUp" ->
+          prevent_key_default event;
+          set_is_tag_list_open (fun _ -> true);
+          if matching_tag_choices <> [] then
+            set_highlighted_tag_index (fun current -> max 0 (current - 1))
+      | "Enter" ->
+          if is_tag_list_open && matching_tag_choices <> [] then (
+            prevent_key_default event;
+            List.nth_opt matching_tag_choices highlighted_tag_index
+            |> Option.iter select_tag)
+      | "Escape" ->
+          set_is_tag_list_open (fun _ -> false);
+          set_highlighted_tag_index (fun _ -> 0)
+      | _ -> ()
+    in
+    let on_tag_choice_click choice _event = select_tag choice in
+    let on_body_input event =
+      set_body_html
+        (fun _ ->
+          ((Obj.magic (React.Event.Form.target event))##innerHTML : string))
+    in
+    let add_checklist_item _event =
+      let item_id = next_item_id in
+      set_checklist_items (fun items -> items @ [ make_draft_item item_id ]);
+      set_next_item_id (fun value -> value + 1)
+    in
+    let update_checklist_text item_id event =
+      let next_text = event_value event in
+      set_checklist_items (fun items ->
+          List.map
+            (fun item ->
+              if item.id = item_id then { item with text = next_text } else item)
+            items)
+    in
+    let toggle_checklist_item item_id _event =
+      set_checklist_items (fun items ->
+          List.map
+            (fun item ->
+              if item.id = item_id then { item with done_ = not item.done_ }
+              else item)
+            items)
+    in
+    let body_text = body_html |> body_text_of_html |> collapse_whitespace in
+    let save_disabled =
+      is_pending || Option.is_none selected_tag_slug
+      || (String.trim title = "" && body_text = ""
+         && checklist_value checklist_items = "")
+    in
+    let tag_help =
+      if tag_choices = [] then
+        "Create a tag from the sidebar first."
+      else if String.trim tag_query = "" then
+        "Select an existing tag. Start typing to filter by name, description, or slug."
+      else if Option.is_none selected_tag_slug then
+        "Select an existing tag from the list. Create a new one from the sidebar first."
+      else
+        match selected_choice with
+        | Some choice ->
+            let description = choice_description choice |> String.trim in
+            if description = "" then "Existing tag selected." else description
+        | None -> "Existing tag selected."
+    in
+    let on_submit event =
+      React.Event.Form.preventDefault event;
+      if not save_disabled then (
+        set_is_pending (fun _ -> true);
+        set_save_error (fun _ -> "");
+        let form_data = Fetch.FormData.make () in
+        (match selected_tag_slug with
+        | Some tag_slug -> form_data |> Fetch.FormData.append "tag_slug" tag_slug
+        | None -> ());
+        form_data |> Fetch.FormData.append "title" title;
+        form_data |> Fetch.FormData.append "body_html" body_html;
+        form_data
+          |> Fetch.FormData.append "checklist" (checklist_value checklist_items);
+        let request =
+          create_note.call (Obj.magic form_data)
+          |> Js.Promise.then_ (fun route ->
+                 set_is_pending (fun _ -> false);
+                 router.navigate route;
+                 Js.Promise.resolve ())
+          |> Js.Promise.catch (fun _error ->
+                 set_is_pending (fun _ -> false);
+                 set_save_error (fun _ -> "Unable to save the note.");
+                 Js.Promise.resolve ())
+        in
+        ignore request)
+    in
+    <form onSubmit=on_submit className="border-t border-[#d8d7d2]">
+      <div className="border-b border-[#e4e2db] px-6 py-5 sm:px-8">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+              (React.string "New note")
+            </p>
+            <h2 className="mt-2 text-[30px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">
+              (React.string "Compose")
+            </h2>
+          </div>
+          <button
+            type_="submit"
+            disabled=save_disabled
+            className="border border-[#d8d7d2] px-4 py-2 text-[13px] font-medium text-[#1d1d1f] disabled:text-[#b2b1ac] enabled:hover:bg-[#f1f0ea]">
+            (React.string (if is_pending then "Saving..." else "Save Note"))
+          </button>
+        </div>
+        (if save_error = "" then React.null
+         else
+            <p className="mt-3 text-[13px] text-[#b42318]">(React.string save_error)</p>)
+      </div>
+
+      <div className="px-6 py-6 sm:px-8 sm:py-8">
+        <div className="border-b border-[#e4e2db] pb-5">
+          <label className="block text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+            (React.string "Tag")
+          </label>
+          <div className="relative mt-3">
+            <input value=tag_query onChange=on_tag_change onFocus=on_tag_focus
+              onKeyDown=on_tag_key_down
+              className="block w-full border border-[#d8d7d2] bg-[#fbfaf7] px-3 py-2 text-[15px] text-[#1d1d1f] outline-none placeholder:text-[#b2b1ac] focus:border-[#bdbbb5]"
+              placeholder="Search existing tags" />
+            (if not is_tag_list_open then React.null
+             else if matching_tag_choices = [] then
+               <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 border border-[#d8d7d2] bg-[#fbfaf7] px-3 py-3 text-[13px] text-[#7a7974]">
+                 (React.string "No matching tag. Create it from the sidebar first.")
+               </div>
+             else
+               <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 border border-[#d8d7d2] bg-[#fbfaf7] py-1">
+                 (react_array
+                    (List.mapi
+                        (fun index choice ->
+                          let description = choice_description choice in
+                          let className =
+                            if index = highlighted_tag_index then
+                              "block w-full bg-[#f1f0ea] px-3 py-2 text-left"
+                            else
+                              "block w-full px-3 py-2 text-left hover:bg-[#f1f0ea]"
+                          in
+                          <button key=(choice_slug choice) type_="button"
+                            onClick=(on_tag_choice_click choice) className=className>
+                            <span className="block text-[14px] font-medium text-[#1d1d1f]">
+                              (React.string (choice_name choice))
+                            </span>
+                            <span className="mt-1 block text-[12px] text-[#7a7974]">
+                              (React.string
+                                 (if String.trim description = "" then choice_slug choice
+                                  else description))
+                            </span>
+                          </button>)
+                        matching_tag_choices))
+               </div>)
+          </div>
+          <p className="mt-3 text-[12px] text-[#8a8984]">(React.string tag_help)</p>
+        </div>
+
+        <div className="mt-6 border-b border-[#e4e2db] pb-5">
+          <label className="block text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+            (React.string "Title")
+          </label>
+          <input name="title" value=title onChange=on_title_change
+            className="mt-3 block w-full border-0 bg-transparent px-0 py-0 text-[34px] font-semibold tracking-[-0.04em] text-[#1d1d1f] outline-none placeholder:text-[#b2b1ac] sm:text-[42px]"
+            placeholder="Untitled Note" />
+        </div>
+
+        <div className="mt-6 border-b border-[#e4e2db] pb-6">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+            (React.string "Body")
+          </p>
+          <div
+            contentEditable=true
+            suppressContentEditableWarning=true
+            onInput=on_body_input
+            className="editor-surface note-body mt-4 min-h-[260px] border-0 bg-transparent text-[17px] leading-8 text-[#232320] outline-none" />
+          <p className="mt-3 text-[12px] text-[#8a8984]">
+            (React.string "Write directly in the note area. The editor keeps the feel close to the final note view.")
+          </p>
+        </div>
+
+        <section className="mt-6">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+              (React.string "Checklist")
+            </p>
+            <button type_="button" onClick=add_checklist_item
+              className="border border-[#d8d7d2] px-3 py-1 text-[12px] font-medium text-[#1d1d1f] hover:bg-[#f1f0ea]">
+              (React.string "Add Item")
+            </button>
+          </div>
+          <div className="mt-4 border-y border-[#ebe9e2] divide-y divide-[#ebe9e2]">
+            (react_array
+               (List.map
+                   (fun item ->
+                     let toggle_class =
+                       if item.done_ then
+                         "mt-[6px] h-3 w-3 shrink-0 border border-[#9f9e98] bg-[#9f9e98]"
+                       else "mt-[6px] h-3 w-3 shrink-0 border border-[#c6c5bf]"
+                     in
+                     let input_class =
+                       if item.done_ then
+                         "flex-1 border-0 bg-transparent p-0 text-[15px] leading-7 text-[#8a8984] line-through outline-none"
+                       else
+                         "flex-1 border-0 bg-transparent p-0 text-[15px] leading-7 text-[#232320] outline-none placeholder:text-[#b2b1ac]"
+                     in
+                     <div key=(string_of_int item.id)
+                       className="flex items-start gap-3 py-3">
+                       <button type_="button" onClick=(toggle_checklist_item item.id)
+                         className=toggle_class />
+                       <input value=item.text onChange=(update_checklist_text item.id)
+                         className=input_class placeholder="Checklist item" />
+                     </div>)
+                   checklist_items))
+          </div>
+        </section>
+      </div>
+    </form>
+end
+
+let[@react.component] make () =
+  let tag_choices =
+    tag_summaries ()
+    |> List.map (fun summary ->
+           (summary.slug, summary.name, description_text summary.description))
+  in
+  <main className="notes-scrollbar min-h-screen overflow-y-auto">
+    <New_note_editor tag_choices=tag_choices />
+  </main>

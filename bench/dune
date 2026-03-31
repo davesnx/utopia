@@ -1,5 +1,7 @@
 (executable
  (name bench_routing)
- (ocamlopt_flags (:standard -O2))
- (flags (:standard -w -37-69))
+ (ocamlopt_flags
+  (:standard -O2))
+ (flags
+  (:standard -w -37-69))
  (libraries unix))

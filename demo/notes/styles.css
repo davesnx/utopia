@@ -1,0 +1,79 @@
+@import "tailwindcss";
+@config "./tailwind.config.js";
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    background: #f5f5f3;
+    color: #1d1d1f;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: #e2ddd1;
+  }
+}
+
+@layer components {
+  .notes-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(140 118 79 / 35%) transparent;
+  }
+
+  .notes-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .notes-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .notes-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgb(140 118 79 / 28%);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .note-body p + p {
+    margin-top: 1rem;
+  }
+
+  .note-body ul,
+  .editor-surface ul {
+    margin-top: 1rem;
+    list-style: disc;
+    padding-left: 1.5rem;
+  }
+
+  .note-body li + li,
+  .editor-surface li + li {
+    margin-top: 0.35rem;
+  }
+
+  .note-body strong,
+  .editor-surface strong {
+    font-weight: 600;
+  }
+
+  .note-body em,
+  .editor-surface em {
+    font-style: italic;
+  }
+
+  .editor-surface:empty::before {
+    color: #b2b1ac;
+    content: "Start writing here...";
+  }
+}

@@ -19,3 +19,7 @@ If a PR or commit introduces a concept that is not yet in `plan/primitives.md`, 
 - `bin/vision.md` -- Original vision document (historical context)
 - `plan/cli-subcommands-plan.md` -- CLI implementation roadmap
 - `plan/melange-page-scripts-plan.md` -- Page scripts feature plan (deprecated, replaced by RSC)
+
+## Rules
+
+- All modules, variants, polyvariants should use this casing: Ocaml_case, not PamelCase.

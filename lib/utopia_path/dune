@@ -1,0 +1,3 @@
+(library
+ (name utopia_path)
+ (libraries fpath))

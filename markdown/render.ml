@@ -161,7 +161,7 @@ let rec block_to_element ~(state : State.t) block =
         |> List.map (fun block -> block_to_element ~state block)
         |> Array.of_list
       in
-      React.Fragment (React.List list)
+      React.fragment (React.array list)
   | Paragraph (paragraph, _meta) ->
       let inline = Paragraph.inline paragraph in
       state.components.p ~children:(inline_to_element ~state inline) ()
@@ -236,7 +236,15 @@ let rec block_to_element ~(state : State.t) block =
   | Blank_line (_blank_node, _meta) -> React.null
   | Html_block (html, _meta) ->
       (* TODO: Make sure about "safe" *)
-      React.InnerHtml (String.concat "\n" (List.map (fun (l, _) -> l) html))
+      React.createElement "div"
+        [
+          React.JSX.dangerouslyInnerHtml
+            object
+              method __html =
+                String.concat "\n" (List.map (fun (l, _) -> l) html)
+            end;
+        ]
+        []
   | Thematic_break (_thematic_break, _meta) -> state.components.hr ()
   | Link_reference_definition (_link_def, _meta) ->
       (* TODO: This should not be null *)
@@ -299,7 +307,7 @@ and inline_to_element ~state inline =
         |> List.map (fun inline -> inline_to_element ~state inline)
         |> Array.of_list
       in
-      React.Fragment (React.List list)
+      React.fragment (React.array list)
   | Link (link, _meta) -> (
       match Inline.Link.reference_definition (State.get_defs state) link with
       | Some (Link_definition.Def (ld, _)) -> (
@@ -359,10 +367,10 @@ and inline_to_element ~state inline =
             not_empty_html
             (* TODO: What's l? *)
             |> List.map (fun (_l, line) ->
-                   React.string (Block_line.to_string line))
+                React.string (Block_line.to_string line))
             |> Array.of_list
           in
-          React.Fragment (React.List html))
+          React.fragment (React.array html))
   | Ext_strikethrough (strikethrough, _meta) ->
       let inline = Strikethrough.inline strikethrough in
       state.components.del ~children:(inline_to_element ~state inline) ()

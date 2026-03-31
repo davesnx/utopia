@@ -1,2 +1,2 @@
 (cram
- (deps %{bin:utopia.compiler} %{bin:utopia}))
+ (deps %{bin:utopia.compiler} %{bin:utopia} %{bin:utopia.server}))

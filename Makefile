@@ -65,31 +65,30 @@ install:
 
 .PHONY: pin
 pin: ## Pin dependencies
-	opam pin add server-reason-react.dev "https://github.com/ml-in-barcelona/server-reason-react.git#68d958d856c87b0b5dd24e7ed400164c206ad56a" -y
-	opam pin add ppx_deriving_router.dev "https://github.com/andreypopp/ppx_deriving_router.git#5b081acc9ed11e532819a9134bccc9da175bb8ff" -y
+	opam pin add server-reason-react.dev "https://github.com/ml-in-barcelona/server-reason-react.git#36ceb5314b6f68b1c666dc6568518111f16d0c83" -y
 
 .PHONY: init
 init: setup-githooks create-switch pin install ## Create a local dev enviroment
 
 .PHONY: run-demo
 run-demo: build ## Run demo executable
-	cd demo/basic && $(DUNE) exec --display-separate-messages --no-print-directory utopia.server
+	cd demo/notes && opam exec -- npm run build && ../../_build/default/demo/notes/_utopia/server_main.exe
 
 .PHONY: run-demo-watch
 run-demo-watch: build ## Run demo executable in watch mode
-	cd demo/basic && $(DUNE) exec --display-separate-messages --no-print-directory utopia.server --watch
+	cd demo/notes && ../../_build/default/bin/cli/cli.exe dev
 
 .PHONY: compile-demo
 compile-demo: build ## compile demo executable
-	cd demo/basic && $(DUNE) exec --display-separate-messages --no-print-directory utopia.compiler
+	cd demo/notes && ../../_build/default/bin/compiler/compiler.exe
 
 .PHONY: compile-demo-watch
 compile-demo-watch: build ## compile demo executable in watch mode
-	cd demo/basic && $(DUNE) exec --display-separate-messages --no-print-directory utopia.compiler --watch
+	cd demo/notes && ../../_build/default/bin/compiler/compiler.exe --watch
 
 .PHONY: build-generated
 build-generated: ## Run generated tests
-	$(DUNE) build @demo/basic/_utopia/all
+	cd demo/notes && opam exec -- npm run build
 
 .PHONY: bench
 bench: ## Run routing micro-benchmarks

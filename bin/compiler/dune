@@ -1,0 +1,14 @@
+(executable
+ (name compiler)
+ (public_name utopia.compiler)
+ (libraries
+  lib_server
+  utopia_types
+  utopia_path
+  dune_sexp
+  utopia_runtime
+  server-reason-react.react
+  server-reason-react.reactDom
+  unix
+  logs.fmt
+  fmt))

@@ -1,0 +1,12 @@
+let is_tty = Unix.isatty Unix.stdout
+let style code text = if is_tty then code ^ text ^ "\027[0m" else text
+let bold = style "\027[1m"
+let dim = style "\027[2m"
+let green = style "\027[32m"
+let red = style "\027[31m"
+let cyan = style "\027[36m"
+let yellow = style "\027[33m"
+let print_step label = Printf.printf "  %s %s\n%!" (green "▸") label
+let print_done label = Printf.printf "  %s %s\n%!" (green "✓") label
+let print_warn label = Printf.printf "  %s %s\n%!" (yellow "⚠") label
+let print_err label = Printf.eprintf "  %s %s\n%!" (red "✗") label

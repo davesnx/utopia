@@ -1,0 +1,48 @@
+open Notes_data
+
+let react_array items = React.array (Array.of_list items)
+
+module Navigate = Utopia.Router.Navigate
+
+
+let[@react.component] make () =
+  let note_rows =
+    tag_summaries ()
+    |> List.map (fun (summary : tag_summary) ->
+            notes_for_tag summary.slug
+            |> List.map (fun (note : note) ->
+                   <Navigate key=note.summary.slug to_=note.summary.route
+                    className="js-route-link block border-b border-[#e4e2db] px-6 py-4 text-left hover:bg-[#f6f5f1] sm:px-8">
+                    <div className="flex items-baseline justify-between gap-4">
+                      <h2 className="text-[18px] font-medium tracking-[-0.02em] text-[#1d1d1f]">
+                        (React.string note.summary.title)
+                      </h2>
+                      <span className="shrink-0 text-[12px] text-[#8a8984]">
+                        (React.string note.summary.updated_at)
+                      </span>
+                    </div>
+                    <p className="mt-2 max-w-[44rem] text-[14px] leading-6 text-[#5d5c57]">
+                      (React.string note.summary.preview)
+                    </p>
+                    <p className="mt-3 text-[12px] text-[#8a8984]">
+                      (React.string summary.name)
+                    </p>
+                  </Navigate>))
+    |> List.flatten
+  in
+  <main className="notes-scrollbar min-h-screen overflow-y-auto">
+    <header className="border-b border-[#e4e2db] px-6 py-5 sm:px-8">
+      <div>
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+          (React.string "Overview")
+        </p>
+        <h2 className="mt-2 text-[30px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">
+          (React.string "All Notes")
+        </h2>
+        <p className="mt-3 max-w-[34rem] text-[15px] leading-7 text-[#5d5c57]">
+          (React.string "Browse every note or open a tag from the sidebar to see just one stack.")
+        </p>
+      </div>
+    </header>
+    <div>(react_array note_rows)</div>
+  </main>

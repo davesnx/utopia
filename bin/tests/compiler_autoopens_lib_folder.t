@@ -1,51 +1,50 @@
-  $ mkdir -p pages/lib _utopia
+  $ mkdir -p pages lib _utopia
+  $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
+  $ printf "(dirs :standard _utopia)\n" > dune
   $ touch _utopia/dune
-  $ printf "let page = Utils.value\n" > pages/Home.re
-  $ printf "let value = 1\n" > pages/lib/Utils.re
+  $ cat > pages/Home.re <<'EOF'
+  > [@react.component]
+  > let make = () => <div> {React.string(string_of_int(Utils.value))} </div>;
+  > EOF
+  $ printf "let value = 1\n" > lib/Utils.re
   $ utopia.compiler > /dev/null
-  $ cat _utopia/dune
-  (rule
-   (deps ../pages/Home.re)
-   (targets Home_melange.re Home_native.re)
-   (action
-    (progn
-     (run cp %{deps} Home_melange.re)
-     (run cp %{deps} Home_native.re))))
-  
-  (rule
-   (deps ../pages/lib/Utils.re)
-   (targets Lib__Utils_melange.re Lib__Utils_native.re)
-   (action
-    (progn
-     (run cp %{deps} Lib__Utils_melange.re)
-     (run cp %{deps} Lib__Utils_native.re))))
-  
-  (rule
-   (target Lib_melange.re)
-   (action
-    (write-file %{target} "module Utils = Lib__Utils_melange")))
-  
-  (rule
-   (target Lib_native.re)
-   (action
-    (write-file %{target} "module Utils = Lib__Utils_native")))
-  
-  (melange.emit
-   (target target)
-   (modules Lib_melange Lib__Utils_melange Home_melange)
-   (libraries reason-react)
-   (flags (:standard -open Lib_melange))
-   (preprocess
-    (pps reason-react-ppx)))
-  
-  (library
-   (name pages)
-   (modules Lib_native Lib__Utils_native Home_native)
-   (public_name utopia)
-   (libraries server-reason-react.react server-reason-react.reactDom)
-   (flags (:standard -open Lib_native))
-   (preprocess
-    (pps server-reason-react.ppx)))
-  
+  $ dune build . > /dev/null
+  $ dune build @melange _utopia/server_main.exe _utopia/Utopia_page__Home.re _utopia/Utopia_lib__Utils.re _utopia/Lib.re _utopia/native/Utopia_page__Home.re _utopia/native/Utopia_lib__Utils.re _utopia/native/Lib.re > /dev/null
+  $ python3 - <<'PY'
+  > from pathlib import Path
+  > for path in [
+  >     "_build/default/_utopia/Utopia_page__Home.re",
+  >     "_build/default/_utopia/Utopia_lib__Utils.re",
+  >     "_build/default/_utopia/Lib.re",
+  >     "_build/default/_utopia/native/Utopia_page__Home.re",
+  >     "_build/default/_utopia/native/Utopia_lib__Utils.re",
+  >     "_build/default/_utopia/native/Lib.re",
+  > ]:
+  >     print(path)
+  >     for line in Path(path).read_text().splitlines()[:4]:
+  >         print(line)
+  > PY
+  _build/default/_utopia/Utopia_page__Home.re
+  open! Melange_json.Primitives;
+  open! Lib;
+  [@react.component]
+  let make = () => <div> {React.string(string_of_int(Utils.value))} </div>;
+  _build/default/_utopia/Utopia_lib__Utils.re
+  open! Melange_json.Primitives;
+  open! Lib;
+  let value = 1
+  _build/default/_utopia/Lib.re
+  module Utils = Lib__Utils
+  _build/default/_utopia/native/Utopia_page__Home.re
+  open! Melange_json.Primitives;
+  open! Lib;
+  [@react.component]
+  let make = () => <div> {React.string(string_of_int(Utils.value))} </div>;
+  _build/default/_utopia/native/Utopia_lib__Utils.re
+  open! Melange_json.Primitives;
+  open! Lib;
+  let value = 1
+  _build/default/_utopia/native/Lib.re
+  module Utils = Lib__Utils
   $ cat _utopia/routes.manifest
   home	code	pages/Home.re	home		

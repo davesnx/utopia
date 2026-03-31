@@ -1,0 +1,14 @@
+(library
+ (name lib_server)
+ (public_name utopia.server_lib)
+ (libraries
+  utopia_types
+  cmarkit
+  server-reason-react.react
+  server-reason-react.reactDom
+  unix
+  logs.fmt
+  fmt
+  dream
+  lwt
+  lwt.unix))

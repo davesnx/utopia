@@ -1,0 +1,4 @@
+(executable
+ (name cli)
+ (public_name utopia)
+ (libraries unix lwt lwt.unix dune-rpc dune-rpc-lwt csexp pp utopia_path))

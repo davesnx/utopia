@@ -67,10 +67,10 @@ Heading
   > </script>
   > 
   > EOF
-  <script type="text/javascript">
+  <div><script type="text/javascript">
   // JavaScript example
   document.getElementById("demo").innerHTML = "Hello JavaScript!";
-  </script>
+  </script></div>
 
   $ utopia.markdown <<\EOF
   > Hola

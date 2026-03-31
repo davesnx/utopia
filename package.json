@@ -1,0 +1,11 @@
+{
+  "name": "utopia-js-runtime",
+  "private": true,
+  "dependencies": {
+    "esbuild": "^0.21.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "server-reason-react-esbuild-plugin": "file:_opam/.opam-switch/sources/server-reason-react/packages/esbuild-plugin",
+    "server-reason-react-server-dom-esbuild": "file:_opam/.opam-switch/sources/server-reason-react/packages/react-server-dom-esbuild"
+  }
+}

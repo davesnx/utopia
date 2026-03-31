@@ -4,8 +4,9 @@
   
     ▸ Verifying build artifacts
     ✗ Missing required build artifacts. Run 'utopia build' first.
-      missing: _utopia/dune
       missing: _utopia/routes.manifest
+      missing: _utopia/dune
+      missing: _build/default/_utopia/server_main.exe
   [1]
 
 The 'start' alias should also work:
@@ -16,6 +17,21 @@ The 'start' alias should also work:
   
     ▸ Verifying build artifacts
     ✗ Missing required build artifacts. Run 'utopia build' first.
-      missing: _utopia/dune
       missing: _utopia/routes.manifest
+      missing: _utopia/dune
+      missing: _build/default/_utopia/server_main.exe
+  [1]
+
+If the generated server executable is missing, prod should fail too:
+
+  $ mkdir -p _utopia
+  $ : > _utopia/dune
+  $ : > _utopia/routes.manifest
+  $ utopia prod 2>&1
+  
+  utopia prod
+  
+    ▸ Verifying build artifacts
+    ✗ Missing required build artifacts. Run 'utopia build' first.
+      missing: _build/default/_utopia/server_main.exe
   [1]

@@ -3,7 +3,7 @@
 #
 # Prerequisites:
 #   - wrk must be installed
-#   - The compiler must have been run first (make compile-demo)
+#   - The local opam switch must have all dependencies installed
 #
 # Usage:
 #   ./bench/bench_http.sh              # uses default port 9876
@@ -28,7 +28,7 @@ GREEN="\033[32m"
 RED="\033[31m"
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEMO_DIR="${PROJECT_ROOT}/demo/basic"
+DEMO_DIR="${PROJECT_ROOT}/demo/notes"
 
 log() { printf "${CYAN}==> ${RESET}%s\n" "$*"; }
 error() { printf "${RED}Error: ${RESET}%s\n" "$*" >&2; exit 1; }
@@ -36,17 +36,19 @@ error() { printf "${RED}Error: ${RESET}%s\n" "$*" >&2; exit 1; }
 # Check prerequisites
 command -v wrk >/dev/null 2>&1 || error "wrk is not installed. Install it first."
 
-if [ ! -f "${DEMO_DIR}/_utopia/routes.manifest" ]; then
-  error "Route manifest not found at ${DEMO_DIR}/_utopia/routes.manifest. Run 'make compile-demo' first."
+SERVER_EXE="${PROJECT_ROOT}/_build/default/demo/notes/_utopia/server_main.exe"
+
+# Build the generated demo
+log "Building generated notes demo..."
+(cd "${DEMO_DIR}" && opam exec -- npm run build >/dev/null 2>&1) || error "Failed to build generated demo"
+
+if [ ! -x "${SERVER_EXE}" ]; then
+  error "Generated server executable not found at ${SERVER_EXE}."
 fi
 
-# Build the server
-log "Building server..."
-(cd "${PROJECT_ROOT}" && opam exec -- dune build bin/Server.exe 2>&1) || error "Failed to build server"
-
-# Start the server in the background (with logging disabled for clean benchmarks)
-log "Starting server on port ${PORT}..."
-(cd "${DEMO_DIR}" && NO_LOG=1 PORT="${PORT}" opam exec -- dune exec --no-print-directory utopia.server 2>/dev/null) &
+# Start the generated server in the background (with logging disabled for clean benchmarks)
+log "Starting generated server on port ${PORT}..."
+(cd "${DEMO_DIR}" && NO_LOG=1 PORT="${PORT}" "${SERVER_EXE}" 2>/dev/null) &
 SERVER_PID=$!
 
 cleanup() {

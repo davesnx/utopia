@@ -91,8 +91,10 @@ module Div = {
 };
 
 module Img = {
-  let make = (~className=?, ~title=?, ~src, ~alt, ~children, ()) =>
-    <img src alt ?className ?title> children </img>;
+  let make = (~className=?, ~title=?, ~src, ~alt, ~children, ()) => {
+    ignore(children);
+    <img src alt ?className ?title />;
+  };
 };
 
 module H1 = {

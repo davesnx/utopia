@@ -6,16 +6,14 @@
    Run with: dune exec bench/bench_routing.exe *)
 
 (* -------------------------------------------------------------------------- *)
-(* Types duplicated from server.ml to keep the benchmark self-contained.      *)
-(* If server routing is ever extracted into a library, import from there.     *)
+(* Types intentionally duplicated to keep the benchmark self-contained.        *)
+(* The shared library exists, but benchmarks stay isolated to avoid drift in   *)
+(* startup/linking behavior from affecting the measurements.                   *)
 (* -------------------------------------------------------------------------- *)
 
 type page_kind = Code_page | Markdown_page
-
 type param_kind = Single | Catch_all | Optional_catch_all
-
 type route_segment = Static of string | Param of string * param_kind
-
 type param_value = One of string | Many of string list
 
 type route_entry = {
@@ -59,9 +57,9 @@ let rec match_segments route_segments path_segments params =
 let find_match routes path_segments =
   routes
   |> List.find_map (fun route ->
-         match match_segments route.segments path_segments [] with
-         | None -> None
-         | Some params -> Some (route, params))
+      match match_segments route.segments path_segments [] with
+      | None -> None
+      | Some params -> Some (route, params))
 
 let escape_html text =
   let buffer = Buffer.create (String.length text) in
@@ -85,38 +83,40 @@ let render_params params =
   else
     params
     |> List.map (fun (name, value) ->
-           Printf.sprintf "<li><code>%s</code> = %s</li>" (escape_html name)
-             (escape_html (render_param_value value)))
+        Printf.sprintf "<li><code>%s</code> = %s</li>" (escape_html name)
+          (escape_html (render_param_value value)))
     |> String.concat ""
     |> Printf.sprintf "<h2>Params</h2><ul>%s</ul>"
 
 let wrap_with_layouts layouts content =
   List.fold_right
     (fun layout acc ->
-      Printf.sprintf
-        "<section><div>Layout: <code>%s</code></div>%s</section>"
+      Printf.sprintf "<section><div>Layout: <code>%s</code></div>%s</section>"
         (escape_html layout) acc)
     layouts content
 
 let html_page ~title ~body =
   Printf.sprintf
-    "<!DOCTYPE \
-     html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" \
-     content=\"width=device-width, initial-scale=1\"><title>%s</title></head><body>%s</body></html>"
+    "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta \
+     name=\"viewport\" content=\"width=device-width, \
+     initial-scale=1\"><title>%s</title></head><body>%s</body></html>"
     (escape_html title) body
 
 let render_code_page route source_content params layouts =
   let source = escape_html source_content in
   let content =
     Printf.sprintf
-      "<main><h1>/%s</h1><p>Code page from <code>%s</code>.</p>%s<pre>%s</pre></main>"
+      "<main><h1>/%s</h1><p>Code page from \
+       <code>%s</code>.</p>%s<pre>%s</pre></main>"
       (escape_html route) (escape_html route) (render_params params) source
   in
   html_page ~title:route ~body:(wrap_with_layouts layouts content)
 
 let parse_matcher_segment segment =
   if String.length segment >= 2 && String.sub segment 0 2 = "**" then
-    Ok (Param (String.sub segment 2 (String.length segment - 2), Optional_catch_all))
+    Ok
+      (Param
+         (String.sub segment 2 (String.length segment - 2), Optional_catch_all))
   else if String.length segment >= 1 && segment.[0] = '*' then
     Ok (Param (String.sub segment 1 (String.length segment - 1), Catch_all))
   else if String.length segment >= 1 && segment.[0] = ':' then
@@ -126,8 +126,7 @@ let parse_matcher_segment segment =
 let parse_matcher matcher =
   if matcher = "" then Ok []
   else
-    matcher
-    |> String.split_on_char '/'
+    matcher |> String.split_on_char '/'
     |> List.fold_left
          (fun acc segment ->
            match (acc, parse_matcher_segment segment) with
@@ -150,9 +149,7 @@ let compare_route_specificity left right =
     | _ :: _, [] -> -1
     | [], _ :: _ -> 1
     | ls :: lr, rs :: rr ->
-        if ls > rs then -1
-        else if ls < rs then 1
-        else compare_scores lr rr
+        if ls > rs then -1 else if ls < rs then 1 else compare_scores lr rr
   in
   let left_scores = List.map specificity_of_segment left.segments in
   let right_scores = List.map specificity_of_segment right.segments in
@@ -241,7 +238,9 @@ let print_result r =
 
 let make_static_route path =
   let segments =
-    match parse_matcher path with Ok s -> s | Error _ -> failwith "bad matcher"
+    match parse_matcher path with
+    | Ok s -> s
+    | Error _ -> failwith "bad matcher"
   in
   {
     route = path;
@@ -254,13 +253,15 @@ let make_static_route path =
 
 let make_param_route path =
   let segments =
-    match parse_matcher path with Ok s -> s | Error _ -> failwith "bad matcher"
+    match parse_matcher path with
+    | Ok s -> s
+    | Error _ -> failwith "bad matcher"
   in
   let params =
     segments
     |> List.filter_map (function
-         | Param (name, kind) -> Some (name, kind)
-         | Static _ -> None)
+      | Param (name, kind) -> Some (name, kind)
+      | Static _ -> None)
   in
   {
     route = path;
@@ -278,7 +279,9 @@ let generate_routes n =
       match i mod 5 with
       | 0 -> make_static_route (Printf.sprintf "section%d/page%d" (i / 10) i)
       | 1 -> make_param_route (Printf.sprintf "section%d/:id" (i / 10))
-      | 2 -> make_static_route (Printf.sprintf "section%d/page%d/detail" (i / 10) i)
+      | 2 ->
+          make_static_route
+            (Printf.sprintf "section%d/page%d/detail" (i / 10) i)
       | 3 -> make_param_route (Printf.sprintf "api/v%d/:resource/:id" (i / 10))
       | _ -> make_static_route (Printf.sprintf "page%d" i)
     in
@@ -322,12 +325,14 @@ let bench_match_segments_static () =
   let path_hit = [ "api"; "users"; "list" ] in
   let path_miss = [ "api"; "posts"; "list" ] in
   let r1 =
-    run_bench ~name:"match_segments (static hit)" ~warmup:1000 ~iterations:100_000
-      (fun () -> ignore (match_segments route_segments path_hit []))
+    run_bench ~name:"match_segments (static hit)" ~warmup:1000
+      ~iterations:100_000 (fun () ->
+        ignore (match_segments route_segments path_hit []))
   in
   let r2 =
-    run_bench ~name:"match_segments (static miss)" ~warmup:1000 ~iterations:100_000
-      (fun () -> ignore (match_segments route_segments path_miss []))
+    run_bench ~name:"match_segments (static miss)" ~warmup:1000
+      ~iterations:100_000 (fun () ->
+        ignore (match_segments route_segments path_miss []))
   in
   (r1, r2)
 
@@ -336,8 +341,9 @@ let bench_match_segments_params () =
     [ Static "api"; Static "users"; Param ("id", Single); Static "posts" ]
   in
   let path = [ "api"; "users"; "42"; "posts" ] in
-  run_bench ~name:"match_segments (with params)" ~warmup:1000 ~iterations:100_000
-    (fun () -> ignore (match_segments route_segments path []))
+  run_bench ~name:"match_segments (with params)" ~warmup:1000
+    ~iterations:100_000 (fun () ->
+      ignore (match_segments route_segments path []))
 
 let bench_match_segments_catch_all () =
   let route_segments = [ Static "docs"; Param ("path", Catch_all) ] in
@@ -359,8 +365,7 @@ let bench_render_code_page () =
 
 let bench_render_code_page_no_params () =
   run_bench ~name:"render_code_page (no params)" ~warmup:500 ~iterations:10_000
-    (fun () ->
-      ignore (render_code_page "about" sample_source_content [] []))
+    (fun () -> ignore (render_code_page "about" sample_source_content [] []))
 
 let bench_escape_html () =
   let text_clean = "Hello World! This is a normal paragraph of text." in
@@ -368,12 +373,12 @@ let bench_escape_html () =
     "<script>alert('xss')</script> & \"quotes\" & 'apostrophes' <b>bold</b>"
   in
   let r1 =
-    run_bench ~name:"escape_html (clean)" ~warmup:1000 ~iterations:100_000 (fun () ->
-        ignore (escape_html text_clean))
+    run_bench ~name:"escape_html (clean)" ~warmup:1000 ~iterations:100_000
+      (fun () -> ignore (escape_html text_clean))
   in
   let r2 =
-    run_bench ~name:"escape_html (with special chars)" ~warmup:1000 ~iterations:100_000
-      (fun () -> ignore (escape_html text_dirty))
+    run_bench ~name:"escape_html (with special chars)" ~warmup:1000
+      ~iterations:100_000 (fun () -> ignore (escape_html text_dirty))
   in
   (r1, r2)
 
