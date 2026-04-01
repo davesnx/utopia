@@ -41,6 +41,11 @@ let utopia_router = make_file "Utopia_router.re"
 let utopia_router_route = make_file "Utopia_router_route.re"
 let utopia_router_link = make_file "Utopia_router_link.re"
 
+let utopia_route_builder =
+  make_file ~destination:Native_only "Utopia_route_builder.ml"
+
+let esbuild_config = make_file ~destination:Root_only "esbuild.config.mjs"
+
 let client_entry_source_file =
   make_file ~destination:Root_only "client_entry.re"
 
@@ -63,7 +68,9 @@ let all_files =
     utopia_router;
     utopia_router_route;
     utopia_router_link;
+    esbuild_config;
     client_entry_source_file;
+    utopia_route_builder;
     utopia_server_source_file;
     utopia_types_source_file;
   ]
@@ -97,6 +104,7 @@ let native_module_names =
     utopia_router.module_name;
     utopia_router_route.module_name;
     utopia_router_link.module_name;
+    utopia_route_builder.module_name;
   ]
 
 let target_name file = file.target_name

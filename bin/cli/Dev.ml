@@ -135,7 +135,7 @@ let run args =
                  ~build_dir:
                    (Filename.concat
                       (Artifacts.workspace_root_string ())
-                      Artifacts.build_directory)
+                      (Fpath.to_string Artifacts.build_directory))
                  ~verbose:config.verbose)
              (fun exn ->
                if config.verbose then

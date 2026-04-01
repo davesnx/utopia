@@ -18,7 +18,7 @@ type route_schema_file = {
   module_name : string;
 }
 
-let shared_lib_directory = Utopia_path.shared_lib_directory_name
+let shared_lib_directory = Fpath.to_string Utopia_path.shared_lib_directory_name
 let has_shared_lib () = Filesystem.directory_exists shared_lib_directory
 
 let shared_lib_files_for_build () : shared_lib_file list =

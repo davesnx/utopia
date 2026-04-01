@@ -12,6 +12,8 @@ $ test -f _utopia/Utopia_types.ml
 $ test -f _utopia/Utopia_router.re
 $ test -f _utopia/Utopia_router_route.re
 $ test -f _utopia/Utopia_router_link.re
+$ test -f _utopia/esbuild.config.mjs
+$ test -f _utopia/paths.mjs
 $ test -f _utopia/client_entry.re
   $ test -f _utopia/native/FunctionReferences.re
   $ test -f _utopia/native/Utopia.re
@@ -20,6 +22,7 @@ $ test -f _utopia/client_entry.re
   $ test -f _utopia/native/Utopia_router.re
   $ test -f _utopia/native/Utopia_router_route.re
   $ test -f _utopia/native/Utopia_router_link.re
+  $ test -f _utopia/native/Utopia_route_builder.ml
   $ grep -qF '(rule (deps ../pages/Home.re) (target Utopia_page__Home.re)' _utopia/dune
   $ grep -qF '(rule (deps client_entry.re) (target client_entry_melange.re)' _utopia/dune
   $ grep -qF '(melange.emit (target target) (module_systems es6)' _utopia/dune

@@ -102,7 +102,7 @@ let scroll_container_class =
   "min-h-screen overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgb(140_118_79_/_35%)_transparent] [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-[rgb(140_118_79_/_28%)] [&::-webkit-scrollbar-thumb]:bg-clip-padding"
 
 let markdown_editor_class =
-  "mt-4 block min-h-[280px] w-full resize-y rounded-[20px] border border-[#e4e2db] bg-[#fcfbf8] px-4 py-4 font-mono text-[14px] leading-7 text-[#232320] outline-none placeholder:text-[#b2b1ac] focus:border-[#c9b99a]"
+  "mt-4 block min-h-[280px] w-full resize-y border border-[#e4e2db] bg-[#fcfbf8] px-4 py-4 font-mono text-[14px] leading-7 text-[#232320] outline-none placeholder:text-[#b2b1ac] focus:border-[#c9b99a]"
 
 let markdown_placeholder =
   "Write markdown here.\n\nUse # headings, lists, links, `inline code`, and fenced code blocks."

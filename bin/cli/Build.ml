@@ -14,7 +14,8 @@ let print_report () =
   if Artifacts.artifact_exists generated_server then
     Printf.printf "  Server:     %s\n"
       (Artifacts.artifact_display generated_server);
-  Printf.printf "  Output:     %s\n%!" Artifacts.build_directory;
+  Printf.printf "  Output:     %s\n%!"
+    (Fpath.to_string Artifacts.build_directory);
   print_newline ()
 
 let run _args =

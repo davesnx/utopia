@@ -4,7 +4,7 @@ let generated_files project =
   [
     Utopia_path.generated_dune project;
     Utopia_path.routes_manifest project;
-    Utopia_path.generated_esbuild_config project;
+    Utopia_path.generated_esbuild_paths project;
     Utopia_path.generated_routes_source project;
     Utopia_path.generated_server_source project;
   ]
@@ -65,7 +65,7 @@ let run () =
           Generated_dune.generate recursive_pages route_entries
         in
         let route_manifest = Manifest.generate route_entries in
-        let esbuild_config = Esbuild.generate () in
+        let esbuild_paths = Esbuild.generate_paths () in
         let generated_routes = Generated_routes.generate route_entries in
         let server_main = Server_main.generate route_entries in
         print_endline dune_rules;
@@ -78,8 +78,8 @@ let run () =
           (file_ref_path (Utopia_path.routes_manifest project))
           (route_manifest ^ "\n");
         Filesystem.write_to_file
-          (file_ref_path (Utopia_path.generated_esbuild_config project))
-          esbuild_config;
+          (file_ref_path (Utopia_path.generated_esbuild_paths project))
+          esbuild_paths;
         Filesystem.write_to_file
           (file_ref_path (Utopia_path.generated_routes_source project))
           generated_routes;

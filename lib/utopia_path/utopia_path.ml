@@ -17,10 +17,10 @@ let exists path = Sys.file_exists (to_string path)
 let is_directory path = exists path && Sys.is_directory (to_string path)
 let file_path file_ref = file_ref.path
 let file_display file_ref = file_ref.display
-let build_directory_name = "_build"
-let generated_directory_name = "_utopia"
-let generated_native_directory_name = "native"
-let shared_lib_directory_name = "lib"
+let build_directory_name = Fpath.v "_build"
+let generated_directory_name = Fpath.v "_utopia"
+let generated_native_directory_name = Fpath.v "native"
+let shared_lib_directory_name = Fpath.v "lib"
 
 let cwd_dir () =
   of_string_exn (Sys.getcwd ()) |> Fpath.to_dir_path |> Fpath.normalize
@@ -58,25 +58,25 @@ let root_relative_display ~root path =
   | None -> Fpath.to_string path
 
 let build_root project =
-  Fpath.(project.workspace_root / build_directory_name / "default")
+  Fpath.(project.workspace_root // build_directory_name / "default")
 
 let project_utopia_dir project =
   match project.project_workspace_path with
-  | None -> Fpath.v generated_directory_name
-  | Some path -> Fpath.(path / generated_directory_name)
+  | None -> generated_directory_name
+  | Some path -> Fpath.(path // generated_directory_name)
 
 let project_generated_directory project =
-  Fpath.(project.project_root / generated_directory_name)
+  Fpath.(project.project_root // generated_directory_name)
 
 let project_generated_native_directory project =
-  Fpath.(project_generated_directory project / generated_native_directory_name)
+  Fpath.(project_generated_directory project // generated_native_directory_name)
 
 let project_shared_lib_directory project =
-  Fpath.(project.project_root / shared_lib_directory_name)
+  Fpath.(project.project_root // shared_lib_directory_name)
 
 let workspace_root_from_build_path path =
   let value = Fpath.to_string path in
-  let marker = build_directory_name ^ "/default/" in
+  let marker = Fpath.(build_directory_name / "default") |> Fpath.to_string in
   let marker_len = String.length marker in
   let value_len = String.length value in
   let rec find index =
@@ -103,6 +103,9 @@ let generated_esbuild_config project =
   project_root_ref project
     (Fpath.v "_utopia/esbuild.config.mjs")
     "_utopia/esbuild.config.mjs"
+
+let generated_esbuild_paths project =
+  project_root_ref project (Fpath.v "_utopia/paths.mjs") "_utopia/paths.mjs"
 
 let generated_routes_source project =
   project_root_ref project

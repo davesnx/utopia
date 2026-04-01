@@ -155,7 +155,10 @@ The compiler injects a small prelude into these mirrored sources so both build p
 A generated Reason file compiled via Melange that serves as the browser-side RSC shell. It imports React, ReactDOM, and ReactServerDOMEsbuild, fetches the RSC payload for the current page from the server, and renders/hydrates the result into the DOM. Included in all pages via `bootstrapModules` in `DreamRSC.stream_html`.
 
 ### esbuild Config (`_utopia/esbuild.config.mjs`)
-A generated esbuild configuration file that imports `server-reason-react-esbuild-plugin`, configures entry points (the client entry), target directory (Melange output), and output directory. Executed by Node as a dune rule.
+A static, runnable JavaScript file that imports `server-reason-react-esbuild-plugin`, configures entry points (the client entry), target directory (Melange output), and output directory. Executed by Node as a dune rule. The config is a static runtime file copied from `lib/utopia_runtime/files/esbuild.config.mjs` — not generated. It imports the project path from a sibling `_utopia/paths.mjs` module (the only generated part) and derives all build paths at runtime. This means the esbuild config is real, directly runnable JavaScript with full editor support, linting, and syntax highlighting.
+
+### esbuild Paths (`_utopia/paths.mjs`)
+A tiny generated ESM module containing a single export: `export const projectPath = "..."`. The compiler writes this file with the project's workspace-relative path (empty string for root projects, e.g. `"demo/notes"` for nested projects). The esbuild config imports this value and derives all build/source directory paths from it.
 
 ### Shared Types Library (`utopia.types`)
 A small library containing types shared between the compiler and server: `page_kind`, `param_kind`, `route_segment`, and related utility functions. Eliminates type duplication across executables. Has zero external dependencies.
@@ -164,7 +167,7 @@ A small library containing types shared between the compiler and server: `page_k
 A shared code directory at project-root `lib/`. Modules here are automatically available in generated page/layout builds without manual imports. Compiled to both native (via `server-reason-react.ppx`) and JS (via melange). The compiler mirrors shared `lib/` files into both build contexts under internal `Utopia_lib__*` module names, generates a public `Lib` alias module that re-exports them, and injects `open Lib` into generated page/layout mirrors so shared helpers stay available without exposing the internal build-module names.
 
 ### Generated Runtime Support Library (`utopia_runtime`)
-An internal compiler-support library under `lib/utopia_runtime/` that ships the static source files copied into generated projects: `ReactServerDOMEsbuild.re`, `FunctionReferences.re`, `Utopia.re`, `Utopia_route.ml`, `Utopia_server.ml`, `Utopia_types.ml`, `Utopia_router.re`, `Utopia_router_route.re`, `Utopia_router_link.re`, and `client_entry.re`.
+An internal compiler-support library under `lib/utopia_runtime/` that ships the static source files copied into generated projects: `ReactServerDOMEsbuild.re`, `FunctionReferences.re`, `Utopia.re`, `Utopia_route.ml`, `Utopia_route_builder.ml`, `esbuild.config.mjs`, `Utopia_server.ml`, `Utopia_types.ml`, `Utopia_router.re`, `Utopia_router_route.re`, `Utopia_router_link.re`, and `client_entry.re`.
 
 When the compiler runs inside the workspace, it copies these files from either `lib/utopia_runtime/files/` or the canonical source modules under `lib/server/` and `lib/utopia_types/`. When the compiler runs as an installed CLI, it resolves the same files from the package install under the switch `lib/` directory. This keeps static generated support code out of `bin/compiler.ml` and leaves `write-file` usage only for dynamic generated content such as `Lib.re` aliases and `Utopia_routes.ml`.
 
@@ -250,7 +253,10 @@ A generated executable at `_utopia/server_main.ml` that calls `utopia.server_lib
 The built executable lives at `_build/default/_utopia/server_main.exe` for a root project, or `_build/default/<project-path>/_utopia/server_main.exe` for a nested project. CLI `dev` and `prod` flows should launch this executable instead of the standalone `utopia.server` binary so compiled routes, compiled page modules, and server-function registries are active. At runtime, the shared server startup path also retries upward from the requested `PORT` when bind fails with `EADDRINUSE`, which covers direct `server_main.exe` launches and races after the CLI's preflight port probe.
 
 ### Generated Route Descriptor
-A typed OCaml value emitted into `_utopia/server_main.ml` for each route. It carries `route`, `matcher`, `params`, `source_file`, `layouts`, `kind`, and the generated router helpers (`router_shell`, `router_tree`, `router_subtree`) needed for SSR and diff navigation. The server library converts these descriptors into its runtime routing table without rereading the manifest.
+A typed OCaml value emitted into `_utopia/server_main.ml` for each route. It carries `route`, `matcher`, `params`, `source_file`, `layouts`, `kind`, and the router helpers (`router_shell`, `router_tree`, `router_subtree`) needed for SSR and diff navigation. The router helpers are computed at server startup by `Utopia_route_builder.build_router` from the route's matcher and layout info, rather than generated as inline OCaml expressions. The server library converts these descriptors into its runtime routing table without rereading the manifest.
+
+### Route Builder (`Utopia_route_builder`)
+A native-only runtime module at `lib/utopia_runtime/files/Utopia_route_builder.ml` that constructs the router tree, shell, and subtree functions from route metadata and layout render functions. The builder implements the boundary nesting algorithm (creating nested `Utopia.Router.Boundary` elements with `PassThroughLayout` defaults) as real, typechecked OCaml rather than string-based code generation. The generated `server_main.ml` passes each route's matcher, page render function, and layout info to `Utopia_route_builder.build_router`, which returns a record of `{ shell; tree; subtree }` functions.
 
 ### Generated Utopia Router API
 A generated module named `Utopia` is compiled into each project's pages library. It exposes the public client router surface for user code, including `Utopia.useRouter()`, `Utopia.make`, `Utopia.callServer`, `Utopia.currentUrl`, `Utopia.browserPath`, `Utopia.Route`, `Utopia.Routes`, `Utopia.Router`, and `Utopia.PassThroughLayout`.

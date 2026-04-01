@@ -23,11 +23,11 @@ let run ~version _args =
        Terminal.green "found"
      else Terminal.red "missing");
   Printf.printf "    _utopia:    %s\n"
-    (if Filesystem.is_directory Artifacts.generated_directory then
-       Terminal.green "generated"
+    (if Filesystem.is_directory (Fpath.to_string Artifacts.generated_directory)
+     then Terminal.green "generated"
      else Terminal.dim "not generated");
   Printf.printf "    _build:     %s\n"
-    (if Filesystem.is_directory Artifacts.build_directory then
+    (if Filesystem.is_directory (Fpath.to_string Artifacts.build_directory) then
        Terminal.green "present"
      else Terminal.dim "not present");
 

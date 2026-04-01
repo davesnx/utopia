@@ -20,8 +20,7 @@
   $ grep -qE 'pages_\S*demo_notes .* cmarkit' demo/notes/_utopia/dune
   $ grep -qF '../lib/NotesShared.re' demo/notes/_utopia/dune
   $ grep -qF '../../lib/NotesShared.re' demo/notes/_utopia/dune
-  $ grep -oE '"_utopia/target/demo/basic/_utopia"|"\.\.\/\.\.\/_build/default/demo/basic/_utopia/target/demo/basic/_utopia"|"_utopia/target/demo/notes/_utopia"|"\.\.\/\.\.\/_build/default/demo/notes/_utopia/target/demo/notes/_utopia"' demo/basic/_utopia/esbuild.config.mjs demo/notes/_utopia/esbuild.config.mjs
-  demo/basic/_utopia/esbuild.config.mjs:"_utopia/target/demo/basic/_utopia"
-  demo/basic/_utopia/esbuild.config.mjs:"../../_build/default/demo/basic/_utopia/target/demo/basic/_utopia"
-  demo/notes/_utopia/esbuild.config.mjs:"_utopia/target/demo/notes/_utopia"
-  demo/notes/_utopia/esbuild.config.mjs:"../../_build/default/demo/notes/_utopia/target/demo/notes/_utopia"
+  $ cat demo/basic/_utopia/paths.mjs
+  export const projectPath = "demo/basic";
+  $ cat demo/notes/_utopia/paths.mjs
+  export const projectPath = "demo/notes";

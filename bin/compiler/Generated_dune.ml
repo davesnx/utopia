@@ -4,7 +4,7 @@ let generated_server_name = "server_main"
 let native_subdir_name = "native"
 let melange_target_name = "target"
 let pages_directory = "pages"
-let shared_lib_directory = Utopia_path.shared_lib_directory_name
+let shared_lib_directory = Fpath.to_string Utopia_path.shared_lib_directory_name
 let generated_routes_source = "Utopia_routes.ml"
 let generated_routes_module = "Utopia_routes"
 
@@ -399,6 +399,7 @@ let generate files route_entries =
         [
           form "alias" [ atom "melange" ];
           atom "esbuild.config.mjs";
+          atom "paths.mjs";
           atom "../package.json";
         ]
       ~action:

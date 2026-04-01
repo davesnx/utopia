@@ -2,11 +2,11 @@ let run _args =
   Printf.printf "\n%s\n\n" (Terminal.bold "utopia clean");
   let removed = ref [] in
 
-  if Filesystem.remove_if_exists Artifacts.build_directory then
-    removed := Artifacts.build_directory :: !removed;
+  if Filesystem.remove_if_exists (Fpath.to_string Artifacts.build_directory)
+  then removed := Fpath.to_string Artifacts.build_directory :: !removed;
 
-  if Filesystem.remove_if_exists Artifacts.generated_directory then
-    removed := Artifacts.generated_directory :: !removed;
+  if Filesystem.remove_if_exists (Fpath.to_string Artifacts.generated_directory)
+  then removed := Fpath.to_string Artifacts.generated_directory :: !removed;
 
   let dune = Binaries.resolve_bin "dune" in
   let code = Process.run_command dune (Artifacts.dune_clean_args ()) in
