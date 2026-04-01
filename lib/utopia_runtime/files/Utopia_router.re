@@ -512,17 +512,19 @@ let make = (~initialPath: string, ~children: React.element) => {
          },
        )
      | Server =>
-       provider(
-         ~value=
-           Some({
-             path: Utopia_route.request_path(initialRoute),
-             route: initialRoute,
-              navigate: (~history=?, ~freshness=?, _) =>
-                failwith("navigate isn't supported on the server"),
-            }),
-         ~children=element,
-         (),
-       )
+        provider(
+          React.Context.makeProps(
+            ~value=
+              Some({
+                path: Utopia_route.request_path(initialRoute),
+                route: initialRoute,
+                 navigate: (~history=?, ~freshness=?, _) =>
+                   failwith("navigate isn't supported on the server"),
+               }),
+            ~children=element,
+            (),
+          ),
+        )
      }}
   </React.Fragment>;
 };

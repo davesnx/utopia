@@ -215,7 +215,7 @@ let rec block_to_element ~(state : State.t) block =
       let contents =
         React.list
           (List.map
-             (fun (l, _) -> React.string (html_escaped_string l))
+             (fun (l, _) -> React.string (html_escaped_string l ^ "\n"))
              (Code_block.code code_block))
       in
       match lang with

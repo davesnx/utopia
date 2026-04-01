@@ -20,7 +20,9 @@ let ocaml_make_page_expr entry =
   match entry.Routes.kind with
   | Code_page ->
       Printf.sprintf
-        "fun () -> Utopia_server.wrap_raw_inner_html_element (%s.make ())"
+        "fun () -> Utopia_server.wrap_raw_inner_html_element (%s.make \
+         (%s.makeProps ()))"
+        (Names.compiled_page_module_name_of_source entry.Routes.source_file)
         (Names.compiled_page_module_name_of_source entry.Routes.source_file)
   | Markdown_page ->
       Printf.sprintf "fun () -> Utopia_server.render_markdown_body %S"
@@ -37,9 +39,10 @@ let ocaml_layout_info layout =
   Printf.sprintf
     "{ Utopia_route_builder.path = %S;\n\
     \      render = (fun children ->\n\
-    \        Utopia_server.wrap_raw_inner_html_element (%s.make ~children ())) \
-     }"
+    \        Utopia_server.wrap_raw_inner_html_element (%s.make (%s.makeProps \
+     ~children ()))) }"
     path
+    (Names.compiled_page_module_name_of_source layout)
     (Names.compiled_page_module_name_of_source layout)
 
 let ocaml_layout_infos_list layouts =

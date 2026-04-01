@@ -61,7 +61,8 @@ Heading
   > ```
   > 
   > EOF
-  <pre class="utopia-markdown-code-block"><code class="utopia-markdown-code">Generic code block</code></pre>
+  <pre class="utopia-markdown-code-block"><code class="utopia-markdown-code">Generic code block
+  </code></pre>
 
   $ utopia.markdown <<\EOF
   > <script type="text/javascript">

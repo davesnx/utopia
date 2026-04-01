@@ -11,7 +11,7 @@ type note_summary = {
 
 type note = {
   summary : note_summary;
-  body_markdown : string;
+  body : string;
   checklist : checklist_item list;
   tags : string list;
 }
@@ -74,8 +74,8 @@ let seed_tag_description slug =
 let make_tag_summary ~count ~slug ~name ~description () =
   { slug; name; route = tag_route slug; description; count }
 
-let make_note ~tag_slug ~slug ~title ~preview ~updated_at ~body_markdown
-    ~checklist ~tags () =
+let make_note ~tag_slug ~slug ~title ~preview ~updated_at ~body ~checklist ~tags
+    () =
   let summary =
     {
       slug;
@@ -86,14 +86,14 @@ let make_note ~tag_slug ~slug ~title ~preview ~updated_at ~body_markdown
       updated_at;
     }
   in
-  { summary; body_markdown; checklist; tags }
+  { summary; body; checklist; tags }
 
 let seed_notes =
   [
     make_note ~tag_slug:"launch" ~slug:"launch" ~title:"Spring launch checklist"
       ~preview:"Hero copy, footer polish, and one final empty-state pass."
       ~updated_at:"Today, 8:42 AM"
-      ~body_markdown:
+      ~body:
         "The quiet version of the launch is still the right one. Keep the \
          shell calm, leave more paper around the text, and let the product \
          screenshots breathe.\n\n\
@@ -113,7 +113,7 @@ let seed_notes =
     make_note ~tag_slug:"travel" ~slug:"travel" ~title:"Oslo offsite sketch"
       ~preview:"One bag, morning light, and a long walk after the workshop."
       ~updated_at:"Yesterday, 6:15 PM"
-      ~body_markdown:
+      ~body:
         "Aim for a one-bag setup. The smaller the footprint, the calmer the \
          trip feels once the workshop starts.\n\n\
          Need a room with good morning light, a large shared table, and one \
@@ -133,8 +133,8 @@ let seed_notes =
         "The interface should feel plain, light, and almost invisible around \
          the writing."
       ~updated_at:"Today, 7:08 AM"
-      ~body_markdown:
-        "The best part of Apple Notes is not the color. It is the way the \
+      ~body:
+        "The best part of Utopia Notes is not the color. It is the way the \
          chrome fades back so the writing can do the work.\n\n\
          One sidebar is enough. Use it for the routes, keep the separators \
          faint, and let the note itself take the full width of attention. Even \
@@ -153,13 +153,13 @@ let seed_notes =
           { text = "Use a single neutral selection fill"; done_ = true };
           { text = "Test the note column on narrow screens"; done_ = false };
         ]
-      ~tags:[ "design"; "apple-notes"; "rsc" ]
+      ~tags:[ "design"; "utopia-notes"; "rsc" ]
       ();
     make_note ~tag_slug:"archive" ~slug:"archive"
       ~title:"Quiet ideas worth revisiting"
       ~preview:"Reading mode, softer separators, and a weekly note shelf."
       ~updated_at:"Last week"
-      ~body_markdown:
+      ~body:
         "Reading mode could remove the route list entirely and leave only the \
          title, the date, and the note.\n\n\
          A weekly shelf might work if it behaves more like a stack of recent \
@@ -181,14 +181,14 @@ let checklist_sep = Char.chr 29
 let checklist_state_sep = Char.chr 28
 let tag_sep = Char.chr 27
 let schema_key = "notes_schema_version"
-let schema_version = "apple-notes-demo-v6"
+let schema_version = "utopia-notes-demo-v7"
 
 let sql_text value =
   let pieces = String.split_on_char '\'' value in
   "'" ^ String.concat "''" pieces ^ "'"
 
-let encode_body_markdown body_markdown =
-  let buffer = Buffer.create (String.length body_markdown) in
+let encode_body body =
+  let buffer = Buffer.create (String.length body) in
   String.iter
     (function
       | '\\' -> Buffer.add_string buffer "\\\\"
@@ -196,17 +196,15 @@ let encode_body_markdown body_markdown =
       | '\r' -> Buffer.add_string buffer "\\r"
       | '\t' -> Buffer.add_string buffer "\\t"
       | ch -> Buffer.add_char buffer ch)
-    body_markdown;
+    body;
   Buffer.contents buffer
 
-let decode_body_markdown body_markdown =
-  let buffer = Buffer.create (String.length body_markdown) in
+let decode_body body =
+  let buffer = Buffer.create (String.length body) in
   let rec loop index =
-    if index >= String.length body_markdown then ()
-    else if
-      index + 1 < String.length body_markdown && body_markdown.[index] = '\\'
-    then (
-      let next = body_markdown.[index + 1] in
+    if index >= String.length body then ()
+    else if index + 1 < String.length body && body.[index] = '\\' then (
+      let next = body.[index + 1] in
       (match next with
       | '\\' -> Buffer.add_char buffer '\\'
       | 'n' -> Buffer.add_char buffer '\n'
@@ -217,7 +215,7 @@ let decode_body_markdown body_markdown =
           Buffer.add_char buffer next);
       loop (index + 2))
     else (
-      Buffer.add_char buffer body_markdown.[index];
+      Buffer.add_char buffer body.[index];
       loop (index + 1))
   in
   loop 0;
@@ -256,15 +254,14 @@ let insert_tag_sql ~slug ~name ~description =
 let insert_sql note =
   Printf.sprintf
     "INSERT INTO notes (slug, tag_slug, route, title, preview, updated_at, \
-     body_markdown, checklist, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, \
-     %s);"
+     body, checklist, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);"
     (sql_text note.summary.slug)
     (sql_text note.summary.tag_slug)
     (sql_text (Utopia.Route.href note.summary.route))
     (sql_text note.summary.title)
     (sql_text note.summary.preview)
     (sql_text note.summary.updated_at)
-    (sql_text (encode_body_markdown note.body_markdown))
+    (sql_text (encode_body note.body))
     (sql_text (encode_checklist note.checklist))
     (sql_text (encode_tags note.tags))
 
@@ -348,15 +345,7 @@ let summary_of_fields = function
 
 let note_of_fields = function
   | [
-      slug;
-      tag_slug;
-      _route;
-      title;
-      preview;
-      updated_at;
-      body_markdown;
-      checklist;
-      tags;
+      slug; tag_slug; _route; title; preview; updated_at; body; checklist; tags;
     ] ->
       {
         summary =
@@ -368,7 +357,7 @@ let note_of_fields = function
             preview;
             updated_at;
           };
-        body_markdown = decode_body_markdown body_markdown;
+        body = decode_body body;
         checklist = decode_checklist checklist;
         tags = decode_tags tags;
       }
@@ -490,8 +479,8 @@ let ensure_schema () =
       (raw_sql_lines
          "CREATE TABLE notes (slug TEXT PRIMARY KEY, tag_slug TEXT NOT NULL, \
           route TEXT NOT NULL, title TEXT NOT NULL, preview TEXT NOT NULL, \
-          updated_at TEXT NOT NULL, body_markdown TEXT NOT NULL, checklist \
-          TEXT NOT NULL, tags TEXT NOT NULL);");
+          updated_at TEXT NOT NULL, body TEXT NOT NULL, checklist TEXT NOT \
+          NULL, tags TEXT NOT NULL);");
     ignore
       (raw_sql_lines
          (Printf.sprintf
@@ -549,9 +538,9 @@ let notes_for_tag tag_slug : note list =
     | Server ->
         let sql =
           Printf.sprintf
-            "SELECT slug, tag_slug, route, title, preview, updated_at, \
-             body_markdown, checklist, tags FROM notes WHERE tag_slug = %s \
-             ORDER BY rowid DESC;"
+            "SELECT slug, tag_slug, route, title, preview, updated_at, body, \
+             checklist, tags FROM notes WHERE tag_slug = %s ORDER BY rowid \
+             DESC;"
             (sql_text tag_slug)
         in
         query_lines sql
@@ -693,26 +682,26 @@ let time_only updated_at =
       if value = "" then updated_at else value
   | _ -> updated_at
 
-let preview_of_body_markdown body_markdown =
+let preview_of_body body =
   let plain =
     [%platform
       match () with
       | Server ->
-          body_markdown |> Utopia_markdown.render_string_to_html
-          |> body_text_of_html |> collapse_whitespace
-      | Client -> collapse_whitespace body_markdown]
+          body |> Utopia_markdown.render_string_to_html |> body_text_of_html
+          |> collapse_whitespace
+      | Client -> collapse_whitespace body]
   in
   if plain = "" then "New note"
   else if String.length plain <= 110 then plain
   else String.sub plain 0 107 ^ "..."
 
-let normalize_body_markdown body_markdown = String.trim body_markdown
+let normalize_body body = String.trim body
 
-let render_note_body_html body_markdown =
+let render_note_body_html body =
   [%platform
     match () with
-    | Server -> Utopia_markdown.render_string_to_html body_markdown
-    | Client -> html_escaped_string body_markdown]
+    | Server -> Utopia_markdown.render_string_to_html body
+    | Client -> html_escaped_string body]
 
 let timestamp_slug tag_slug title =
   let sanitized = normalize_tag_slug title in
@@ -732,9 +721,8 @@ let note_by_slug slug =
     | Server ->
         let sql =
           Printf.sprintf
-            "SELECT slug, tag_slug, route, title, preview, updated_at, \
-             body_markdown, checklist, tags FROM notes WHERE slug = %s LIMIT \
-             1;"
+            "SELECT slug, tag_slug, route, title, preview, updated_at, body, \
+             checklist, tags FROM notes WHERE slug = %s LIMIT 1;"
             (sql_text slug)
         in
         query_lines sql
@@ -849,9 +837,9 @@ let create_note_from_form_data formData =
         let title =
           match get_string "title" with "" -> "Untitled Note" | value -> value
         in
-        let body_markdown =
-          Js.FormData.get formData "body_markdown" |> function
-          | `String value -> normalize_body_markdown value
+        let body =
+          Js.FormData.get formData "body" |> function
+          | `String value -> normalize_body value
         in
         let checklist =
           get_string "checklist" |> decode_checklist
@@ -860,10 +848,8 @@ let create_note_from_form_data formData =
         let note =
           make_note ~tag_slug
             ~slug:(timestamp_slug tag_slug title)
-            ~title
-            ~preview:(preview_of_body_markdown body_markdown)
-            ~updated_at:"Just now" ~body_markdown ~checklist ~tags:[ tag_slug ]
-            ()
+            ~title ~preview:(preview_of_body body) ~updated_at:"Just now" ~body
+            ~checklist ~tags:[ tag_slug ] ()
         in
         ignore (query_lines (insert_sql note));
         note.summary.route
@@ -871,7 +857,7 @@ let create_note_from_form_data formData =
         let _ = formData in
         notes_route]
 
-let create_note_action ~tag_slug ~title ~body_markdown ~checklist_raw =
+let create_note_action ~tag_slug ~title ~body ~checklist_raw =
   [%platform
     match () with
     | Server ->
@@ -882,7 +868,7 @@ let create_note_action ~tag_slug ~title ~body_markdown ~checklist_raw =
         let title =
           match String.trim title with "" -> "Untitled Note" | value -> value
         in
-        let body_markdown = normalize_body_markdown body_markdown in
+        let body = normalize_body body in
         let checklist =
           String.trim checklist_raw |> decode_checklist
           |> List.filter (fun item -> String.trim item.text <> "")
@@ -890,13 +876,11 @@ let create_note_action ~tag_slug ~title ~body_markdown ~checklist_raw =
         let note =
           make_note ~tag_slug
             ~slug:(timestamp_slug tag_slug title)
-            ~title
-            ~preview:(preview_of_body_markdown body_markdown)
-            ~updated_at:"Just now" ~body_markdown ~checklist ~tags:[ tag_slug ]
-            ()
+            ~title ~preview:(preview_of_body body) ~updated_at:"Just now" ~body
+            ~checklist ~tags:[ tag_slug ] ()
         in
         ignore (query_lines (insert_sql note));
         note.summary.route
     | Client ->
-        let _ = (tag_slug, title, body_markdown, checklist_raw) in
+        let _ = (tag_slug, title, body, checklist_raw) in
         notes_route]

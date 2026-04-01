@@ -102,9 +102,9 @@
 
 ## Active slice
 
-- [completed] Create a dedicated `demo/notes/` project so the Apple Notes demo does not overwrite the existing `demo/basic/` worktree changes
+- [completed] Create a dedicated `demo/notes/` project so the Utopia Notes demo does not overwrite the existing `demo/basic/` worktree changes
 - [completed] Add sqlite-backed note data helpers, seed data, and async/suspense-friendly server components for the notes demo
-- [completed] Build the nested notes routes and layouts under `/notes/*` with an Apple Notes-inspired shell and note detail panels
+- [completed] Build the nested notes routes and layouts under `/notes/*` with an Utopia Notes-inspired shell and note detail panels
 - [completed] Verify the compiler/build/runtime flow in an isolated workspace, and capture the remaining RSC GET limitation below
 
 ## Review
@@ -281,23 +281,23 @@
 
 ## Active slice
 
-- [completed] Map the current notes demo structure and choose a minimal Apple Notes-style one-sidebar route model
+- [completed] Map the current notes demo structure and choose a minimal Utopia Notes-style one-sidebar route model
 - [completed] Refactor the notes demo to a single sidebar with four top-level tag routes and a single content pane
-- [completed] Redesign the notes UI to a minimal Apple Notes-inspired look with no border radius or shadows
+- [completed] Redesign the notes UI to a minimal Utopia Notes-inspired look with no border radius or shadows
 - [completed] Remove obsolete nested note routes/components and align demo data with the new tag-driven structure
 - [completed] Verify the rebuilt demo visually via HTTP output/builds and update docs/task notes
 
 ## Review
 
 - The notes demo route tree is now flat under `demo/notes/pages/notes/`: `/notes/launch`, `/notes/travel`, `/notes/design`, and `/notes/archive` are the four tag routes, with `demo/notes/pages/notes/layout.mlx` as the only persistent sidebar shell.
-- `demo/notes/pages/lib/notes_data.ml` now seeds a smaller four-note Apple Notes-style data model and resets the demo SQLite table on first server access so the route/data shape always matches the current demo code.
+- `demo/notes/pages/lib/notes_data.ml` now seeds a smaller four-note Utopia Notes-style data model and resets the demo SQLite table on first server access so the route/data shape always matches the current demo code.
 - `demo/notes/pages/lib/notes_ui.mlx` was simplified to flat Apple-style primitives: sidebar tags, plain list rows, a single note header/body/checklist flow, and no decorative cards, rounded corners, or shadows.
 - `demo/notes/pages/layout.mlx`, `demo/notes/pages/index.mlx`, `demo/notes/pages/notes/layout.mlx`, `demo/notes/pages/notes/index.mlx`, and the new tag pages under `demo/notes/pages/notes/*.mlx` now use a restrained system-font layout with subtle separators and one content pane.
 - Verification passes for `opam exec -- npm run build` in `demo/notes/`, `opam exec -- dune build .` at the repo root, live HTTP checks against `http://127.0.0.1:8145/notes` plus `http://127.0.0.1:8145/notes/design`, and source checks confirming there are no remaining `rounded-*` or `shadow-*` utilities in the notes demo source.
 
 ## Active slice
 
-- [completed] Add a `/notes/new` route with a lightweight WYSIWYG note editor for the Apple Notes demo
+- [completed] Add a `/notes/new` route with a lightweight WYSIWYG note editor for the Utopia Notes demo
 - [completed] Support checklist item creation and toggling inside the editor and persist new notes into the demo store
 - [completed] Integrate created notes back into the tag routes/sidebar model and verify the flow end-to-end
 
@@ -409,7 +409,7 @@
 
 ## Review
 
-- The four tag-route note views under `demo/notes/pages/notes/*.mlx` now render their checklist sections as client components with clickable toggle buttons instead of static markers, while keeping the existing Apple Notes visual treatment.
+- The four tag-route note views under `demo/notes/pages/notes/*.mlx` now render their checklist sections as client components with clickable toggle buttons instead of static markers, while keeping the existing Utopia Notes visual treatment.
 - Each tag page now declares a generated server action wrapper around `toggle_note_checklist_item_from_form_data`, so clicking a checklist marker posts the note slug plus checklist index and then revalidates the current route through `Utopia.useRouter().navigate(~history:Utopia.Replace, ~freshness:Utopia.Revalidate, ...)`.
 - `demo/notes/lib/notes_data.ml` now exposes persisted checklist toggling helpers (`note_by_slug`, `toggle_checklist_item_at`, `toggle_note_checklist_item`, and `toggle_note_checklist_item_from_form_data`) that update the SQLite-backed demo store in place.
 - `plan/primitives.md` now records that created notes remain toggleable from the tag-route note views after they are saved.

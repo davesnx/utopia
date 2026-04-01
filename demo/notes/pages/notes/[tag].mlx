@@ -30,7 +30,7 @@ let note_data_of_note (note : note) =
     note.summary.title,
     note.summary.preview,
     note.summary.updated_at,
-    render_note_body_html note.body_markdown,
+    render_note_body_html note.body,
     List.map (fun (item : checklist_item) -> (item.text, item.done_)) note.checklist )
 
 let tag_data_of_summary (summary : tag_summary) =

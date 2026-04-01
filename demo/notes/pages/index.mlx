@@ -3,7 +3,7 @@ open Notes_data
 let metadata _params =
   Utopia.Metadata.make
     ~title:"Notes"
-    ~description:"A stripped-back Apple Notes-style demo with SQLite-backed content."
+    ~description:"A stripped-back Utopia Notes demo with SQLite-backed content."
     ()
 
 let react_array items = React.array (Array.of_list items)
@@ -21,7 +21,7 @@ let[@react.component] make () =
         (React.string "Notes")
       </h1>
       <p className="mt-4 max-w-[34rem] text-[16px] leading-7 text-[#5e5d58]">
-        (React.string "A stripped-back Apple Notes-style demo with a dynamic tag sidebar and SQLite-backed content.")
+        (React.string "A stripped-back Utopia Notes demo with a dynamic tag sidebar and SQLite-backed content.")
       </p>
       <div className="mt-10 border-t border-[#e4e2db]">
         (react_array

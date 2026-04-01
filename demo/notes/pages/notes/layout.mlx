@@ -35,7 +35,7 @@ module Sidebar_tag = struct
 end
 
 module Sidebar_tag_creation = struct
-  let%browser_only event_value event =
+  let event_value event =
     ((React.Event.Form.target event)##value : string)
 
   let event_key (event : React.Event.Keyboard.t) = React.Event.Keyboard.key event

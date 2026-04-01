@@ -8,13 +8,13 @@ let metadata _params =
 
 let react_array items = React.array (Array.of_list items)
 
-let create_note ~(tag_slug : string) ~(title : string) ~(body_markdown : string)
+let create_note ~(tag_slug : string) ~(title : string) ~(body : string)
     ~(checklist : string) =
-  (Js.Promise.resolve (create_note_action ~tag_slug ~title ~body_markdown ~checklist_raw:checklist)
+  (Js.Promise.resolve (create_note_action ~tag_slug ~title ~body ~checklist_raw:checklist)
     : Utopia.Route.t Js.Promise.t)
 [@@react.server.function]
 
-let%browser_only event_value event =
+let event_value event =
   ((React.Event.Form.target event)##value : string)
 
 let event_key (event : React.Event.Keyboard.t) = React.Event.Keyboard.key event
@@ -142,7 +142,7 @@ module New_note_editor = struct
     let highlighted_tag_index, set_highlighted_tag_index =
       React.useState (fun () -> 0)
     in
-    let body_markdown, set_body_markdown = React.useState (fun () -> "") in
+    let body, set_body = React.useState (fun () -> "") in
     let checklist_items, set_checklist_items =
       React.useState (fun () -> [ make_draft_item 0 ])
     in
@@ -199,7 +199,7 @@ module New_note_editor = struct
       | _ -> ()
     in
     let on_tag_choice_click choice _event = select_tag choice in
-    let on_body_change event = set_body_markdown (fun _ -> event_value event) in
+    let on_body_change event = set_body (fun _ -> event_value event) in
     let add_checklist_item _event =
       let item_id = next_item_id in
       set_checklist_items (fun items -> items @ [ make_draft_item item_id ]);
@@ -221,7 +221,7 @@ module New_note_editor = struct
               else item)
             items)
     in
-    let body_text = body_markdown |> collapse_whitespace in
+    let body_text = body |> collapse_whitespace in
     let save_disabled =
       is_pending || Option.is_none selected_tag_slug
       || (String.trim title = "" && body_text = ""
@@ -248,7 +248,7 @@ module New_note_editor = struct
         set_save_error (fun _ -> "");
         let tag_slug = match selected_tag_slug with Some s -> s | None -> "" in
         let request =
-          create_note.call ~tag_slug ~title ~body_markdown
+          create_note.call ~tag_slug ~title ~body
             ~checklist:(checklist_value checklist_items)
           |> Js.Promise.then_ (fun route ->
                  set_is_pending (fun _ -> false);
@@ -341,7 +341,7 @@ module New_note_editor = struct
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
             (React.string "Body")
           </p>
-          <textarea value=body_markdown onChange=on_body_change
+          <textarea value=body onChange=on_body_change
             className=markdown_editor_class placeholder=markdown_placeholder>
             (React.null)
           </textarea>
