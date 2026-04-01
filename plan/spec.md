@@ -596,7 +596,7 @@ Content types are inferred from file extension (`.js`, `.css`, `.json`, `.map`).
 Tab-separated values, one route per line:
 
 ```
-<route>\t<kind>\t<source_file>\t<matcher>\t<params>\t<layouts>
+<route>\t<kind>\t<source_file>\t<matcher>\t<params>\t<layouts>\t<has_metadata>
 ```
 
 | Field | Format | Example |
@@ -607,6 +607,7 @@ Tab-separated values, one route per line:
 | matcher | Server-style pattern | `users/:id` |
 | params | Comma-separated `name:kind` pairs | `id:single` |
 | layouts | Semicolon-separated source paths | `pages/layout.re;pages/users/layout.re` |
+| has_metadata | `true` or `false` | `true` |
 
 Matcher segment format (differs from filesystem):
 

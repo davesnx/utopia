@@ -250,9 +250,9 @@
 
 ## Review
 
-- The sidebar staleness came from `demo/notes/pages/notes/layout.mlx` navigating to the new tag route without `~revalidate:true`, so the nested router requested only a sibling-route diff and left the `/notes` layout cache untouched.
-- Upstream `server-reason-react` nested-router demos (`NestedRouter_DeleteNoteButton.re` and `NestedRouter_NoteEditor.re`) use `navigate(~revalidate=true, ...)` after mutations for exactly this reason.
-- `create_tag` success handling now calls `router.navigate ~revalidate:true route`, so a new tag refreshes the sidebar layout immediately after navigation.
+- The sidebar staleness came from `demo/notes/pages/notes/layout.mlx` navigating to the new tag route without an explicit revalidation mode, so the nested router requested only a sibling-route diff and left the `/notes` layout cache untouched.
+- Upstream `server-reason-react` nested-router demos (`NestedRouter_DeleteNoteButton.re` and `NestedRouter_NoteEditor.re`) force a revalidation-style navigation after mutations for exactly this reason.
+- `create_tag` success handling now navigates with an explicit revalidation mode, so a new tag refreshes the sidebar layout immediately after navigation.
 
 ## Active slice
 
@@ -410,7 +410,7 @@
 ## Review
 
 - The four tag-route note views under `demo/notes/pages/notes/*.mlx` now render their checklist sections as client components with clickable toggle buttons instead of static markers, while keeping the existing Apple Notes visual treatment.
-- Each tag page now declares a generated server action wrapper around `toggle_note_checklist_item_from_form_data`, so clicking a checklist marker posts the note slug plus checklist index and then revalidates the current route through `Utopia.useRouter().navigate(~replace=true, ~revalidate=true, ...)`.
+- Each tag page now declares a generated server action wrapper around `toggle_note_checklist_item_from_form_data`, so clicking a checklist marker posts the note slug plus checklist index and then revalidates the current route through `Utopia.useRouter().navigate(~history:Utopia.Replace, ~freshness:Utopia.Revalidate, ...)`.
 - `demo/notes/lib/notes_data.ml` now exposes persisted checklist toggling helpers (`note_by_slug`, `toggle_checklist_item_at`, `toggle_note_checklist_item`, and `toggle_note_checklist_item_from_form_data`) that update the SQLite-backed demo store in place.
 - `plan/primitives.md` now records that created notes remain toggleable from the tag-route note views after they are saved.
 - Verification passed for `opam exec -- npm run build` in `demo/notes/` plus a live server-action toggle check that fetched `/notes/launch`, posted the generated `toggle_note_checklist_item_action` multipart request, and confirmed the previously incomplete checklist item re-rendered with `line-through` styling.
@@ -629,3 +629,50 @@
 - `demo/notes/styles.css` now sets `cursor: pointer` on `.notes-button` while keeping the existing disabled-state `cursor: default` override.
 - `plan/primitives.md` now records the new `demo/notes/lib/button.mlx` abstraction alongside the existing notes demo button-style primitive.
 - Verification passed for `opam exec -- npm run build` in `demo/notes/`.
+
+## Active slice
+
+- [completed] Replace the notes demo's local CSS component classes with Tailwind utility strings in the shared button helper and the page/layout markup
+- [completed] Update the shared button API from the old accent boolean to `kind=Accent | Default`, and switch every current call site to the explicit variant
+- [completed] Trim `demo/notes/styles.css` down to the Tailwind entrypoint, refresh primitives/lessons tracking, and rebuild `demo/notes/`
+
+## Review
+
+- `demo/notes/styles.css` is now just the Tailwind entrypoint (`@import "tailwindcss"` plus `@config`), and all former demo-specific component rules were removed.
+- `demo/notes/lib/button.mlx` now emits Tailwind utility strings directly and uses an explicit `kind` variant (`Default` or `Accent`) instead of the old accent boolean flag.
+
+## Active slice
+
+- [completed] Audit the repo for custom boolean props and helper flags that should become explicit variants
+- [completed] Refactor the notes button helper, markdown renderer helpers, and generated router API to use variants instead of boolean props
+- [completed] Refresh docs/demo content to the new variant-based navigation/button APIs and verify the affected builds
+
+## Review
+
+- `demo/notes/lib/button.mlx` no longer exposes boolean style/state props: it now uses explicit `kind`, `width`, and `state` variants while still forwarding only native `disabled` booleans to the underlying DOM button.
+- The generated router runtime under `lib/utopia_runtime/files/` now exposes `navigation_history` (`Push` or `Replace`) and `navigation_freshness` (`Use_cache` or `Revalidate`) variants instead of `replace` and `revalidate` booleans, and the notes demo call sites were updated to use the new labels.
+- The markdown runtime no longer exposes boolean `ariaHidden`, `disabled`, or `checked` helper props: `markdown/elements.re` and `markdown/components.ml` now use `A.visibility` and `Li.marker` variants, and `markdown/render.ml` now threads a `State.safety` variant instead of boolean safety/backend flags.
+- `demo/notes/lib/notes_data.ml`, `plan/primitives.md`, `tasks/lessons.md`, and this task log now describe the current variant-based navigation/button APIs instead of the old boolean spellings.
+- Repo-wide searches for optional/default boolean prop spellings now come back clean; the only remaining boolean props are native DOM attributes such as `<button disabled=...>` and `<input checked=...>`.
+- Verification passed for `opam exec -- dune build markdown/markdown.exe --display=short` at repo root and `opam exec -- dune build output.css _utopia/server_main.exe @_utopia/melange && node _utopia/esbuild.config.mjs` in `demo/notes/` after regenerating `_utopia/`.
+- `demo/notes/pages/layout.mlx` now carries the old global selection/color-scheme/font rendering treatment as Tailwind utilities on the root wrapper.
+- `demo/notes/pages/notes/{layout,new,index,[tag]}.mlx` now inline the former button, scrollbar, rich-text, and empty-editor placeholder styling as Tailwind utilities, so there are no remaining `notes-button`, `notes-scrollbar`, `note-body`, or `editor-surface` custom classes in the demo code.
+- `plan/primitives.md` now documents the new `Button.kind` variant and the fact that `demo/notes/styles.css` is only the Tailwind entrypoint, and `tasks/lessons.md` records the preference for semantic Tailwind-powered variants over bespoke CSS classes/boolean flags.
+- Verification passed for `opam exec -- npm run build` in `demo/notes/`.
+
+## Active slice
+
+- [completed] Add an OCaml-only markdown highlighting path using `ochre` + `tm-grammars`, with no new npm dependencies
+- [completed] Extract the markdown renderer into a reusable library and route both `utopia.markdown` and the server markdown page path through it
+- [completed] Switch the notes demo to store markdown text, render note bodies on the server, and replace the HTML editor with markdown input
+- [completed] Update `plan/primitives.md`, verify the root build/markdown tests/demo build, and capture review notes for the new markdown pipeline
+
+## Review
+
+- Added a public native markdown library at `markdown/` (`utopia.markdown_runtime`) so `utopia.markdown`, the standalone server markdown route path, and generated native page code all use the same `cmarkit` -> React -> HTML renderer.
+- Fenced code blocks now highlight natively through `ochre` plus curated `tm-grammars` grammars, while inline code spans emit the `utopia-inline-code` class for consumer styling. The `markdown/tests` suite was updated to assert the new output shape.
+- `lib/server/server.ml` now renders markdown bodies through `Utopia_markdown.render_string_to_html`, and the generated `_utopia/dune` dependency lists now link `utopia.markdown_runtime` into both generated native pages libraries and `server_main.exe`.
+- `demo/notes/lib/notes_data.ml` now stores note bodies as `body_markdown`, escapes multiline markdown before SQLite writes, decodes it on read, renders note HTML on the server, and resets the demo schema to `apple-notes-demo-v6` so the seeded notes are recreated in markdown form.
+- `demo/notes/pages/notes/new.mlx` now uses a markdown textarea instead of the old HTML `contentEditable` surface, and `demo/notes/pages/notes/[tag].mlx` styles rendered markdown, inline code, and Ochre blocks inside the note view.
+- The seeded `design` note now includes both inline code and a fenced `mlx` block so the checked-in demo actually exercises the new highlighting path.
+- Verification passed for `opam exec -- dune build .`, `opam exec -- dune runtest markdown/tests`, the `demo/notes/` build steps (`dune exec ../../bin/compiler/compiler.exe`, `dune build output.css _utopia/server_main.exe @_utopia/melange`, and `node _utopia/esbuild.config.mjs`), plus a live `curl http://127.0.0.1:8176/notes/design` check confirming server-rendered `utopia-inline-code` and `ochre utopia-markdown-code-block` markup.

@@ -3,8 +3,12 @@ module P = {
 };
 
 module A = {
-  let make = (~title=?, ~className=?, ~ariaHidden=false, ~href, ~children, ()) =>
-    <a ariaHidden href ?className ?title> children </a>;
+  type visibility =
+    | Visible
+    | Hidden;
+
+  let make = (~title=?, ~className=?, ~visibility=Visible, ~href, ~children, ()) =>
+    <a ariaHidden={visibility == Hidden} href ?className ?title> children </a>;
 };
 
 module Blockquote = {
@@ -62,24 +66,22 @@ module Math_span = {
 };
 
 module Li = {
-  let make = (~className=?, ~disabled=false, ~checked=false, ~children, ()) =>
-    switch (disabled, checked) {
-    | (false, false) => <li ?className> children </li>
-    | (true, false) =>
+  type marker =
+    | Plain
+    | Unchecked
+    | Checked;
+
+  let make = (~className=?, ~marker=Plain, ~children, ()) =>
+    switch (marker) {
+    | Plain => <li ?className> children </li>
+    | Unchecked =>
       <li ?className>
         <div className="task"> <input type_="checkbox" disabled=true /> </div>
         children
       </li>
-    | (false, true) =>
+    | Checked =>
       <li ?className>
         <div className="task"> <input type_="checkbox" checked=true /> </div>
-        children
-      </li>
-    | (true, true) =>
-      <li ?className>
-        <div className="task">
-          <input type_="checkbox" disabled=true checked=true />
-        </div>
         children
       </li>
     };

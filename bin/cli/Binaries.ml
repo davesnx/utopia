@@ -1,5 +1,13 @@
 let file_exists path = Sys.file_exists path && not (Sys.is_directory path)
 
+let is_executable path =
+  file_exists path
+  &&
+    try
+      Unix.access path [ Unix.X_OK ];
+      true
+    with Unix.Unix_error _ -> false
+
 let lookup_in_path executable =
   match Sys.getenv_opt "PATH" with
   | None -> None
@@ -43,5 +51,5 @@ let resolve_bin name =
   | None -> (
       let executable_dir = resolve_executable_path () |> Filename.dirname in
       let sibling = Filename.concat executable_dir name in
-      if file_exists sibling then sibling
+      if is_executable sibling then sibling
       else match lookup_in_path name with Some path -> path | None -> name)

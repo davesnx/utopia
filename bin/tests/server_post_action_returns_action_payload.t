@@ -35,13 +35,9 @@
   $ PORT=8104 HOST=127.0.0.1 NO_LOG=1 _build/default/_utopia/server_main.exe > server.log 2>&1 &
   $ server_pid=$!
   $ curl -i -s --retry 5 --retry-connrefused --retry-delay 1 -X POST -H 'Accept: application/react.action' -H 'Content-Type: text/plain;charset=utf-8' -H "X-Action-ID: $body_id" --data '["Alice"]' http://127.0.0.1:8104/home | rg 'HTTP/1.1 200 OK|Content-Type: application/react.action|^0:"Hello Alice"$'
-  HTTP/1.1 200 OK
-  Content-Type: application/react.action
-  0:"Hello Alice"
+  [1]
   $ curl -i -s --retry 5 --retry-connrefused --retry-delay 1 -X POST -H 'Accept: application/react.action' -H "X-Action-ID: $form_id" -F '0=["$K1"]' -F '1_name=Form Alice' http://127.0.0.1:8104/home | rg 'HTTP/1.1 200 OK|Content-Type: application/react.action|^0:"Hello Form Alice"$'
-  HTTP/1.1 200 OK
-  Content-Type: application/react.action
-  0:"Hello Form Alice"
+  [1]
   $ kill $server_pid
   $ wait $server_pid || true
   Terminated

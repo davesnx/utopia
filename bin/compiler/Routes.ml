@@ -10,6 +10,7 @@ type route_entry = {
   layouts : string list;
   kind : page_kind;
   source_file : string;
+  has_metadata : bool;
   route_schema_source : string option;
   route_schema_has_params : bool;
   route_schema_module : string option;
@@ -186,6 +187,7 @@ let route_entry_of_file file kind =
               layouts = [];
               kind;
               source_file;
+              has_metadata = false;
               route_schema_source = None;
               route_schema_has_params = false;
               route_schema_module = None;

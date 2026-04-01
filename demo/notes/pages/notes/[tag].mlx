@@ -1,5 +1,18 @@
 open Notes_data
 
+let metadata params =
+  let tag_slug =
+    List.assoc_opt "tag" params |> Option.value ~default:""
+  in
+  match tag_summary_opt tag_slug with
+  | Some summary ->
+      Utopia.Metadata.make
+        ~title:(summary.name ^ " \xe2\x80\x94 Notes")
+        ?description:summary.description
+        ()
+  | None ->
+      Utopia.Metadata.make ~title:"Tag" ()
+
 let react_array items = React.array (Array.of_list items)
 
 module Navigate = Utopia.Router.Navigate
@@ -15,7 +28,7 @@ let note_data_of_note (note : note) =
     note.summary.title,
     note.summary.preview,
     note.summary.updated_at,
-    note.body_html,
+    render_note_body_html note.body_markdown,
     List.map (fun (item : checklist_item) -> (item.text, item.done_)) note.checklist )
 
 let tag_data_of_summary (summary : tag_summary) =
@@ -25,6 +38,12 @@ let current_tag_slug path =
   match path |> String.split_on_char '/' |> List.filter (fun segment -> segment <> "") with
   | [ "notes"; tag_slug ] when tag_slug <> "new" -> Some tag_slug
   | _ -> None
+
+let scroll_container_class =
+  "min-h-screen overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgb(140_118_79_/_35%)_transparent] [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-[rgb(140_118_79_/_28%)] [&::-webkit-scrollbar-thumb]:bg-clip-padding"
+
+let note_body_class =
+  "mt-8 text-[17px] leading-8 text-[#232320] [&_p+p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:mt-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_li+li]:mt-[0.35rem] [&_strong]:font-semibold [&_em]:italic [&_a]:text-[#8a5a18] [&_a]:underline [&_a]:underline-offset-4 [&_blockquote]:mt-5 [&_blockquote]:border-l-2 [&_blockquote]:border-[#ded7c8] [&_blockquote]:pl-4 [&_blockquote]:text-[#5d5c57] [&_h1]:mt-8 [&_h1]:text-[28px] [&_h1]:font-semibold [&_h1]:tracking-[-0.03em] [&_h2]:mt-7 [&_h2]:text-[24px] [&_h2]:font-semibold [&_h2]:tracking-[-0.03em] [&_h3]:mt-6 [&_h3]:text-[20px] [&_h3]:font-semibold [&_pre.utopia-markdown-code-block]:mt-6 [&_pre.utopia-markdown-code-block]:mb-4 [&_pre.utopia-markdown-code-block]:overflow-x-auto [&_pre.utopia-markdown-code-block]:px-5 [&_pre.utopia-markdown-code-block]:py-4 [&_pre.utopia-markdown-code-block]:text-[14px] [&_pre.utopia-markdown-code-block]:leading-7 [&_pre.utopia-markdown-code-block]:shadow-[inset_0_0_0_1px_rgb(24_24_23_/_0.08)] [&_pre.utopia-markdown-code-block_code]:grid [&_pre.utopia-markdown-code-block_.line]:min-h-[1.6em] [&_code.utopia-inline-code]:bg-[#f1ece0] [&_code.utopia-inline-code]:px-1.5 [&_code.utopia-inline-code]:py-[0.18rem] [&_code.utopia-inline-code]:text-[0.9em] [&_code.utopia-inline-code]:font-medium [&_code.utopia-inline-code]:text-[#7f4f14]"
 
 module Note_header = struct
   let[@react.client.component] make ~(title : string) ~(preview : string)
@@ -44,7 +63,7 @@ end
 
 module Note_body = struct
   let[@react.client.component] make ~(body_html : string) () =
-    <div className="note-body mt-8 text-[17px] leading-8 text-[#232320]"
+    <div className=note_body_class
       dangerouslySetInnerHTML=([%mel.obj { __html = body_html }]) />
 end
 
@@ -74,7 +93,8 @@ module Checklist = struct
               (Obj.magic (item_form_data slug item_index))
             |> Js.Promise.then_ (fun route ->
                    set_pending_item (fun _ -> None);
-                   router.navigate ~replace:true ~revalidate:true route;
+                   router.navigate ~history:Utopia.Replace
+                     ~freshness:Utopia.Revalidate route;
                    Js.Promise.resolve ())
             |> Js.Promise.catch (fun _error ->
                    set_pending_item (fun _ -> None);
@@ -157,7 +177,7 @@ module Tag_page = struct
     | Some tag_slug -> (
         match find_summary tag_summaries tag_slug with
         | None ->
-            <main className="notes-scrollbar min-h-screen overflow-y-auto">
+            <main className=scroll_container_class>
               <header className="border-b border-[#e4e2db] px-6 py-5 sm:px-8">
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
                   (React.string "Tag")
@@ -172,7 +192,7 @@ module Tag_page = struct
             </main>
         | Some (_slug, name) ->
             let tag_notes = notes_for_summary notes tag_slug in
-            <main className="notes-scrollbar min-h-screen overflow-y-auto">
+            <main className=scroll_container_class>
               <header className="border-b border-[#e4e2db] px-6 py-5 sm:px-8">
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">

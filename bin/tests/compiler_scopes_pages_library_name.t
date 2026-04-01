@@ -11,19 +11,20 @@
   $ (cd demo/basic && utopia.compiler > /dev/null)
   $ (cd demo/notes && utopia.compiler > /dev/null)
   $ python3 - <<'PY'
+  > import re
   > from pathlib import Path
   > basic = Path('demo/basic/_utopia/dune').read_text()
   > notes = Path('demo/notes/_utopia/dune').read_text()
-  > assert '(library (name pages_demo_basic) (wrapped false)' in basic
-  > assert '(modules server_main Utopia_server Utopia_types)' in basic
-  > assert 'pages_demo_basic cmarkit' in basic
-  > assert '../lib/BasicShared.re' in basic
-  > assert '../../lib/BasicShared.re' in basic
-  > assert '(library (name pages_demo_notes) (wrapped false)' in notes
-  > assert '(modules server_main Utopia_server Utopia_types)' in notes
-  > assert 'pages_demo_notes cmarkit' in notes
-  > assert '../lib/NotesShared.re' in notes
-  > assert '../../lib/NotesShared.re' in notes
+  > assert re.search(r'\(library \(name pages_\S*demo_basic\) \(wrapped false\)', basic), 'basic library name'
+  > assert '(modules server_main Utopia_server)' in basic, 'basic server modules'
+  > assert re.search(r'pages_\S*demo_basic .* cmarkit', basic), 'basic server libraries'
+  > assert '../lib/BasicShared.re' in basic, 'basic lib dep'
+  > assert '../../lib/BasicShared.re' in basic, 'basic native lib dep'
+  > assert re.search(r'\(library \(name pages_\S*demo_notes\) \(wrapped false\)', notes), 'notes library name'
+  > assert '(modules server_main Utopia_server)' in notes, 'notes server modules'
+  > assert re.search(r'pages_\S*demo_notes .* cmarkit', notes), 'notes server libraries'
+  > assert '../lib/NotesShared.re' in notes, 'notes lib dep'
+  > assert '../../lib/NotesShared.re' in notes, 'notes native lib dep'
   > PY
   $ grep -oE '"_utopia/target/demo/basic/_utopia"|"\.\.\/\.\.\/_build/default/demo/basic/_utopia/target/demo/basic/_utopia"|"_utopia/target/demo/notes/_utopia"|"\.\.\/\.\.\/_build/default/demo/notes/_utopia/target/demo/notes/_utopia"' demo/basic/_utopia/esbuild.config.mjs demo/notes/_utopia/esbuild.config.mjs
   demo/basic/_utopia/esbuild.config.mjs:"_utopia/target/demo/basic/_utopia"

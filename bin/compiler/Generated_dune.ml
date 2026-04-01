@@ -24,6 +24,7 @@ let melange_libraries =
 
 let native_library_libraries =
   [
+    "utopia.markdown_runtime";
     "server-reason-react.runtime";
     "server-reason-react.react";
     "server-reason-react.reactDom";
@@ -34,13 +35,12 @@ let native_library_libraries =
   ]
 
 let native_library_flags = [ ":standard"; "-w"; "-26-27-39" ]
-
-let server_executable_modules =
-  [ generated_server_name; "Utopia_server"; "Utopia_types" ]
+let server_executable_modules = [ generated_server_name; "Utopia_server" ]
 
 let server_executable_libraries pages_library_name =
   [
     pages_library_name;
+    "utopia.markdown_runtime";
     "cmarkit";
     "server-reason-react.react";
     "server-reason-react.reactDom";

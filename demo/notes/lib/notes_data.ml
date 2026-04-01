@@ -11,7 +11,7 @@ type note_summary = {
 
 type note = {
   summary : note_summary;
-  body_html : string;
+  body_markdown : string;
   checklist : checklist_item list;
   tags : string list;
 }
@@ -74,8 +74,8 @@ let seed_tag_description slug =
 let make_tag_summary ~count ~slug ~name ~description () =
   { slug; name; route = tag_route slug; description; count }
 
-let make_note ~tag_slug ~slug ~title ~preview ~updated_at ~body_html ~checklist
-    ~tags () =
+let make_note ~tag_slug ~slug ~title ~preview ~updated_at ~body_markdown
+    ~checklist ~tags () =
   let summary =
     {
       slug;
@@ -86,21 +86,22 @@ let make_note ~tag_slug ~slug ~title ~preview ~updated_at ~body_html ~checklist
       updated_at;
     }
   in
-  { summary; body_html; checklist; tags }
+  { summary; body_markdown; checklist; tags }
 
 let seed_notes =
   [
     make_note ~tag_slug:"launch" ~slug:"launch" ~title:"Spring launch checklist"
       ~preview:"Hero copy, footer polish, and one final empty-state pass."
       ~updated_at:"Today, 8:42 AM"
-      ~body_html:
-        "<p>The quiet version of the launch is still the right one. Keep the \
+      ~body_markdown:
+        "The quiet version of the launch is still the right one. Keep the \
          shell calm, leave more paper around the text, and let the product \
-         screenshots breathe.</p><p>Homepage still needs three final touches: \
-         tighten the top navigation, swap the testimonial order, and soften \
-         the empty-state language so it sounds like a guide instead of a \
-         warning.</p><p>If there is time, add a brief handoff note for motion \
-         so the hover states feel less abrupt on touch devices.</p>"
+         screenshots breathe.\n\n\
+         Homepage still needs three final touches: tighten the top navigation, \
+         swap the testimonial order, and soften the empty-state language so it \
+         sounds like a guide instead of a warning.\n\n\
+         If there is time, add a brief handoff note for motion so the hover \
+         states feel less abrupt on touch devices."
       ~checklist:
         [
           { text = "Ship the refined empty-state copy"; done_ = true };
@@ -112,13 +113,13 @@ let seed_notes =
     make_note ~tag_slug:"travel" ~slug:"travel" ~title:"Oslo offsite sketch"
       ~preview:"One bag, morning light, and a long walk after the workshop."
       ~updated_at:"Yesterday, 6:15 PM"
-      ~body_html:
-        "<p>Aim for a one-bag setup. The smaller the footprint, the calmer the \
-         trip feels once the workshop starts.</p><p>Need a room with good \
-         morning light, a large shared table, and one dinner spot that feels \
-         tucked away enough for longer conversations.</p><p>Bring a paper \
-         notebook for the final day so the strategy session does not disappear \
-         into laptop tabs.</p>"
+      ~body_markdown:
+        "Aim for a one-bag setup. The smaller the footprint, the calmer the \
+         trip feels once the workshop starts.\n\n\
+         Need a room with good morning light, a large shared table, and one \
+         dinner spot that feels tucked away enough for longer conversations.\n\n\
+         Bring a paper notebook for the final day so the strategy session does \
+         not disappear into laptop tabs."
       ~checklist:
         [
           { text = "Confirm the workshop room booking"; done_ = true };
@@ -132,13 +133,20 @@ let seed_notes =
         "The interface should feel plain, light, and almost invisible around \
          the writing."
       ~updated_at:"Today, 7:08 AM"
-      ~body_html:
-        "<p>The best part of Apple Notes is not the color. It is the way the \
-         chrome fades back so the writing can do the work.</p><p>One sidebar \
-         is enough. Use it for the routes, keep the separators faint, and let \
-         the note itself take the full width of attention.</p><p>Selection can \
-         be quiet too: a pale fill, a thin divider, and no decorative cards, \
-         rounded corners, or shadows competing with the page.</p>"
+      ~body_markdown:
+        "The best part of Apple Notes is not the color. It is the way the \
+         chrome fades back so the writing can do the work.\n\n\
+         One sidebar is enough. Use it for the routes, keep the separators \
+         faint, and let the note itself take the full width of attention. Even \
+         the shell API should stay compact: `Utopia.useRouter()` ought to be \
+         enough most of the time.\n\n\
+         ```mlx\n\
+         let route = Utopia.Routes.Notes.Param_tag.make ~tag:\"design\" ()\n\
+         router.navigate ~freshness:Utopia.Revalidate route\n\
+         ```\n\n\
+         Selection can be quiet too: a pale fill, a thin divider, and no \
+         decorative cards, rounded corners, or shadows competing with the \
+         page."
       ~checklist:
         [
           { text = "Keep the sidebar visually quiet"; done_ = true };
@@ -151,12 +159,12 @@ let seed_notes =
       ~title:"Quiet ideas worth revisiting"
       ~preview:"Reading mode, softer separators, and a weekly note shelf."
       ~updated_at:"Last week"
-      ~body_html:
-        "<p>Reading mode could remove the route list entirely and leave only \
-         the title, the date, and the note.</p><p>A weekly shelf might work if \
-         it behaves more like a stack of recent notes than a dense \
-         calendar.</p><p>These are not urgent, but they still feel alive \
-         enough to keep nearby.</p>"
+      ~body_markdown:
+        "Reading mode could remove the route list entirely and leave only the \
+         title, the date, and the note.\n\n\
+         A weekly shelf might work if it behaves more like a stack of recent \
+         notes than a dense calendar.\n\n\
+         These are not urgent, but they still feel alive enough to keep nearby."
       ~checklist:
         [
           {
@@ -173,11 +181,47 @@ let checklist_sep = Char.chr 29
 let checklist_state_sep = Char.chr 28
 let tag_sep = Char.chr 27
 let schema_key = "notes_schema_version"
-let schema_version = "apple-notes-demo-v4"
+let schema_version = "apple-notes-demo-v6"
 
 let sql_text value =
   let pieces = String.split_on_char '\'' value in
   "'" ^ String.concat "''" pieces ^ "'"
+
+let encode_body_markdown body_markdown =
+  let buffer = Buffer.create (String.length body_markdown) in
+  String.iter
+    (function
+      | '\\' -> Buffer.add_string buffer "\\\\"
+      | '\n' -> Buffer.add_string buffer "\\n"
+      | '\r' -> Buffer.add_string buffer "\\r"
+      | '\t' -> Buffer.add_string buffer "\\t"
+      | ch -> Buffer.add_char buffer ch)
+    body_markdown;
+  Buffer.contents buffer
+
+let decode_body_markdown body_markdown =
+  let buffer = Buffer.create (String.length body_markdown) in
+  let rec loop index =
+    if index >= String.length body_markdown then ()
+    else if
+      index + 1 < String.length body_markdown && body_markdown.[index] = '\\'
+    then (
+      let next = body_markdown.[index + 1] in
+      (match next with
+      | '\\' -> Buffer.add_char buffer '\\'
+      | 'n' -> Buffer.add_char buffer '\n'
+      | 'r' -> Buffer.add_char buffer '\r'
+      | 't' -> Buffer.add_char buffer '\t'
+      | _ ->
+          Buffer.add_char buffer '\\';
+          Buffer.add_char buffer next);
+      loop (index + 2))
+    else (
+      Buffer.add_char buffer body_markdown.[index];
+      loop (index + 1))
+  in
+  loop 0;
+  Buffer.contents buffer
 
 let encode_checklist items =
   items
@@ -212,14 +256,15 @@ let insert_tag_sql ~slug ~name ~description =
 let insert_sql note =
   Printf.sprintf
     "INSERT INTO notes (slug, tag_slug, route, title, preview, updated_at, \
-     body_html, checklist, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);"
+     body_markdown, checklist, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, \
+     %s);"
     (sql_text note.summary.slug)
     (sql_text note.summary.tag_slug)
     (sql_text (Utopia.Route.href note.summary.route))
     (sql_text note.summary.title)
     (sql_text note.summary.preview)
     (sql_text note.summary.updated_at)
-    (sql_text note.body_html)
+    (sql_text (encode_body_markdown note.body_markdown))
     (sql_text (encode_checklist note.checklist))
     (sql_text (encode_tags note.tags))
 
@@ -309,7 +354,7 @@ let note_of_fields = function
       title;
       preview;
       updated_at;
-      body_html;
+      body_markdown;
       checklist;
       tags;
     ] ->
@@ -323,7 +368,7 @@ let note_of_fields = function
             preview;
             updated_at;
           };
-        body_html;
+        body_markdown = decode_body_markdown body_markdown;
         checklist = decode_checklist checklist;
         tags = decode_tags tags;
       }
@@ -445,8 +490,8 @@ let ensure_schema () =
       (raw_sql_lines
          "CREATE TABLE notes (slug TEXT PRIMARY KEY, tag_slug TEXT NOT NULL, \
           route TEXT NOT NULL, title TEXT NOT NULL, preview TEXT NOT NULL, \
-          updated_at TEXT NOT NULL, body_html TEXT NOT NULL, checklist TEXT \
-          NOT NULL, tags TEXT NOT NULL);");
+          updated_at TEXT NOT NULL, body_markdown TEXT NOT NULL, checklist \
+          TEXT NOT NULL, tags TEXT NOT NULL);");
     ignore
       (raw_sql_lines
          (Printf.sprintf
@@ -505,8 +550,8 @@ let notes_for_tag tag_slug : note list =
         let sql =
           Printf.sprintf
             "SELECT slug, tag_slug, route, title, preview, updated_at, \
-             body_html, checklist, tags FROM notes WHERE tag_slug = %s ORDER \
-             BY rowid DESC;"
+             body_markdown, checklist, tags FROM notes WHERE tag_slug = %s \
+             ORDER BY rowid DESC;"
             (sql_text tag_slug)
         in
         query_lines sql
@@ -557,6 +602,18 @@ let body_text_of_html html =
         loop (index + 1) false)
   in
   loop 0 false;
+  Buffer.contents buffer
+
+let html_escaped_string text =
+  let buffer = Buffer.create (String.length text) in
+  String.iter
+    (function
+      | '&' -> Buffer.add_string buffer "&amp;"
+      | '<' -> Buffer.add_string buffer "&lt;"
+      | '>' -> Buffer.add_string buffer "&gt;"
+      | '"' -> Buffer.add_string buffer "&quot;"
+      | ch -> Buffer.add_char buffer ch)
+    text;
   Buffer.contents buffer
 
 let collapse_whitespace text =
@@ -636,15 +693,26 @@ let time_only updated_at =
       if value = "" then updated_at else value
   | _ -> updated_at
 
-let preview_of_body_html body_html =
-  let plain = body_html |> body_text_of_html |> collapse_whitespace in
+let preview_of_body_markdown body_markdown =
+  let plain =
+    [%platform
+      match () with
+      | Server ->
+          body_markdown |> Utopia_markdown.render_string_to_html
+          |> body_text_of_html |> collapse_whitespace
+      | Client -> collapse_whitespace body_markdown]
+  in
   if plain = "" then "New note"
   else if String.length plain <= 110 then plain
   else String.sub plain 0 107 ^ "..."
 
-let normalize_body_html body_html =
-  let trimmed = body_html |> body_text_of_html |> collapse_whitespace in
-  if trimmed = "" then "<p></p>" else body_html
+let normalize_body_markdown body_markdown = String.trim body_markdown
+
+let render_note_body_html body_markdown =
+  [%platform
+    match () with
+    | Server -> Utopia_markdown.render_string_to_html body_markdown
+    | Client -> html_escaped_string body_markdown]
 
 let timestamp_slug tag_slug title =
   let sanitized = normalize_tag_slug title in
@@ -665,7 +733,8 @@ let note_by_slug slug =
         let sql =
           Printf.sprintf
             "SELECT slug, tag_slug, route, title, preview, updated_at, \
-             body_html, checklist, tags FROM notes WHERE slug = %s LIMIT 1;"
+             body_markdown, checklist, tags FROM notes WHERE slug = %s LIMIT \
+             1;"
             (sql_text slug)
         in
         query_lines sql
@@ -780,9 +849,9 @@ let create_note_from_form_data formData =
         let title =
           match get_string "title" with "" -> "Untitled Note" | value -> value
         in
-        let body_html =
-          Js.FormData.get formData "body_html" |> function
-          | `String value -> normalize_body_html value
+        let body_markdown =
+          Js.FormData.get formData "body_markdown" |> function
+          | `String value -> normalize_body_markdown value
         in
         let checklist =
           get_string "checklist" |> decode_checklist
@@ -792,8 +861,9 @@ let create_note_from_form_data formData =
           make_note ~tag_slug
             ~slug:(timestamp_slug tag_slug title)
             ~title
-            ~preview:(preview_of_body_html body_html)
-            ~updated_at:"Just now" ~body_html ~checklist ~tags:[ tag_slug ] ()
+            ~preview:(preview_of_body_markdown body_markdown)
+            ~updated_at:"Just now" ~body_markdown ~checklist ~tags:[ tag_slug ]
+            ()
         in
         ignore (query_lines (insert_sql note));
         note.summary.route

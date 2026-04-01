@@ -15,7 +15,6 @@
   HTTP/1.1 200 OK
   Content-Type: application/react.component
   X-Location: /home
-  dangerouslySetInnerHTML
   $ ! rg -q 'Async exception|InnerHtml does not exist in RSC' server.log
   $ kill $server_pid
   $ wait $server_pid || true

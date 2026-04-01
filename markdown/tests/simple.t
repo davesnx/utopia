@@ -27,7 +27,7 @@ Heading
   > * ...
   > 
   > EOF
-  <h1>UL</h1><ul><li><p>You can have lists, like this one</p></li><li><p>Make things <strong>bold</strong> or <em>italic</em></p></li><li><p>Embed snippets of <code>code</code></p></li><li><p>Create <a aria-hidden="false" href="/">links</a></p></li><li><p>...</p></li></ul>
+  <h1>UL</h1><ul><li><p>You can have lists, like this one</p></li><li><p>Make things <strong>bold</strong> or <em>italic</em></p></li><li><p>Embed snippets of <code class="utopia-inline-code">code</code></p></li><li><p>Create <a aria-hidden="false" href="/">links</a></p></li><li><p>...</p></li></ul>
 
   $ utopia.markdown <<\EOF
   > # OL
@@ -38,19 +38,22 @@ Heading
   > 5. ...
   > 
   > EOF
-  <h1>OL</h1><ol><li><p>You can have lists, like this one</p></li><li><p>Make things <strong>bold</strong> or <em>italic</em></p></li><li><p>Embed snippets of <code>code</code></p></li><li><p>Create <a aria-hidden="false" href="/">links</a></p></li><li><p>...</p></li></ol>
+  <h1>OL</h1><ol><li><p>You can have lists, like this one</p></li><li><p>Make things <strong>bold</strong> or <em>italic</em></p></li><li><p>Embed snippets of <code class="utopia-inline-code">code</code></p></li><li><p>Create <a aria-hidden="false" href="/">links</a></p></li><li><p>...</p></li></ol>
 
   $ utopia.markdown <<\EOF
   > > In a few moments he was barefoot, his stockings folded in his pockets and his
   <blockquote><p>In a few moments he was barefoot, his stockings folded in his pockets and his</p></blockquote>
 
-  $ utopia.markdown <<\EOF
+  $ utopia.markdown <<\EOF | rg -o 'class="ochre utopia-markdown-code-block"|class="utopia-markdown-code"|console|globalThis'
   > ```javascript
   > console.log(globalThis);
   > ```
   > 
   > EOF
-  <pre><code class="language-javascript">console.log(globalThis);</code></pre>
+  class="ochre utopia-markdown-code-block"
+  class="utopia-markdown-code"
+  console
+  globalThis
 
   $ utopia.markdown <<\EOF
   > ```
@@ -58,7 +61,7 @@ Heading
   > ```
   > 
   > EOF
-  <pre><code>Generic code block</code></pre>
+  <pre class="utopia-markdown-code-block"><code class="utopia-markdown-code">Generic code block</code></pre>
 
   $ utopia.markdown <<\EOF
   > <script type="text/javascript">

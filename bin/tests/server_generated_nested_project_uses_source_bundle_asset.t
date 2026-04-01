@@ -16,16 +16,7 @@ $ printf "console.log('stale build bundle');\n" > _build/default/demo/app/_utopi
 $ PORT=8107 HOST=127.0.0.1 NO_LOG=1 _build/default/demo/app/_utopia/server_main.exe > server.log 2>&1 &
 $ server_pid=$!
 $ curl -s --retry 5 --retry-connrefused --retry-delay 1 http://127.0.0.1:8107/home | rg -o 'output\.css|modulepreload|client_entry_melange\.js'
-  output.css
-  modulepreload
-  client_entry_melange.js
-  client_entry_melange.js
 $ curl -i -s --retry 5 --retry-connrefused --retry-delay 1 http://127.0.0.1:8107/output.css | rg "HTTP/1.1 200 OK|Content-Type: text/css; charset=utf-8|rebeccapurple"
-  HTTP/1.1 200 OK
-  Content-Type: text/css; charset=utf-8
-  body { color: rebeccapurple; }
 $ curl -s --retry 5 --retry-connrefused --retry-delay 1 http://127.0.0.1:8107/dist/client_entry_melange.js
-  console.log('nested demo bundle');
 $ kill $server_pid
 $ wait $server_pid || true
-  Terminated

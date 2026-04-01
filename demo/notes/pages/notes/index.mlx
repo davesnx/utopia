@@ -1,11 +1,20 @@
 open Notes_data
 
+let metadata _params =
+  Utopia.Metadata.make
+    ~title:"All Notes"
+    ~description:"Browse every note across all tags."
+    ()
+
 let react_array items = React.array (Array.of_list items)
 
 module Navigate = Utopia.Router.Navigate
 
 
 let[@react.component] make () =
+  let scroll_container_class =
+    "min-h-screen overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgb(140_118_79_/_35%)_transparent] [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-[rgb(140_118_79_/_28%)] [&::-webkit-scrollbar-thumb]:bg-clip-padding"
+  in
   let note_rows =
     tag_summaries ()
     |> List.map (fun (summary : tag_summary) ->
@@ -30,7 +39,7 @@ let[@react.component] make () =
                   </Navigate>))
     |> List.flatten
   in
-  <main className="notes-scrollbar min-h-screen overflow-y-auto">
+  <main className=scroll_container_class>
     <header className="border-b border-[#e4e2db] px-6 py-5 sm:px-8">
       <div>
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">

@@ -12,6 +12,8 @@ depends: [
   "ocaml" {>= "5.0.0"}
   "reason" {>= "3.17.2"}
   "cmarkit"
+  "ochre"
+  "tm-grammars"
   "dream"
   "server-reason-react"
   "mlx"

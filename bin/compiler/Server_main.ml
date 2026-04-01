@@ -38,6 +38,12 @@ let ocaml_render_expr entry =
         (Names.compiled_page_module_name_of_source entry.Routes.source_file)
   | Markdown_page -> ""
 
+let ocaml_metadata_expr entry =
+  if entry.Routes.has_metadata then
+    Printf.sprintf "~metadata:(Some %s.metadata)"
+      (Names.compiled_page_module_name_of_source entry.Routes.source_file)
+  else "~metadata:None"
+
 let slash_matcher matcher = if matcher = "" then "/" else "/" ^ matcher
 
 let ocaml_page_element_expr entry =
@@ -232,7 +238,7 @@ let generate route_entries =
         in
         Printf.sprintf
           "  %s ~route:%S ~matcher:%S ~params:%s ~source_file:%S ~layouts:%s \
-           %s ~layout_renderers:%s ~router_shell:%s ~router_tree:%s \
+           %s %s ~layout_renderers:%s ~router_shell:%s ~router_tree:%s \
            ~router_subtree:%s;"
           (ocaml_expr_of_kind entry.Routes.kind)
           entry.Routes.route entry.Routes.matcher
@@ -240,6 +246,7 @@ let generate route_entries =
           entry.Routes.source_file
           (ocaml_string_list entry.Routes.layouts)
           (ocaml_render_expr entry)
+          (ocaml_metadata_expr entry)
           (ocaml_layout_renderers entry.Routes.layouts)
           shell_name tree_name subtree_name)
     |> String.concat "\n"

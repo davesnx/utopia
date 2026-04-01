@@ -26,3 +26,85 @@ let parse_param_kind = function
   | "catch_all" -> Some Catch_all
   | "optional_catch_all" -> Some Optional_catch_all
   | _ -> None
+
+type og_image = {
+  url : string;
+  alt : string option;
+  width : int option;
+  height : int option;
+}
+
+type open_graph = {
+  title : string option;
+  description : string option;
+  url : string option;
+  site_name : string option;
+  images : og_image list;
+  locale : string option;
+  og_type : string option;
+}
+
+type twitter = {
+  card : string option;
+  title : string option;
+  description : string option;
+  site : string option;
+  creator : string option;
+  images : string list;
+}
+
+type robots = {
+  index : bool option;
+  follow : bool option;
+  no_archive : bool option;
+}
+
+type icon = {
+  href : string;
+  rel : string option;
+  sizes : string option;
+  mime_type : string option;
+}
+
+type metadata = {
+  title : string option;
+  description : string option;
+  keywords : string list;
+  authors : string list;
+  canonical : string option;
+  robots : robots option;
+  open_graph : open_graph option;
+  twitter : twitter option;
+  icons : icon list;
+  verification : (string * string) list;
+}
+
+let make_og_image ~url ?alt ?width ?height () = { url; alt; width; height }
+
+let make_open_graph ?title ?description ?url ?site_name ?(images = []) ?locale
+    ?og_type () =
+  { title; description; url; site_name; images; locale; og_type }
+
+let make_twitter ?card ?title ?description ?site ?creator ?(images = []) () =
+  { card; title; description; site; creator; images }
+
+let make_robots ?index ?follow ?no_archive () = { index; follow; no_archive }
+let make_icon ~href ?rel ?sizes ?mime_type () = { href; rel; sizes; mime_type }
+
+let make_metadata ?title ?description ?(keywords = []) ?(authors = [])
+    ?canonical ?robots ?open_graph ?twitter ?(icons = []) ?(verification = [])
+    () =
+  {
+    title;
+    description;
+    keywords;
+    authors;
+    canonical;
+    robots;
+    open_graph;
+    twitter;
+    icons;
+    verification;
+  }
+
+let empty_metadata = make_metadata ()

@@ -7,9 +7,10 @@ let add kind value map =
   match value with Some i -> map |> List.cons (kind i) | None -> map
 
 module State = struct
+  type safety = Safe | Unsafe
+
   type t = {
-    safe : bool;
-    backend_blocks : bool;
+    safety : safety;
     components : Components.t;
     mutable defs : Label.defs;
     mutable ids : String_set.t;
@@ -19,17 +20,9 @@ module State = struct
       (string * string * int ref * Block.Footnote.t) Label.Map.t;
   }
 
-  let make ?(backend_blocks = false) ~safe ~defs ~components _ =
+  let make ~(safety : safety) ~defs ~components _ =
     let ids = String_set.empty and footnotes = Label.Map.empty in
-    {
-      safe;
-      backend_blocks;
-      ids;
-      footnote_count = 0;
-      footnotes;
-      defs;
-      components;
-    }
+    { safety; ids; footnote_count = 0; footnotes; defs; components }
 
   let get_defs state = state.defs
 end
@@ -88,7 +81,8 @@ let link_dest_and_title ~(state : State.t) ld =
   let dest =
     match Link_definition.dest ld with
     | None -> ""
-    | Some (link, _) when state.safe && Inline.Link.is_unsafe link -> ""
+    | Some (link, _) when state.safety = Safe && Inline.Link.is_unsafe link ->
+        ""
     | Some (link, _) -> link
   in
   let title =
@@ -183,8 +177,8 @@ let rec block_to_element ~(state : State.t) block =
       | Some (`Auto id | `Id id) ->
           component ~id:(unique_id ~state id)
             ~children:
-              (state.components.a ~className:"anchor" ~ariaHidden:true
-                 ~href:("#" ^ id)
+              (state.components.a ~className:"anchor"
+                 ~visibility:Elements.A.Hidden ~href:("#" ^ id)
                  ~children:(inline_to_element ~state inline)
                  ())
             ())
@@ -215,6 +209,9 @@ let rec block_to_element ~(state : State.t) block =
   | Code_block (code_block, _meta) -> (
       let info_string = Option.map fst (Code_block.info_string code_block) in
       let lang = Option.bind info_string Code_block.language_of_info_string in
+      let code =
+        Code_block.code code_block |> List.map fst |> String.concat ""
+      in
       let contents =
         React.list
           (List.map
@@ -223,15 +220,29 @@ let rec block_to_element ~(state : State.t) block =
       in
       match lang with
       | None ->
-          state.components.pre
-            ~children:(state.components.code ~children:contents ())
-            ()
-      | Some (lang, _env) ->
-          state.components.pre
+          state.components.pre ~className:"utopia-markdown-code-block"
             ~children:
-              (state.components.code ~className:("language-" ^ lang)
+              (state.components.code ~className:"utopia-markdown-code"
                  ~children:contents ())
-            ())
+            ()
+      | Some (lang, _env) -> (
+          match Markdown_highlight.highlight_html ~lang code with
+          | Some html ->
+              React.createElement "div"
+                [
+                  React.JSX.dangerouslyInnerHtml
+                    object
+                      method __html = html
+                    end;
+                ]
+                []
+          | None ->
+              state.components.pre ~className:"utopia-markdown-code-block"
+                ~children:
+                  (state.components.code
+                     ~className:("utopia-markdown-code language-" ^ lang)
+                     ~children:contents ())
+                ()))
   (* TODO: Make sure blank_line goes to null *)
   | Blank_line (_blank_node, _meta) -> React.null
   | Html_block (html, _meta) ->
@@ -261,15 +272,15 @@ and list_item ~state (item, _) =
   | Some (mark, _) -> (
       match Block.List_item.task_status_of_task_marker mark with
       | `Unchecked ->
-          state.components.li ~disabled:true
+          state.components.li ~marker:Elements.Li.Unchecked
             ~children:(block_to_element ~state (Block.List_item.block item))
             ()
       | `Checked | `Other _ ->
-          state.components.li ~checked:true
+          state.components.li ~marker:Elements.Li.Checked
             ~children:(block_to_element ~state (Block.List_item.block item))
             ()
       | `Cancelled ->
-          state.components.li ~checked:true
+          state.components.li ~marker:Elements.Li.Checked
             ~children:
               (state.components.del
                  ~children:
@@ -292,7 +303,7 @@ and inline_to_element ~state inline =
       | `Hard -> state.components.br ()
       | `Soft -> (* Unsure about the ouput *) React.null)
   | Code_span (code_span, _meta) ->
-      state.components.code
+      state.components.code ~className:"utopia-inline-code"
         ~children:(React.string (Code_span.code code_span))
         ()
   | Emphasis (emphasis, _meta) ->
@@ -379,11 +390,9 @@ and inline_to_element ~state inline =
       state.components.math_span ~children:(React.string content) ()
   | _ -> assert false
 
-let of_doc ~safe:_ ~(components : Components.t) d =
+let of_doc ~(safety : State.safety) ~(components : Components.t) d =
   let blocks = Doc.block d in
   let defs = Doc.defs d in
-  let state =
-    State.make ~backend_blocks:false ~safe:true ~defs ~components ()
-  in
+  let state = State.make ~safety ~defs ~components () in
   let element = block_to_element ~state blocks in
   element

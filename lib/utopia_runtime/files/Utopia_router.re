@@ -80,10 +80,48 @@ module VirtualHistory = {
   };
 };
 
+type navigation_history =
+  | Push
+  | Replace;
+
+type navigation_freshness =
+  | Use_cache
+  | Revalidate;
+
+let navigation_history_to_json = history =>
+  switch (history) {
+  | Push => string_to_json("Push")
+  | Replace => string_to_json("Replace")
+  };
+
+let navigation_history_of_json = json =>
+  switch (string_of_json(json)) {
+  | "Push" => Push
+  | "Replace" => Replace
+  | _ => failwith("Invalid navigation_history JSON")
+  };
+
+let navigation_freshness_to_json = freshness =>
+  switch (freshness) {
+  | Use_cache => string_to_json("Use_cache")
+  | Revalidate => string_to_json("Revalidate")
+  };
+
+let navigation_freshness_of_json = json =>
+  switch (string_of_json(json)) {
+  | "Use_cache" => Use_cache
+  | "Revalidate" => Revalidate
+  | _ => failwith("Invalid navigation_freshness JSON")
+  };
+
 type t = {
   path: string,
   route: Utopia_route.t,
-  navigate: (~replace: bool=?, ~revalidate: bool=?, Utopia_route.t) => unit,
+  navigate: (
+    ~history: navigation_history=?,
+    ~freshness: navigation_freshness=?,
+    Utopia_route.t,
+  ) => unit,
 };
 
 let context: React.Context.t(option(t)) = React.createContext(None);
@@ -262,22 +300,32 @@ let make = (~initialPath: string, ~children: React.element) => {
   };
 
   let%browser_only rec navigate =
-                       (
-                         ~replace as shouldReplace=false,
-                         ~revalidate=false,
-                         to_,
-                       ) => {
+                        (
+                          ~history as navigationHistory=Push,
+                          ~freshness=Use_cache,
+                          to_,
+                        ) => {
+    let shouldReplace =
+      switch (navigationHistory) {
+      | Replace => true
+      | Push => false
+      };
+    let shouldRevalidate =
+      switch (freshness) {
+      | Revalidate => true
+      | Use_cache => false
+      };
     let current = currentUrl();
     let currentBrowserPath = browserPath(current);
     let currentRequestPath = requestPath(current);
     let nextRequestPath = Utopia_route.request_path(to_);
     let nextBrowserPath = Utopia_route.href(to_);
     let shouldRequestDiff =
-      !revalidate && Utopia_route.pathname(to_) != URL.pathname(current);
+      !shouldRevalidate && Utopia_route.pathname(to_) != URL.pathname(current);
 
-    if (nextBrowserPath == currentBrowserPath && !revalidate) {
+    if (nextBrowserPath == currentBrowserPath && !shouldRevalidate) {
       ();
-    } else if (nextRequestPath == currentRequestPath && !revalidate) {
+    } else if (nextRequestPath == currentRequestPath && !shouldRevalidate) {
       if (shouldReplace) {
         History.replaceState(
           HistoryState.empty,
@@ -329,9 +377,9 @@ let make = (~initialPath: string, ~children: React.element) => {
                  setPath(_ => nextRequestPath);
                  Js.Promise.resolve();
                } else {
-                 navigate(~replace=true, ~revalidate=true, to_);
-                 Js.Promise.resolve();
-               }
+                  navigate(~history=Replace, ~freshness=Revalidate, to_);
+                  Js.Promise.resolve();
+                }
              | _ =>
                HistoryCache.set(
                  historyCache,
@@ -392,9 +440,9 @@ let make = (~initialPath: string, ~children: React.element) => {
       | Some(HistoryCache.FullPage(page)) => ignore(renderFullPage(page))
       | Some(HistoryCache.DiffPage(parentRoute, page)) =>
         if (!renderDiffPage(~parentRoute, page)) {
-          navigate(~replace=true, ~revalidate=true, nextRoute);
+          navigate(~history=Replace, ~freshness=Revalidate, nextRoute);
         }
-      | None => navigate(~replace=true, ~revalidate=true, nextRoute)
+      | None => navigate(~history=Replace, ~freshness=Revalidate, nextRoute)
       };
     };
 
@@ -469,9 +517,9 @@ let make = (~initialPath: string, ~children: React.element) => {
            Some({
              path: Utopia_route.request_path(initialRoute),
              route: initialRoute,
-             navigate: (~replace=?, ~revalidate=?, _) =>
-               failwith("navigate isn't supported on the server"),
-           }),
+              navigate: (~history=?, ~freshness=?, _) =>
+                failwith("navigate isn't supported on the server"),
+            }),
          ~children=element,
          (),
        )

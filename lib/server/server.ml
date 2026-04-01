@@ -10,6 +10,7 @@ type generated_route = {
   kind : page_kind;
   source_file : string;
   render : (unit -> React.element) option;
+  metadata : ((string * string) list -> metadata) option;
   layout_renderers : (React.element -> React.element) list;
   router_shell : string -> React.element;
   router_tree : unit -> React.element;
@@ -17,7 +18,7 @@ type generated_route = {
 }
 
 module Generated_route = struct
-  let make ~kind ~route ~matcher ~params ~source_file ~layouts ~render
+  let make ~kind ~route ~matcher ~params ~source_file ~layouts ~render ~metadata
       ~layout_renderers ~router_shell ~router_tree ~router_subtree =
     {
       route;
@@ -27,22 +28,24 @@ module Generated_route = struct
       kind;
       source_file;
       render;
+      metadata;
       layout_renderers;
       router_shell;
       router_tree;
       router_subtree;
     }
 
-  let code ~route ~matcher ~params ~source_file ~layouts ~render
+  let code ~route ~matcher ~params ~source_file ~layouts ~render ~metadata
       ~layout_renderers ~router_shell ~router_tree ~router_subtree =
     make ~kind:Code_page ~route ~matcher ~params ~source_file ~layouts
-      ~render:(Some render) ~layout_renderers ~router_shell ~router_tree
-      ~router_subtree
+      ~render:(Some render) ~metadata ~layout_renderers ~router_shell
+      ~router_tree ~router_subtree
 
-  let markdown ~route ~matcher ~params ~source_file ~layouts ~layout_renderers
-      ~router_shell ~router_tree ~router_subtree =
+  let markdown ~route ~matcher ~params ~source_file ~layouts ~metadata
+      ~layout_renderers ~router_shell ~router_tree ~router_subtree =
     make ~kind:Markdown_page ~route ~matcher ~params ~source_file ~layouts
-      ~render:None ~layout_renderers ~router_shell ~router_tree ~router_subtree
+      ~render:None ~metadata ~layout_renderers ~router_shell ~router_tree
+      ~router_subtree
 end
 
 type route_entry = {
@@ -53,6 +56,7 @@ type route_entry = {
   source_file : string;
   segments : route_segment list;
   render : (unit -> React.element) option;
+  metadata : ((string * string) list -> metadata) option;
   layout_renderers : (React.element -> React.element) list;
   router_shell : (string -> React.element) option;
   router_tree : (unit -> React.element) option;
@@ -73,6 +77,8 @@ let file_mtime file =
 
 let split_fields line =
   match String.split_on_char '\t' line with
+  | [ route; kind; source_file; matcher; params; layouts; _has_metadata ] ->
+      Some (route, kind, source_file, matcher, params, layouts)
   | [ route; kind; source_file; matcher; params; layouts ] ->
       Some (route, kind, source_file, matcher, params, layouts)
   | _ -> None
@@ -143,6 +149,7 @@ let route_entry_of_generated_route generated_route =
           source_file = generated_route.source_file;
           segments;
           render = generated_route.render;
+          metadata = generated_route.metadata;
           layout_renderers = generated_route.layout_renderers;
           router_shell = Some generated_route.router_shell;
           router_tree = Some generated_route.router_tree;
@@ -212,6 +219,7 @@ let load_routes () =
                             source_file;
                             segments;
                             render = None;
+                            metadata = None;
                             layout_renderers = [];
                             router_shell = None;
                             router_tree = None;
@@ -543,7 +551,120 @@ and wrap_raw_inner_html_element (node : React.element) : React.element =
           children = List.map wrap_raw_inner_html_element children;
         }
 
-let html_page ~title ~body =
+let meta_tag name content =
+  element
+    ~props:[ string_prop "name" name; string_prop "content" content ]
+    "meta" []
+
+let property_tag property content =
+  element
+    ~props:[ string_prop "property" property; string_prop "content" content ]
+    "meta" []
+
+let link_tag ~rel ~href props =
+  element
+    ~props:([ string_prop "rel" rel; string_prop "href" href ] @ props)
+    "link" []
+
+let render_description_meta = function
+  | Some desc -> [ meta_tag "description" desc ]
+  | None -> []
+
+let render_keywords_meta = function
+  | [] -> []
+  | keywords -> [ meta_tag "keywords" (String.concat ", " keywords) ]
+
+let render_authors_meta authors =
+  authors |> List.map (fun author -> meta_tag "author" author)
+
+let render_canonical_link = function
+  | Some url -> [ link_tag ~rel:"canonical" ~href:url [] ]
+  | None -> []
+
+let render_robots_meta = function
+  | None -> []
+  | Some (robots : robots) ->
+      let directives =
+        (match robots.index with
+          | Some true -> [ "index" ]
+          | Some false -> [ "noindex" ]
+          | None -> [])
+        @ (match robots.follow with
+          | Some true -> [ "follow" ]
+          | Some false -> [ "nofollow" ]
+          | None -> [])
+        @ match robots.no_archive with Some true -> [ "noarchive" ] | _ -> []
+      in
+      if directives = [] then []
+      else [ meta_tag "robots" (String.concat ", " directives) ]
+
+let render_og_meta = function
+  | None -> []
+  | Some (og : open_graph) ->
+      let opt prop = function
+        | Some value -> [ property_tag prop value ]
+        | None -> []
+      in
+      opt "og:title" og.title
+      @ opt "og:description" og.description
+      @ opt "og:url" og.url
+      @ opt "og:site_name" og.site_name
+      @ opt "og:locale" og.locale @ opt "og:type" og.og_type
+      @ List.concat_map
+          (fun (img : og_image) ->
+            [ property_tag "og:image" img.url ]
+            @ (match img.alt with
+              | Some alt -> [ property_tag "og:image:alt" alt ]
+              | None -> [])
+            @ (match img.width with
+              | Some w -> [ property_tag "og:image:width" (string_of_int w) ]
+              | None -> [])
+            @
+            match img.height with
+            | Some h -> [ property_tag "og:image:height" (string_of_int h) ]
+            | None -> [])
+          og.images
+
+let render_twitter_meta = function
+  | None -> []
+  | Some (tw : twitter) ->
+      let opt name = function
+        | Some value -> [ meta_tag name value ]
+        | None -> []
+      in
+      opt "twitter:card" tw.card
+      @ opt "twitter:title" tw.title
+      @ opt "twitter:description" tw.description
+      @ opt "twitter:site" tw.site
+      @ opt "twitter:creator" tw.creator
+      @ List.map (fun url -> meta_tag "twitter:image" url) tw.images
+
+let render_icons_links icons =
+  icons
+  |> List.map (fun (ic : icon) ->
+      let rel = ic.rel |> Option.value ~default:"icon" in
+      let extra =
+        (match ic.sizes with Some s -> [ string_prop "sizes" s ] | None -> [])
+        @
+        match ic.mime_type with
+        | Some t -> [ string_prop "type" t ]
+        | None -> []
+      in
+      link_tag ~rel ~href:ic.href extra)
+
+let render_verification_meta verification =
+  verification
+  |> List.map (fun (provider, content) ->
+      let name =
+        match provider with
+        | "google" -> "google-site-verification"
+        | "yandex" -> "yandex-verification"
+        | "yahoo" -> "y_key"
+        | custom -> custom
+      in
+      meta_tag name content)
+
+let html_page ~title ~meta ~body =
   let stylesheet_links =
     available_stylesheet_paths ()
     |> List.map (fun path ->
@@ -566,6 +687,15 @@ let html_page ~title ~body =
            "meta" [];
          element "title" [ text title ];
        ]
+      @ render_description_meta meta.description
+      @ render_keywords_meta meta.keywords
+      @ render_authors_meta meta.authors
+      @ render_canonical_link meta.canonical
+      @ render_robots_meta meta.robots
+      @ render_og_meta meta.open_graph
+      @ render_twitter_meta meta.twitter
+      @ render_icons_links meta.icons
+      @ render_verification_meta meta.verification
       @ stylesheet_links)
   in
   let body =
@@ -620,19 +750,23 @@ let render_code_page_fresh route source_file params layouts =
       @ render_params params
       @ [ element "pre" [ text source ] ])
   in
-  html_page ~title:route ~body:(wrap_with_layouts layouts content)
+  html_page ~title:route ~meta:empty_metadata
+    ~body:(wrap_with_layouts layouts content)
+
+let render_markdown_html markdown =
+  Utopia_markdown.render_string_to_html markdown
 
 let render_markdown_body source_file =
   let markdown = read_file source_file in
-  let doc = Cmarkit.Doc.of_string ~layout:true ~strict:false markdown in
-  let body_html = Cmarkit_html.of_doc ~safe:false doc in
+  let body_html = render_markdown_html markdown in
   element ~props:[ dangerously_inner_html body_html ] "div" []
 
 let render_markdown_page_fresh source_file params layouts =
   let content =
     element "main" (render_params params @ [ render_markdown_body source_file ])
   in
-  html_page ~title:source_file ~body:(wrap_with_layouts layouts content)
+  html_page ~title:source_file ~meta:empty_metadata
+    ~body:(wrap_with_layouts layouts content)
 
 let make_cache_key source_file route params =
   let param_str =
@@ -673,7 +807,28 @@ let compiled_page_body params render =
   | [] -> render ()
   | extra -> element "div" (extra @ [ render () ])
 
+let fallback_title route_entry =
+  match route_entry.kind with
+  | Code_page -> if route_entry.route = "" then "/" else route_entry.route
+  | Markdown_page -> route_entry.source_file
+
+let flatten_params params =
+  List.map
+    (fun (name, value) ->
+      (name, match value with One s -> s | Many ss -> String.concat "/" ss))
+    params
+
+let resolve_metadata route_entry params =
+  match route_entry.metadata with
+  | Some gen -> gen (flatten_params params)
+  | None -> empty_metadata
+
+let resolve_title_from_meta meta route_entry =
+  match meta.title with Some t -> t | None -> fallback_title route_entry
+
 let render_route_element route_entry params =
+  let meta = resolve_metadata route_entry params in
+  let title = resolve_title_from_meta meta route_entry in
   match (route_entry.kind, route_entry.render) with
   | Code_page, Some render ->
       let body = compiled_page_body params render in
@@ -681,7 +836,7 @@ let render_route_element route_entry params =
         apply_layout_renderers route_entry.layouts route_entry.layout_renderers
           body
       in
-      html_page ~title:route_entry.route ~body
+      html_page ~title ~meta ~body
   | Code_page, None ->
       render_code_page route_entry.route route_entry.source_file params
         route_entry.layouts
@@ -700,18 +855,14 @@ let render_route_element route_entry params =
           apply_layout_renderers route_entry.layouts
             route_entry.layout_renderers body
         in
-        html_page ~title:route_entry.source_file ~body
-
-let route_title route_entry =
-  match route_entry.kind with
-  | Code_page -> if route_entry.route = "" then "/" else route_entry.route
-  | Markdown_page -> route_entry.source_file
+        html_page ~title ~meta ~body
 
 let render_route_document route_entry request_target params =
   match route_entry.router_shell with
   | Some render_shell ->
-      html_page ~title:(route_title route_entry)
-        ~body:(render_shell request_target)
+      let meta = resolve_metadata route_entry params in
+      let title = resolve_title_from_meta meta route_entry in
+      html_page ~title ~meta ~body:(render_shell request_target)
   | None -> render_route_element route_entry params
 
 let take_segments count segments =
@@ -829,7 +980,7 @@ let render_index routes =
             text ")";
           ])
   in
-  html_page ~title:"Utopia dev router"
+  html_page ~title:"Utopia dev router" ~meta:empty_metadata
     ~body:
       (element "main" [ element "h1" [ text "Routes" ]; element "ul" links ])
 

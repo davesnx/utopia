@@ -47,4 +47,4 @@
   _build/default/_utopia/native/Lib.re
   module Utils = Lib__Utils
   $ cat _utopia/routes.manifest
-  home	code	pages/Home.re	home		
+  home	code	pages/Home.re	home			false

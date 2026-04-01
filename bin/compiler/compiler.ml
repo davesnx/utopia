@@ -41,6 +41,9 @@ let run () =
         Route_schemas.load route_entries
       in
       let route_entries = Route_schemas.attach route_entries route_schemas in
+      let route_entries =
+        route_entries |> List.map Diagnostics.detect_metadata_for_entry
+      in
       let conflicts = Diagnostics.find_route_conflicts route_entries in
       let has_unknown_param_accesses =
         Diagnostics.report_unknown_param_accesses route_entries

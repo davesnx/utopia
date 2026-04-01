@@ -2,6 +2,7 @@
  (name lib_server)
  (public_name utopia.server_lib)
  (libraries
+  utopia.markdown_runtime
   utopia_types
   cmarkit
   server-reason-react.react

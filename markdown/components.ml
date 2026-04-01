@@ -3,7 +3,7 @@ type t = {
   a :
     ?title:string ->
     ?className:string ->
-    ?ariaHidden:bool ->
+    ?visibility:Elements.A.visibility ->
     href:string ->
     children:React.element ->
     unit ->
@@ -28,8 +28,7 @@ type t = {
     ?className:string -> children:React.element -> unit -> React.element;
   li :
     ?className:string ->
-    ?disabled:bool ->
-    ?checked:bool ->
+    ?marker:Elements.Li.marker ->
     children:React.element ->
     unit ->
     React.element;

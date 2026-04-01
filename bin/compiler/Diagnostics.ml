@@ -121,6 +121,27 @@ let extract_params_accesses source =
   in
   loop 0 [] |> List.sort_uniq String.compare
 
+let has_metadata_export source =
+  source |> String.split_on_char '\n'
+  |> List.exists (fun line ->
+      let trimmed = String.trim line in
+      let is_top_level = String.length line > 0 && line.[0] = 'l' in
+      is_top_level
+      && (starts_with_at trimmed 0 "let metadata "
+         || starts_with_at trimmed 0 "let metadata("
+         || starts_with_at trimmed 0 "let metadata="
+         || String.equal trimmed "let metadata"))
+
+let detect_metadata_for_entry entry =
+  match entry.Routes.kind with
+  | Utopia_types.Markdown_page -> { entry with Routes.has_metadata = false }
+  | Utopia_types.Code_page ->
+      let source =
+        In_channel.with_open_bin entry.Routes.source_file (fun channel ->
+            In_channel.input_all channel)
+      in
+      { entry with Routes.has_metadata = has_metadata_export source }
+
 let unknown_params_for_entry entry =
   match entry.Routes.kind with
   | Utopia_types.Markdown_page -> []

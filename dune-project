@@ -36,10 +36,12 @@
    (reason (>= 3.17.2))
 
    ;; Library dependencies
-   cmarkit
-   dream
-    server-reason-react
-    mlx
+    cmarkit
+    ochre
+    tm-grammars
+    dream
+     server-reason-react
+     mlx
     fpath
     (reason-react (>= 0.16.0))
    (reason-react-ppx (>= 0.16.0))

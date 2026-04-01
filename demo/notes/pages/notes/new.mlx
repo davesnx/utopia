@@ -1,5 +1,11 @@
 open Notes_data
 
+let metadata _params =
+  Utopia.Metadata.make
+    ~title:"New Note"
+    ~description:"Compose a new note with markdown and checklists."
+    ()
+
 let react_array items = React.array (Array.of_list items)
 
 let create_note (formData : Js.FormData.t) =
@@ -92,6 +98,15 @@ let choice_by_slug tag_choices slug =
   tag_choices
   |> List.find_opt (fun choice -> String.equal (choice_slug choice) slug)
 
+let scroll_container_class =
+  "min-h-screen overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgb(140_118_79_/_35%)_transparent] [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-[rgb(140_118_79_/_28%)] [&::-webkit-scrollbar-thumb]:bg-clip-padding"
+
+let markdown_editor_class =
+  "mt-4 block min-h-[280px] w-full resize-y rounded-[20px] border border-[#e4e2db] bg-[#fcfbf8] px-4 py-4 font-mono text-[14px] leading-7 text-[#232320] outline-none placeholder:text-[#b2b1ac] focus:border-[#c9b99a]"
+
+let markdown_placeholder =
+  "Write markdown here.\n\nUse # headings, lists, links, `inline code`, and fenced code blocks."
+
 module New_note_editor = struct
   type draft_checklist_item = {
     id : int;
@@ -126,7 +141,7 @@ module New_note_editor = struct
     let highlighted_tag_index, set_highlighted_tag_index =
       React.useState (fun () -> 0)
     in
-    let body_html, set_body_html = React.useState (fun () -> "") in
+    let body_markdown, set_body_markdown = React.useState (fun () -> "") in
     let checklist_items, set_checklist_items =
       React.useState (fun () -> [ make_draft_item 0 ])
     in
@@ -183,11 +198,7 @@ module New_note_editor = struct
       | _ -> ()
     in
     let on_tag_choice_click choice _event = select_tag choice in
-    let on_body_input event =
-      set_body_html
-        (fun _ ->
-          ((Obj.magic (React.Event.Form.target event))##innerHTML : string))
-    in
+    let on_body_change event = set_body_markdown (fun _ -> event_value event) in
     let add_checklist_item _event =
       let item_id = next_item_id in
       set_checklist_items (fun items -> items @ [ make_draft_item item_id ]);
@@ -209,7 +220,7 @@ module New_note_editor = struct
               else item)
             items)
     in
-    let body_text = body_html |> body_text_of_html |> collapse_whitespace in
+    let body_text = body_markdown |> collapse_whitespace in
     let save_disabled =
       is_pending || Option.is_none selected_tag_slug
       || (String.trim title = "" && body_text = ""
@@ -239,7 +250,7 @@ module New_note_editor = struct
         | Some tag_slug -> form_data |> Fetch.FormData.append "tag_slug" tag_slug
         | None -> ());
         form_data |> Fetch.FormData.append "title" title;
-        form_data |> Fetch.FormData.append "body_html" body_html;
+        form_data |> Fetch.FormData.append "body_markdown" body_markdown;
         form_data
           |> Fetch.FormData.append "checklist" (checklist_value checklist_items);
         let request =
@@ -266,7 +277,9 @@ module New_note_editor = struct
               (React.string "Compose")
             </h2>
           </div>
-          <Button.Submit disabled=save_disabled accent=true
+          <Button.Submit
+            state=(if save_disabled then Button.Disabled else Button.Enabled)
+            kind=Button.Accent
             className="px-4 py-2 text-[13px]">
             (React.string (if is_pending then "Saving..." else "Save Note"))
           </Button.Submit>
@@ -333,13 +346,12 @@ module New_note_editor = struct
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
             (React.string "Body")
           </p>
-          <div
-            contentEditable=true
-            suppressContentEditableWarning=true
-            onInput=on_body_input
-            className="editor-surface note-body mt-4 min-h-[260px] border-0 bg-transparent text-[17px] leading-8 text-[#232320] outline-none" />
+          <textarea value=body_markdown onChange=on_body_change
+            className=markdown_editor_class placeholder=markdown_placeholder>
+            (React.null)
+          </textarea>
           <p className="mt-3 text-[12px] text-[#8a8984]">
-            (React.string "Write directly in the note area. The editor keeps the feel close to the final note view.")
+            (React.string "Notes are stored as markdown and rendered on the server. Inline code and fenced code blocks use the shared Ochre highlighter.")
           </p>
         </div>
 
@@ -348,7 +360,8 @@ module New_note_editor = struct
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
               (React.string "Checklist")
             </p>
-            <Button.Action onClick=add_checklist_item className="px-3 py-1 text-[12px]">
+            <Button.Action onClick=add_checklist_item kind=Button.Default
+              className="px-3 py-1 text-[12px]">
               (React.string "Add Item")
             </Button.Action>
           </div>
@@ -387,6 +400,6 @@ let[@react.component] make () =
     |> List.map (fun summary ->
            (summary.slug, summary.name, description_text summary.description))
   in
-  <main className="notes-scrollbar min-h-screen overflow-y-auto">
+  <main className=scroll_container_class>
     <New_note_editor tag_choices=tag_choices />
   </main>

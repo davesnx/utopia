@@ -81,7 +81,7 @@ module Sidebar_tag_creation = struct
           create_tag.call (Obj.magic form_data)
           |> Js.Promise.then_ (fun route ->
                  reset_popup ();
-                 router.navigate ~revalidate:true route;
+                  router.navigate ~freshness:Utopia.Revalidate route;
                  Js.Promise.resolve ())
           |> Js.Promise.catch (fun _error ->
                  set_is_pending (fun _ -> false);
@@ -91,7 +91,7 @@ module Sidebar_tag_creation = struct
         ignore request)
     in
     <div className="relative border-b border-[#d8d7d2] px-4 py-4">
-      <Button.Action onClick=open_popup accent=true full_width=true
+      <Button.Action onClick=open_popup kind=Button.Accent width=Button.Full
         className="px-4 py-2 text-[13px]">
         (React.string "Create Tag")
       </Button.Action>
@@ -118,14 +118,18 @@ module Sidebar_tag_creation = struct
                      (React.string save_error)
                    </p>)
                <div className="mt-4 flex w-full items-center gap-2">
-                  <Button.Action onClick=close_popup disabled=is_pending full_width=true
+                  <Button.Action onClick=close_popup kind=Button.Default
+                    state=(if is_pending then Button.Disabled else Button.Enabled)
+                    width=Button.Full
                     className="px-3 py-2 text-[12px] text-[#5d5c57] disabled:text-[#b2b1ac]">
-                   (React.string "Cancel")
-                 </Button.Action>
-                  <Button.Submit disabled=submit_disabled accent=true full_width=true
+                    (React.string "Cancel")
+                  </Button.Action>
+                  <Button.Submit
+                    state=(if submit_disabled then Button.Disabled else Button.Enabled)
+                    kind=Button.Accent width=Button.Full
                     className="px-3 py-2 text-[12px]">
-                   (React.string (if is_pending then "Creating..." else "Accept"))
-                 </Button.Submit>
+                    (React.string (if is_pending then "Creating..." else "Accept"))
+                  </Button.Submit>
                </div>
              </form>
            </div>)
@@ -152,10 +156,10 @@ let[@react.component] make ~(children : React.element) () =
                tags))
        </nav>
        <div className="mt-auto border-t border-[#d8d7d2] px-4 py-4">
-          <Button.Link to_=new_note_route accent=true full_width=true
+          <Button.Link to_=new_note_route kind=Button.Accent width=Button.Full
             className="px-4 py-3 text-[13px]">
-           (React.string "New Note")
-         </Button.Link>
+            (React.string "New Note")
+          </Button.Link>
        </div>
      </aside>
     <div className="min-w-0 flex-1 bg-[#fbfaf7]">children</div>

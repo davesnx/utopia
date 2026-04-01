@@ -5,8 +5,4 @@ let () =
     | None | (exception End_of_file) -> List.rev acc
   in
   let input = String.concat "\n" (loop []) in
-  let doc = Cmarkit.Doc.of_string ~layout:true ~strict:false input in
-  let element =
-    Render.of_doc ~safe:false ~components:(Components.make ()) doc
-  in
-  ReactDOM.renderToStaticMarkup element |> print_endline
+  Utopia_markdown.render_string_to_html input |> print_endline

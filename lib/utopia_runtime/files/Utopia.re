@@ -48,11 +48,28 @@ module Route = {
 
 module Routes = Utopia_routes;
 
+type navigation_history = Utopia_router.navigation_history =
+  | Push
+  | Replace;
+
+type navigation_freshness = Utopia_router.navigation_freshness =
+  | Use_cache
+  | Revalidate;
+
+let navigation_history_to_json = Utopia_router.navigation_history_to_json;
+let navigation_history_of_json = Utopia_router.navigation_history_of_json;
+let navigation_freshness_to_json = Utopia_router.navigation_freshness_to_json;
+let navigation_freshness_of_json = Utopia_router.navigation_freshness_of_json;
+
 type router = {
   path: string,
   route: Route.t,
   current: option(Routes.Current.t),
-  navigate: (~replace: bool=?, ~revalidate: bool=?, Route.t) => unit,
+  navigate: (
+    ~history: navigation_history=?,
+    ~freshness: navigation_freshness=?,
+    Route.t,
+  ) => unit,
 };
 
 let useRouter = () => {
@@ -74,9 +91,46 @@ module Router = {
 
   module Navigate = {
     [@react.client.component]
-    let make = (~to_: Route.t, ~className: string, ~children: React.element) =>
-      <Utopia_router_link to_ className> children </Utopia_router_link>;
+    let make =
+        (
+          ~to_: Route.t,
+          ~history: navigation_history=Push,
+          ~className: string,
+          ~children: React.element,
+        ) =>
+      <Utopia_router_link to_ history className> children </Utopia_router_link>;
   };
 };
 
 module PassThroughLayout = Utopia_router.PassThroughLayout;
+
+module Metadata = {
+  type t = Utopia_types.metadata;
+
+  let make = Utopia_types.make_metadata;
+
+  module Og_image = {
+    type t = Utopia_types.og_image;
+    let make = Utopia_types.make_og_image;
+  };
+
+  module Open_graph = {
+    type t = Utopia_types.open_graph;
+    let make = Utopia_types.make_open_graph;
+  };
+
+  module Twitter = {
+    type t = Utopia_types.twitter;
+    let make = Utopia_types.make_twitter;
+  };
+
+  module Robots = {
+    type t = Utopia_types.robots;
+    let make = Utopia_types.make_robots;
+  };
+
+  module Icon = {
+    type t = Utopia_types.icon;
+    let make = Utopia_types.make_icon;
+  };
+};

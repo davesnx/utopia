@@ -4,7 +4,7 @@ open! Melange_json.Primitives;
 let make =
     (
       ~to_: Utopia_route.t,
-      ~replace: bool=false,
+      ~history: Utopia_router.navigation_history=Push,
       ~className: option(string)=?,
       ~children: React.element,
     ) => {
@@ -22,7 +22,7 @@ let make =
 
     if (isPlainLeftClick) {
       React.Event.Mouse.preventDefault(event);
-      navigate(~replace, to_);
+      navigate(~history, to_);
     };
   };
 

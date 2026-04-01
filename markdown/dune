@@ -1,6 +1,19 @@
+(library
+ (name utopia_markdown_runtime)
+ (public_name utopia.markdown_runtime)
+ (wrapped false)
+ (modules utopia_markdown markdown_highlight components render elements)
+ (libraries
+  cmarkit
+  ochre
+  tm-grammars
+  server-reason-react.react
+  server-reason-react.reactDom)
+ (preprocess
+  (pps server-reason-react.ppx)))
+
 (executable
  (name markdown)
  (public_name utopia.markdown)
- (libraries cmarkit server-reason-react.react server-reason-react.reactDom)
- (preprocess
-  (pps server-reason-react.ppx)))
+ (modules markdown)
+ (libraries utopia_markdown_runtime))

@@ -1,5 +1,11 @@
 open Notes_data
 
+let metadata _params =
+  Utopia.Metadata.make
+    ~title:"Notes"
+    ~description:"A stripped-back Apple Notes-style demo with SQLite-backed content."
+    ()
+
 let react_array items = React.array (Array.of_list items)
 
 module Navigate = Utopia.Router.Navigate

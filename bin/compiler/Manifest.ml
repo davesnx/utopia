@@ -9,9 +9,21 @@ let generate entries =
   |> List.sort (fun left right ->
       String.compare left.Routes.route right.Routes.route)
   |> List.map
-       (fun { Routes.route; matcher; params; layouts; kind; source_file; _ } ->
-         Printf.sprintf "%s\t%s\t%s\t%s\t%s\t%s" route
+       (fun
+         {
+           Routes.route;
+           matcher;
+           params;
+           layouts;
+           kind;
+           source_file;
+           has_metadata;
+           _;
+         }
+       ->
+         Printf.sprintf "%s\t%s\t%s\t%s\t%s\t%s\t%s" route
            (Utopia_types.string_of_kind kind)
            source_file matcher (string_of_params params)
-           (String.concat ";" layouts))
+           (String.concat ";" layouts)
+           (string_of_bool has_metadata))
   |> String.concat "\n"
