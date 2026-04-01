@@ -8,13 +8,14 @@ let metadata _params =
 
 let react_array items = React.array (Array.of_list items)
 
-let create_note (formData : Js.FormData.t) =
-  (Js.Promise.resolve (create_note_from_form_data formData)
+let create_note ~(tag_slug : string) ~(title : string) ~(body_markdown : string)
+    ~(checklist : string) =
+  (Js.Promise.resolve (create_note_action ~tag_slug ~title ~body_markdown ~checklist_raw:checklist)
     : Utopia.Route.t Js.Promise.t)
 [@@react.server.function]
 
-let event_value event =
-  ((Obj.magic (React.Event.Form.target event))##value : string)
+let%browser_only event_value event =
+  ((React.Event.Form.target event)##value : string)
 
 let event_key (event : React.Event.Keyboard.t) = React.Event.Keyboard.key event
 
@@ -245,16 +246,10 @@ module New_note_editor = struct
       if not save_disabled then (
         set_is_pending (fun _ -> true);
         set_save_error (fun _ -> "");
-        let form_data = Fetch.FormData.make () in
-        (match selected_tag_slug with
-        | Some tag_slug -> form_data |> Fetch.FormData.append "tag_slug" tag_slug
-        | None -> ());
-        form_data |> Fetch.FormData.append "title" title;
-        form_data |> Fetch.FormData.append "body_markdown" body_markdown;
-        form_data
-          |> Fetch.FormData.append "checklist" (checklist_value checklist_items);
+        let tag_slug = match selected_tag_slug with Some s -> s | None -> "" in
         let request =
-          create_note.call (Obj.magic form_data)
+          create_note.call ~tag_slug ~title ~body_markdown
+            ~checklist:(checklist_value checklist_items)
           |> Js.Promise.then_ (fun route ->
                  set_is_pending (fun _ -> false);
                  router.navigate route;

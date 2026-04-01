@@ -17,8 +17,10 @@ let react_array items = React.array (Array.of_list items)
 
 module Navigate = Utopia.Router.Navigate
 
-let toggle_note_checklist_item_action (formData : Js.FormData.t) =
-  (Js.Promise.resolve (toggle_note_checklist_item_from_form_data formData)
+let toggle_note_checklist_item_action ~(slug : string) ~(item_index : string) =
+  (Js.Promise.resolve (
+    toggle_note_checklist_item slug
+      (int_of_string_opt item_index |> Option.value ~default:(-1)))
     : Utopia.Route.t Js.Promise.t)
 [@@react.server.function]
 
@@ -68,12 +70,6 @@ module Note_body = struct
 end
 
 module Checklist = struct
-  let item_form_data slug item_index =
-    let form_data = Fetch.FormData.make () in
-    form_data |> Fetch.FormData.append "slug" slug;
-    form_data |> Fetch.FormData.append "item_index" (string_of_int item_index);
-    form_data
-
   let[@react.client.component] make ~(slug : string)
       ~(items : (string * bool) list) () =
     if items = [] then React.null
@@ -90,7 +86,7 @@ module Checklist = struct
           set_save_error (fun _ -> "");
           let request =
             toggle_note_checklist_item_action.call
-              (Obj.magic (item_form_data slug item_index))
+              ~slug ~item_index:(string_of_int item_index)
             |> Js.Promise.then_ (fun route ->
                    set_pending_item (fun _ -> None);
                    router.navigate ~history:Utopia.Replace

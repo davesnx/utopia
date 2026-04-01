@@ -4,8 +4,10 @@ let react_array items = React.array (Array.of_list items)
 
 module Navigate = Utopia.Router.Navigate
 
-let create_tag (formData : Js.FormData.t) =
-  (Js.Promise.resolve (create_tag_from_form_data formData)
+let create_tag ~(name : string) ~(description : string) =
+  (Js.Promise.resolve (
+    let slug = create_or_lookup_tag ~name ~description in
+    tag_route slug)
     : Utopia.Route.t Js.Promise.t)
 [@@react.server.function]
 
@@ -33,8 +35,8 @@ module Sidebar_tag = struct
 end
 
 module Sidebar_tag_creation = struct
-  let event_value event =
-    ((Obj.magic (React.Event.Form.target event))##value : string)
+  let%browser_only event_value event =
+    ((React.Event.Form.target event)##value : string)
 
   let event_key (event : React.Event.Keyboard.t) = React.Event.Keyboard.key event
 
@@ -74,11 +76,8 @@ module Sidebar_tag_creation = struct
       if not submit_disabled then (
         set_is_pending (fun _ -> true);
         set_save_error (fun _ -> "");
-        let form_data = Fetch.FormData.make () in
-        form_data |> Fetch.FormData.append "name" tag_name;
-        form_data |> Fetch.FormData.append "description" tag_description;
         let request =
-          create_tag.call (Obj.magic form_data)
+          create_tag.call ~name:tag_name ~description:tag_description
           |> Js.Promise.then_ (fun route ->
                  reset_popup ();
                   router.navigate ~freshness:Utopia.Revalidate route;

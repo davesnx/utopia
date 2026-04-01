@@ -870,3 +870,33 @@ let create_note_from_form_data formData =
     | Client ->
         let _ = formData in
         notes_route]
+
+let create_note_action ~tag_slug ~title ~body_markdown ~checklist_raw =
+  [%platform
+    match () with
+    | Server ->
+        let tag_slug = String.trim tag_slug in
+        if tag_slug = "" then invalid_arg "Select an existing tag";
+        if Option.is_none (tag_summary_opt tag_slug) then
+          invalid_arg "Selected tag does not exist";
+        let title =
+          match String.trim title with "" -> "Untitled Note" | value -> value
+        in
+        let body_markdown = normalize_body_markdown body_markdown in
+        let checklist =
+          String.trim checklist_raw |> decode_checklist
+          |> List.filter (fun item -> String.trim item.text <> "")
+        in
+        let note =
+          make_note ~tag_slug
+            ~slug:(timestamp_slug tag_slug title)
+            ~title
+            ~preview:(preview_of_body_markdown body_markdown)
+            ~updated_at:"Just now" ~body_markdown ~checklist ~tags:[ tag_slug ]
+            ()
+        in
+        ignore (query_lines (insert_sql note));
+        note.summary.route
+    | Client ->
+        let _ = (tag_slug, title, body_markdown, checklist_raw) in
+        notes_route]
