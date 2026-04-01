@@ -16,26 +16,11 @@
   > EOF
   $ (cd demo/notes && utopia.compiler > /dev/null)
   $ dune describe pp demo/notes/_utopia/native/Utopia_page__Home.re > native.pp
-  $ eval "$(python3 - <<'PY'
-  > from pathlib import Path
-  > import re
-  > action_id = re.findall(r'Runtime.id: "([^"]+)"', Path('native.pp').read_text())[0]
-  > print(f'action_id={action_id}')
-  > PY
-  > )"
+  $ action_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | head -1)
   $ cd demo/notes
   $ PORT=8114 HOST=127.0.0.1 NO_LOG=1 utopia dev --no-watch > dev.log 2>&1 &
   $ dev_pid=$!
-  $ python3 - <<'PY'
-  > import subprocess
-  > html = subprocess.check_output([
-  >   'curl', '-s', '--retry', '10', '--retry-connrefused', '--retry-delay', '1',
-  >   'http://127.0.0.1:8114/home',
-  > ], text=True)
-  > assert 'nested lib ready' in html
-  > print('nested lib ready')
-  > PY
-  nested lib ready
+  $ curl -s --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8114/home | grep -qF 'nested lib ready'
   $ curl -i -s --retry 10 --retry-connrefused --retry-delay 1 -X POST -H 'Accept: application/react.action' -H 'Content-Type: text/plain;charset=utf-8' -H "X-Action-ID: $action_id" --data '["Alice"]' http://127.0.0.1:8114/home | rg 'HTTP/1.1 200 OK|Content-Type: application/react.action|^0:"Hello nested dev Alice"$'
   HTTP/1.1 200 OK
   Content-Type: application/react.action

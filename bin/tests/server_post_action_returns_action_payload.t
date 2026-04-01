@@ -24,20 +24,18 @@
   $ utopia.compiler > /dev/null
   $ dune build @melange _utopia/server_main.exe > /dev/null
   $ dune describe pp _utopia/native/Utopia_page__Home.re > native.pp
-  $ eval "$(python3 - <<'PY'
-  > from pathlib import Path
-  > import re
-  > ids = re.findall(r'Runtime.id: "([^"]+)"', Path('native.pp').read_text())
-  > print(f'body_id={ids[0]}')
-  > print(f'form_id={ids[1]}')
-  > PY
-  > )"
+  $ body_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | sed -n '1p')
+  $ form_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | sed -n '2p')
   $ PORT=8104 HOST=127.0.0.1 NO_LOG=1 _build/default/_utopia/server_main.exe > server.log 2>&1 &
   $ server_pid=$!
   $ curl -i -s --retry 5 --retry-connrefused --retry-delay 1 -X POST -H 'Accept: application/react.action' -H 'Content-Type: text/plain;charset=utf-8' -H "X-Action-ID: $body_id" --data '["Alice"]' http://127.0.0.1:8104/home | rg 'HTTP/1.1 200 OK|Content-Type: application/react.action|^0:"Hello Alice"$'
-  [1]
+  HTTP/1.1 200 OK
+  Content-Type: application/react.action
+  0:"Hello Alice"
   $ curl -i -s --retry 5 --retry-connrefused --retry-delay 1 -X POST -H 'Accept: application/react.action' -H "X-Action-ID: $form_id" -F '0=["$K1"]' -F '1_name=Form Alice' http://127.0.0.1:8104/home | rg 'HTTP/1.1 200 OK|Content-Type: application/react.action|^0:"Hello Form Alice"$'
-  [1]
+  HTTP/1.1 200 OK
+  Content-Type: application/react.action
+  0:"Hello Form Alice"
   $ kill $server_pid
   $ wait $server_pid || true
   Terminated

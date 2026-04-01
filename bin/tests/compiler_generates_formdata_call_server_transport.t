@@ -2,24 +2,13 @@ $ mkdir pages _utopia
 $ touch _utopia/dune
 $ printf "let page = ()\n" > pages/Home.re
 $ utopia.compiler > /dev/null
-$ python3 - <<'PY'
-> from pathlib import Path
-> router_source = Path("_utopia/Utopia_router.re").read_text()
-> for needle in [
->     'let isFormData = ReactServerDOMEsbuild.encodedReplyIsFormData(body);',
->     'if (isFormData) {',
->     '("Accept", "application/react.action"),',
->     '("Content-Type", "text/plain;charset=utf-8"),',
->     '("ACTION_ID", id),',
->     '("X-Action-ID", id),',
->     '~body=Obj.magic(body),',
-> ]:
->     assert needle in router_source, needle
-> helper_source = Path("_utopia/ReactServerDOMEsbuild.re").read_text()
-> for needle in [
->     'type encodedReply;',
->     'external encodeReply: list(\'arg) => Js.Promise.t(encodedReply) = "encodeReply";',
->     'let encodedReplyIsFormData = (reply: encodedReply): bool =>',
-> ]:
->     assert needle in helper_source, needle
-> PY
+$ grep -qF 'let isFormData = ReactServerDOMEsbuild.encodedReplyIsFormData(body);' _utopia/Utopia_router.re
+$ grep -qF 'if (isFormData) {' _utopia/Utopia_router.re
+$ grep -qF '("Accept", "application/react.action"),' _utopia/Utopia_router.re
+$ grep -qF '("Content-Type", "text/plain;charset=utf-8"),' _utopia/Utopia_router.re
+$ grep -qF '("ACTION_ID", id),' _utopia/Utopia_router.re
+$ grep -qF '("X-Action-ID", id),' _utopia/Utopia_router.re
+$ grep -qF '~body=Obj.magic(body),' _utopia/Utopia_router.re
+$ grep -qF 'type encodedReply;' _utopia/ReactServerDOMEsbuild.re
+$ grep -qF "external encodeReply: list('arg) => Js.Promise.t(encodedReply) = \"encodeReply\";" _utopia/ReactServerDOMEsbuild.re
+$ grep -qF 'let encodedReplyIsFormData = (reply: encodedReply): bool =>' _utopia/ReactServerDOMEsbuild.re

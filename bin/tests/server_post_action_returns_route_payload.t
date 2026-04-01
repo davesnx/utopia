@@ -17,13 +17,7 @@
   $ utopia.compiler > /dev/null
   $ dune build @melange _utopia/server_main.exe > /dev/null
   $ dune describe pp _utopia/native/Utopia_page__Home.re > native.pp
-  $ eval "$(python3 - <<'PY'
-  > from pathlib import Path
-  > import re
-  > action_id = re.findall(r'Runtime.id: "([^"]+)"', Path('native.pp').read_text())[0]
-  > print(f'action_id={action_id}')
-  > PY
-  > )"
+  $ action_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | head -1)
   $ PORT=8112 HOST=127.0.0.1 NO_LOG=1 _build/default/_utopia/server_main.exe > server.log 2>&1 &
   $ server_pid=$!
   $ curl -i -s --retry 10 --retry-connrefused --retry-delay 1 -X POST -H 'Accept: application/react.action' -H 'Content-Type: text/plain;charset=utf-8' -H "X-Action-ID: $action_id" --data '[]' http://127.0.0.1:8112/home | rg 'HTTP/1.1 200 OK|Content-Type: application/react.action|^0:\{"pathname":"/about","request_path":"/about","href":"/about"\}$'
