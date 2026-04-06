@@ -8,7 +8,7 @@
   > EOF
   $ printf "let value = \"collision-free\"\n" > lib/Lib.re
   $ utopia.compiler > /dev/null
-  $ dune build @melange _utopia/server_main.exe > /dev/null
+  $ dune build @melange _utopia/server_main.exe _utopia/Lib.re > /dev/null
   $ grep -qF 'target Pages__Utopia.re' _utopia/dune
   $ grep -qF 'target Lib__Lib.re' _utopia/dune
   $ grep -qF 'target Lib.re' _utopia/dune

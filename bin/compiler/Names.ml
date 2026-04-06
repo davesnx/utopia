@@ -1,4 +1,5 @@
 let pages_directory = "pages"
+let api_directory = "api"
 
 let sanitize_module_component value =
   let buffer = Buffer.create (String.length value) in
@@ -61,14 +62,23 @@ let generated_module_base relative_file =
 let compiled_page_module_name relative_file =
   "Pages__" ^ generated_module_base relative_file
 
-let strip_pages_prefix source_file =
-  let prefix = pages_directory ^ "/" in
+let compiled_api_module_name relative_file =
+  "Api__" ^ generated_module_base relative_file
+
+let strip_directory_prefix ~directory source_file =
+  let prefix = directory ^ "/" in
   let prefix_len = String.length prefix in
   if
     String.length source_file >= prefix_len
     && String.sub source_file 0 prefix_len = prefix
   then String.sub source_file prefix_len (String.length source_file - prefix_len)
   else source_file
+
+let strip_pages_prefix source_file =
+  strip_directory_prefix ~directory:pages_directory source_file
+
+let strip_api_prefix source_file =
+  strip_directory_prefix ~directory:api_directory source_file
 
 let native_module_name_of_source source_file =
   generated_module_base (strip_pages_prefix source_file)
@@ -82,6 +92,9 @@ let route_constructor_name_of_source source_file =
 
 let compiled_page_module_name_of_source source_file =
   compiled_page_module_name (strip_pages_prefix source_file)
+
+let compiled_api_module_name_of_source source_file =
+  compiled_api_module_name (strip_api_prefix source_file)
 
 let generated_route_binding_name source_file suffix =
   let base =

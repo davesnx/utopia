@@ -10,10 +10,10 @@
   > let value = "one";
   > EOF
   $ utopia.compiler > /dev/null
-  $ dune build . > /dev/null
+  $ dune build _utopia/native/Lib__Message.re > /dev/null
   $ cat > lib/Message.re <<'EOF'
   > let value = "two";
   > EOF
-  $ dune build . > /dev/null
+  $ dune build _utopia/native/Lib__Message.re > /dev/null
   $ grep -qF '"two"' _build/default/_utopia/native/Lib__Message.re && echo content_updated
   content_updated

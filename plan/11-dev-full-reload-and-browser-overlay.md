@@ -21,6 +21,7 @@ This task intentionally does **not** implement HMR, React state preservation, `J
 - The dev server port must stay stable for the full dev session.
 - Use a Utopia-owned dev event channel, not `dream-livereload`.
 - Runtime overlay should live in a dedicated client-only root mounted under `document.body` so it still works when the main app hydration path is broken.
+- `plan/11-dev-full-reload-and-browser-overlay.md` is authoritative for dev-loop behavior; `plan/09-dev-mode.md` and `plan/10-client-error-overlay.md` are subordinate implementation slices.
 
 ## Research Notes
 

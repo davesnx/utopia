@@ -1,47 +1,10 @@
-(rule
- (deps ../utopia_runtime/files/FunctionReferences.re)
- (target FunctionReferences.re)
- (action (run cp %{deps} %{target})))
-
-(rule
- (deps ../utopia_runtime/files/Utopia_call_server.re)
- (target Utopia_call_server.re)
- (action (run cp %{deps} %{target})))
-
-(rule
- (deps ../utopia_runtime/files/Utopia_route.ml)
- (target Utopia_route.ml)
- (action (run cp %{deps} %{target})))
-
-(rule
- (deps ../utopia_runtime/files/Utopia_router.re)
- (target Utopia_router.re)
- (action (run cp %{deps} %{target})))
-
-(rule
- (deps ../utopia_runtime/files/Utopia_router_link.re)
- (target Utopia_router_link.re)
- (action (run cp %{deps} %{target})))
-
-(rule
- (deps ../utopia_runtime/files/Utopia_router_route.re)
- (target Utopia_router_route.re)
- (action (run cp %{deps} %{target})))
-
-(rule
- (deps ../utopia_runtime/files/Utopia_route_builder.ml)
- (target Utopia_route_builder.ml)
- (action (run cp %{deps} %{target})))
-
-(rule
- (deps ../server/server.ml)
- (target Utopia_server.ml)
- (action (run cp %{deps} %{target})))
-
-(rule
- (deps ../utopia_types/utopia_types.ml)
- (target Utopia_types.ml)
- (action (run cp %{deps} %{target})))
+(install
+ (section lib)
+ (package utopia)
+ (files
+  (client_entry.re as utopia/client_entry.re)
+  (esbuild.config.mjs as utopia/esbuild.config.mjs)
+  (ReactServerDOMEsbuild.re as utopia/ReactServerDOMEsbuild.re)))
 
 (library
  (name utopia)
@@ -57,6 +20,7 @@
   Utopia_router_link
   Utopia_router_route
   Utopia_route_builder
+  Utopia_runtime
   Utopia_server
   Utopia_types)
  (libraries

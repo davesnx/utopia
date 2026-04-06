@@ -1,6 +1,7 @@
 open Utopia_types
 
 let pages_directory = "pages"
+let api_directory = "api"
 
 type route_entry = {
   route : string;
@@ -18,6 +19,23 @@ type route_entry = {
   route_schema_module : string option;
   route_schema_has_query : bool;
   route_schema_has_hash : bool;
+}
+
+type route_signature = {
+  route : string;
+  matcher : string;
+  conflict_key : string;
+  params : (string * param_kind) list;
+}
+
+type api_route_entry = {
+  route : string;
+  matcher : string;
+  conflict_key : string;
+  params : (string * param_kind) list;
+  middlewares : string list;
+  source_file : string;
+  module_name : string;
 }
 
 let is_identifier_char = function
@@ -152,9 +170,8 @@ let ancestor_directories dir =
     in
     build [ "" ] parts
 
-let route_entry_of_file file kind =
+let route_signature_of_file ~source_file file =
   let without_extension = Filename.remove_extension file in
-  let source_file = Filename.concat pages_directory file in
   let normalized_segments = normalize_path_segments without_extension in
   let parsed_segments_result =
     normalized_segments
@@ -181,23 +198,37 @@ let route_entry_of_file file kind =
                without_extension)
       | Ok params ->
           Ok
-            {
-              route = route_of_segments segments;
-              matcher = matcher_of_segments segments;
-              conflict_key = conflict_key_of_segments segments;
-              params;
-              layouts = [];
-              kind;
-              source_file;
-              has_metadata = false;
-              static = false;
-              has_static_paths = false;
-              route_schema_source = None;
-              route_schema_has_params = false;
-              route_schema_module = None;
-              route_schema_has_query = false;
-              route_schema_has_hash = false;
-            })
+            ({
+               route = route_of_segments segments;
+               matcher = matcher_of_segments segments;
+               conflict_key = conflict_key_of_segments segments;
+               params;
+             }
+              : route_signature))
+
+let route_entry_of_file file kind =
+  let source_file = Filename.concat pages_directory file in
+  match route_signature_of_file ~source_file file with
+  | Error _ as error -> error
+  | Ok { route; matcher; conflict_key; params } ->
+      Ok
+        {
+          route;
+          matcher;
+          conflict_key;
+          params;
+          layouts = [];
+          kind;
+          source_file;
+          has_metadata = false;
+          static = false;
+          has_static_paths = false;
+          route_schema_source = None;
+          route_schema_has_params = false;
+          route_schema_module = None;
+          route_schema_has_query = false;
+          route_schema_has_hash = false;
+        }
 
 let collect_layouts files =
   let layout_by_dir = Hashtbl.create 32 in
@@ -245,6 +276,137 @@ let route_entries_of_files files =
              | Error message -> (entries, message :: errors)))
        ([], layout_errors)
   |> fun (entries, errors) -> (List.rev entries, List.rev errors)
+
+let is_api_middleware_file file =
+  basename_without_extension file = "_middleware"
+
+let collect_api_middlewares files =
+  let middleware_by_dir = Hashtbl.create 32 in
+  let errors = ref [] in
+  files
+  |> List.iter (fun file ->
+      let extension = Filename.extension file in
+      match kind_of_extension extension with
+      | Some Code_page when is_api_middleware_file file -> (
+          let dir = relative_directory file in
+          let source_file = Filename.concat api_directory file in
+          let previous = Hashtbl.find_opt middleware_by_dir dir in
+          match previous with
+          | None -> Hashtbl.replace middleware_by_dir dir source_file
+          | Some existing ->
+              errors :=
+                Printf.sprintf
+                  "Middleware conflict in api/%s: both %s and %s define \
+                   _middleware"
+                  dir existing source_file
+                :: !errors)
+      | _ -> ());
+  (middleware_by_dir, List.rev !errors)
+
+let middlewares_for_file middleware_by_dir file =
+  let dir = relative_directory file in
+  ancestor_directories dir
+  |> List.filter_map (fun segment -> Hashtbl.find_opt middleware_by_dir segment)
+
+let api_route_entry_of_file file =
+  let source_file = Filename.concat api_directory file in
+  match route_signature_of_file ~source_file file with
+  | Error _ as error -> error
+  | Ok signature ->
+      let route =
+        if signature.route = "" then "api" else "api/" ^ signature.route
+      in
+      let matcher =
+        if signature.matcher = "" then "api" else "api/" ^ signature.matcher
+      in
+      let conflict_key =
+        if signature.conflict_key = "" then "api"
+        else "api/" ^ signature.conflict_key
+      in
+      Ok
+        {
+          route;
+          matcher;
+          conflict_key;
+          params = signature.params;
+          middlewares = [];
+          source_file;
+          module_name = "Api__" ^ Names.generated_module_base file;
+        }
+
+let api_route_entries_of_files files =
+  let middleware_by_dir, middleware_errors = collect_api_middlewares files in
+  files
+  |> List.fold_left
+       (fun (entries, errors) file ->
+         let extension = Filename.extension file in
+         match kind_of_extension extension with
+         | None | Some Markdown_page -> (entries, errors)
+         | Some Code_page when is_api_middleware_file file -> (entries, errors)
+         | Some Code_page -> (
+             match api_route_entry_of_file file with
+             | Error message -> (entries, message :: errors)
+             | Ok entry ->
+                 let entry =
+                   {
+                     entry with
+                     middlewares = middlewares_for_file middleware_by_dir file;
+                   }
+                 in
+                 (entry :: entries, errors)))
+       ([], middleware_errors)
+  |> fun (entries, errors) -> (List.rev entries, List.rev errors)
+
+let page_route_in_reserved_api_namespace (entry : route_entry) =
+  String.equal entry.route "api"
+  || String.starts_with ~prefix:"api/" entry.route
+
+let reserved_api_namespace_errors (route_entries : route_entry list) =
+  route_entries
+  |> List.filter (fun (entry : route_entry) ->
+      page_route_in_reserved_api_namespace entry)
+  |> List.map (fun (entry : route_entry) ->
+      let route_label = if entry.route = "" then "/" else "/" ^ entry.route in
+      Printf.sprintf
+        "Page route %s from %s conflicts with reserved /api namespace"
+        route_label entry.source_file)
+
+let api_param_kind_conflicts (api_entries : api_route_entry list) =
+  let seen = Hashtbl.create 16 in
+  let errors = ref [] in
+  api_entries
+  |> List.iter (fun entry ->
+      entry.params
+      |> List.iter (fun (name, kind) ->
+          match Hashtbl.find_opt seen name with
+          | None -> Hashtbl.replace seen name (kind, entry.source_file)
+          | Some (existing_kind, _existing_source) when existing_kind = kind ->
+              ()
+          | Some (existing_kind, existing_source) ->
+              errors :=
+                Printf.sprintf
+                  "API param %s uses multiple shapes (%s in %s vs %s in %s). \
+                   Use a consistent param kind so Routes.Api.Params.%s has one \
+                   type."
+                  name
+                  (string_of_param_kind existing_kind)
+                  existing_source
+                  (string_of_param_kind kind)
+                  entry.source_file name
+                :: !errors));
+  List.rev !errors
+
+let find_api_conflicts (entries : api_route_entry list) =
+  let grouped = Hashtbl.create 32 in
+  entries
+  |> List.iter (fun entry ->
+      let current =
+        Hashtbl.find_opt grouped entry.conflict_key |> Option.value ~default:[]
+      in
+      Hashtbl.replace grouped entry.conflict_key (entry :: current));
+  grouped |> Hashtbl.to_seq_values |> List.of_seq
+  |> List.filter (fun grouped_entries -> List.length grouped_entries > 1)
+  |> List.map List.rev
 
 let pp_route route = if route = "" then "/" else "/" ^ route
 

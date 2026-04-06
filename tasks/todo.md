@@ -2,6 +2,53 @@
 
 ## Active slice
 
+- [completed] Reconcile plans 06-12 so dev behavior is authoritative in `plan/11-dev-full-reload-and-browser-overlay.md`
+- [completed] Split `plan/07-configuration.md` into serializable compile-time config plus runtime hook/module registry strategy
+- [completed] Extend markdown and SSG plans so frontmatter includes `static` and static detection uses a comment/string-safe scanner
+- [completed] Expand `plan/12-optimization-for-melange-pages.md` into a full implementation plan with algorithm, dune impact, and tests
+- [completed] Sync `plan/primitives.md` terminology with the updated plan abstractions
+
+## Review
+
+- `plan/11-dev-full-reload-and-browser-overlay.md` now explicitly states it is authoritative, while `plan/09-dev-mode.md` and `plan/10-client-error-overlay.md` were rewritten as aligned subordinate slices.
+- `plan/07-configuration.md` now separates serializable config transport (`config_runner`) from non-serializable runtime extensions resolved via a linked `utopia_runtime_registry` keyed lookup.
+- `plan/06-markdown-pipeline.md` and `plan/08-ssg.md` now agree on `frontmatter static`, and SSG static detection now uses a comment/string-safe lexical scanner design instead of regex-only matching.
+- `plan/12-optimization-for-melange-pages.md` is now a full execution plan covering discovery, dependency-closure algorithm, bridge generation, dune impact, and coverage.
+- `plan/primitives.md` now includes the new/updated terms (frontmatter `static`, config runner/runtime hooks registry split, static export scanner, client bridge/closure concepts, and dev-overlay authority context).
+
+## Active slice
+
+- [in_progress] Implement phase 05 API-route compiler/runtime wiring from `plan/05-api-routes.md`
+- [completed] Replace manifest-based runtime loading with generated `Routes.get_all` + `Routes.Api.get_all` metadata and module registries
+- [completed] Add file-based `api/` scanning, middleware ancestry collection, `/api/*` reservation checks, and typed `Routes.Api.Params` accessors
+- [completed] Rewire generated dune/server entrypoint for separate native API library plus generated-only `server_main.exe`, then retire standalone `utopia.server`
+- [completed] Add/update cram coverage for API routing, middleware behavior, JSON API error envelopes, and manifest removal; then run targeted verification
+
+## Review
+
+- Fixed generated `_utopia/server_main.ml` resolver generation to avoid warnings-as-errors when resolver match tables are empty (`source_file` -> `_source_file` fallback).
+- Stabilized generated `_utopia/dune` behavior for this phase by preserving `_utopia/` subdir outputs, adding a root `melange` alias shim, and removing duplicate route-schema module ownership across native stanzas.
+- Updated CLI binary resolution + build bootstrap so `utopia dev` / `utopia build` reliably use local workspace binaries and explicitly build the generated server target (`_utopia/server_main.exe`).
+- Refreshed impacted cram expectations for current HTML/RSC payload shapes, server executable stanza shape, shared-lib rebuild target paths, and action-id extraction in multi-server-function pages.
+- Verification now passes for `opam exec -- dune build .` and the full `opam exec -- dune runtest bin/tests` suite.
+
+## Active slice
+
+- [completed] Audit `tasks/todo.md` open items against the current repository state
+- [completed] Mark stale completed work items that were still tagged `in_progress`/`pending`
+- [pending] Implement the dev-mode feedback loop from `tasks/dev-full-reload-and-browser-overlay.md` (npm preflight, `@_utopia/esbuild`, dev event channel, browser overlay)
+- [pending] Rename root demo helper targets from `run-demo*` / `compile-demo*` to the `demo-run-*` naming scheme and update references
+- [pending] Decide and implement the long-term editor-support path for `.mlx` dynamic routes so source diagnostics and Merlin ownership stay consistent
+
+## Review
+
+- `tasks/todo.md` now reflects completed status for previously stale slices that already landed in the repo (dynamic notes tags, checklist-toggle work, demo shared-lib move, executable folderization, and runtime rename/wiring follow-ups).
+- Remaining open work is concentrated into three themes: dev feedback-loop/overlay implementation, root demo target rename cleanup, and long-term `.mlx` editor-support ownership design.
+- `tasks/dev-full-reload-and-browser-overlay.md` is still fully open (`- [ ]` throughout), and remains the source of truth for the dev feedback-loop milestone.
+- `tasks/client-error-overlay.md` is also still fully open and can be implemented either as part of the unified dev overlay task or as its own focused slice.
+
+## Active slice
+
 - [completed] Prototype a `demo/notes/_dune` source-ownership experiment so `lib/` belongs to real Dune stanzas for editor/LSP work
 - [completed] Rewire the checked-in `demo/notes/_utopia/dune` native build to depend on the source `lib/` library instead of mirrored `Lib__*` copies
 - [completed] Add a focused Merlin config for `demo/notes/pages/` and measure how far source `.mlx` diagnostics get, especially for dynamic filenames like `[tag].mlx`
@@ -237,9 +284,9 @@
 
 ## Active slice
 
-- [in_progress] Replace the notes demo's fixed folder enum and four static tag pages with persisted dynamic tags plus a single `/notes/[tag]` page
-- [pending] Update the notes sidebar and note chrome: remove the sidebar heading, pin bordered `New Note` and `New Tag` actions to the sidebar bottom, remove inline note tag footers, and show only the time above note titles when a timestamp contains one
-- [pending] Support creating tags both from the sidebar and while composing a note, then verify the demo build and refresh `plan/primitives.md`
+- [completed] Replace the notes demo's fixed folder enum and four static tag pages with persisted dynamic tags plus a single `/notes/[tag]` page
+- [completed] Update the notes sidebar and note chrome: remove the sidebar heading, pin bordered `New Note` and `New Tag` actions to the sidebar bottom, remove inline note tag footers, and show only the time above note titles when a timestamp contains one
+- [completed] Support creating tags both from the sidebar and while composing a note, then verify the demo build and refresh `plan/primitives.md`
 
 ## Active slice
 
@@ -275,9 +322,9 @@
 
 ## Active slice
 
-- [in_progress] Refine the notes tag model to store a display name plus optional description, and stop note creation from inventing new tags inline
-- [pending] Move create-tag to the top of the sidebar and replace the inline form with a small popup dialog with Accept/Cancel
-- [pending] Replace the note tag datalist with a custom autocomplete + fuzzy dropdown for existing tags only, hide tag description on note views, and re-verify the rebuilt demo
+- [completed] Refine the notes tag model to store a display name plus optional description, and stop note creation from inventing new tags inline
+- [completed] Move create-tag to the top of the sidebar and replace the inline form with a small popup dialog with Accept/Cancel
+- [completed] Replace the note tag datalist with a custom autocomplete + fuzzy dropdown for existing tags only, hide tag description on note views, and re-verify the rebuilt demo
 
 ## Active slice
 
@@ -390,7 +437,7 @@
 
 ## Active slice
 
-- [in_progress] Move the notes demo shared modules from `demo/notes/pages/lib/` into `demo/notes/lib/` and update the demo imports/build inputs to use the new shared lib root
+- [completed] Move the notes demo shared modules from `demo/notes/pages/lib/` into `demo/notes/lib/` and update the demo imports/build inputs to use the new shared lib root
 - [completed] Switch compiler shared-lib integration from `pages/lib/` to project-root `lib/`, keeping the auto-opened `Lib` aliases while mirroring shared modules with their real module names
 - [completed] Extract the generated `Utopia_router.re` source out of `bin/compiler.ml` into a dedicated support module
 - [completed] Refresh shared-lib docs/primitives/tests and run focused verification for the moved demo plus the new `lib/` integration
@@ -482,23 +529,23 @@
 
 ## Active slice
 
-- [in_progress] Split `bin/cli.ml` into a dedicated `bin/cli/` executable directory with semantic modules for terminal, process, filesystem/artifact, flag, rpc, and command concerns
-- [pending] Split `bin/compiler.ml` into a dedicated `bin/compiler/` executable directory with semantic modules for filesystem, routes, manifest emission, project support, esbuild, dune emission, and server-main emission
-- [pending] Move the standalone server executable into `bin/server/`, update Dune/build entry points and path references for the new per-executable folders
-- [pending] Refresh primitives/task notes and run focused build + regression verification for the refactored executable layout
+- [completed] Split `bin/cli.ml` into a dedicated `bin/cli/` executable directory with semantic modules for terminal, process, filesystem/artifact, flag, rpc, and command concerns
+- [completed] Split `bin/compiler.ml` into a dedicated `bin/compiler/` executable directory with semantic modules for filesystem, routes, manifest emission, project support, esbuild, dune emission, and server-main emission
+- [completed] Move the standalone server executable into `bin/server/`, update Dune/build entry points and path references for the new per-executable folders
+- [completed] Refresh primitives/task notes and run focused build + regression verification for the refactored executable layout
 
 ## Active slice
 
-- [in_progress] Rename `utopia_project_support` to `utopia_runtime` and keep the runtime-source bundle/compiler references aligned with that naming
+- [completed] Rename `utopia_project_support` to `utopia_runtime` and keep the runtime-source bundle/compiler references aligned with that naming
 - [pending] Move important hardcoded path layout knowledge out of `bin/compiler/` and `bin/cli/` into `lib/utopia_path/`, leaving only dynamic page/route discovery local to the executables
-- [pending] Finish wiring the new `bin/cli/`, `bin/compiler/`, and `bin/server/` folderized executables against the updated runtime/path libraries
-- [pending] Refresh primitives/task notes and rerun focused build + regression verification for the renamed runtime + executable refactor
+- [completed] Finish wiring the new `bin/cli/`, `bin/compiler/`, and `bin/server/` folderized executables against the updated runtime/path libraries
+- [completed] Refresh primitives/task notes and rerun focused build + regression verification for the renamed runtime + executable refactor
 
 ## Active slice
 
-- [in_progress] Inspect the notes demo checklist rendering and current note-creation toggle flow to find the right post-create toggle integration point
-- [pending] Add checklist toggle behavior for already-created notes and persist the updated done state in the notes demo store
-- [pending] Refresh demo docs/primitives and run focused verification for note checklist toggling on existing notes
+- [completed] Inspect the notes demo checklist rendering and current note-creation toggle flow to find the right post-create toggle integration point
+- [completed] Add checklist toggle behavior for already-created notes and persist the updated done state in the notes demo store
+- [completed] Refresh demo docs/primitives and run focused verification for note checklist toggling on existing notes
 
 ## Active slice
 

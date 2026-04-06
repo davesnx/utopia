@@ -47,9 +47,8 @@ my-project/
       [id].ml            # /api/users/:id
   _utopia/               # Generated (do not edit)
     dune                 # Generated dune graph for melange/native/esbuild/server/ssg
-    routes.manifest      # Generated route table + metadata/static flags
     paths.mjs            # Generated build metadata for esbuild
-    Utopia_routes.ml     # Generated typed route tree + current-route parser
+    Routes.ml            # Generated typed route tree + route metadata loaders
     client_entry.re      # Generated browser RSC entry
     esbuild.config.mjs   # Copied esbuild runtime config
     server_main.ml       # Generated per-project server executable wiring
@@ -326,15 +325,19 @@ When present, the generated route builder exposes those types via `Route_params`
 
 Route schema files should use `Utopia_route.Params` for path-param helpers rather than `Utopia.Route.Params`, because `Utopia` itself depends on the generated `Utopia.Routes` module and would otherwise create a compile-time module cycle.
 
-## API Routes (not implemented)
+## API Routes (implemented)
 
 ### Location
 
 API routes live in the `api/` directory. The compiler scans `api/` using the same recursive traversal and segment parsing as `pages/`.
 
+The `/api/*` namespace is reserved for API endpoints. Any page route that normalizes to `/api/*` is a compile-time error.
+
 ### Routing conventions
 
-Identical to page routing: `[param]`, `[...slug]`, `[[...slug]]`, route groups, all work the same way.
+Identical to page routing: `[param]`, `[...slug]`, `[[...slug]]`, route groups, and parallel slots.
+
+Supported API source extensions: `.ml`, `.re`, `.mlx`.
 
 ### Handler contract
 
@@ -344,11 +347,11 @@ An API route exports a single handler function:
 val handler : Dream.request -> Dream.response Lwt.t
 ```
 
-The handler receives the raw Dream request. HTTP method dispatch is handled by the user inside the handler via pattern matching on `Dream.method_`.
+The handler receives the raw Dream request. HTTP method dispatch is handled by user code.
 
 ### API middleware
 
-A file named `_middleware.ml` in any `api/` subdirectory applies to all routes in that directory and descendants. Middleware composes by directory ancestry (same model as layouts).
+A file named `_middleware.ml` (or `.re` / `.mlx`) in any `api/` subdirectory applies to all routes in that directory and descendants. Middleware composition follows physical directory ancestry, outermost first.
 
 Middleware contract:
 
@@ -356,7 +359,24 @@ Middleware contract:
 val middleware : Dream.handler -> Dream.handler
 ```
 
-A middleware wraps the downstream handler, enabling pre/post processing (auth, logging, CORS, rate limiting).
+### Generated API route metadata and params helpers
+
+Generated native route metadata is exposed under `Routes.Api.get_all ()`.
+
+Generated typed param accessors are exposed under `Routes.Api.Params` and read matched params from request-local storage. Shapes are:
+
+- single -> `string`
+- catch-all -> `string list`
+- optional catch-all -> `string list` (`[]` means absent)
+
+### API response policy
+
+API handlers are expected to return JSON responses, typically through a helper like `Utopia.respond(~status, ~headers, json)`.
+
+Framework-generated API errors are always JSON with exact keys `error`, `code`, and `path`:
+
+- 404: `{ "error": "API route not found", "code": "api_not_found", "path": "..." }`
+- 500: `{ "error": "Internal API error", "code": "api_internal_error", "path": "..." }`
 
 ## Rendering Models
 
@@ -390,7 +410,7 @@ Client JS -> POST /about (with action ID + args)
 
 The generated pages library now also exposes a public `Utopia.useRouter()` hook, an opaque `Utopia.Route.t`, a generated `Utopia.Routes` module tree with `type t` plus `of_route`, and a `Utopia.Router.Link` client link component for user code. `Utopia.useRouter()` returns the current request path and the raw `Utopia.Route.t`; typed route inspection happens explicitly through `Utopia.Routes.of_route router.route`. Utopia's generated client shell intercepts same-origin `.js-route-link` anchors for SPA navigation and uses the hook for programmatic navigation.
 
-The generated runtime surface is now split between a real shared library and a tiny project-specific wrapper. The shared public `utopia` library owns the reusable runtime modules (`Utopia_base`, `Utopia_call_server`, `Utopia_route`, `Utopia_router`, `Utopia_router_link`, `Utopia_router_route`, `Utopia_route_builder`, `Utopia_server`, `Utopia_types`, and `FunctionReferences`), while generated projects only emit `_utopia/Utopia_routes.ml` plus a tiny `_utopia/Utopia.re` that `include`s `Utopia_base` and aliases `module Routes = Utopia_routes`.
+The generated runtime surface is now split between a real shared library and project-specific generated routes. The shared public `utopia` library owns the reusable runtime modules (`Utopia`, `Utopia_call_server`, `Utopia_route`, `Utopia_router`, `Utopia_router_link`, `Utopia_router_route`, `Utopia_route_builder`, `Utopia_server`, `Utopia_types`, and `FunctionReferences`), while generated projects only emit `_utopia/Routes.ml` plus their page/lib mirrors and runtime entry files.
 
 ### SSR (partial)
 
@@ -471,7 +491,7 @@ Supported fields:
 - `path` -- Override the filesystem-inferred route path
 - `layout` -- Explicitly select a layout file (override directory ancestry)
 
-The compiler parses frontmatter, strips it before markdown rendering, and records metadata in the route manifest.
+The compiler parses frontmatter, strips it before markdown rendering, and records metadata in generated route metadata.
 
 ### Rendering (implemented)
 
@@ -502,7 +522,7 @@ Custom components are provided via:
 ### `build` flow (implemented)
 
 1. Validate project shape (`pages/` must exist)
-2. Run `utopia.compiler --mode production` (generate manifests + dune rules + build metadata)
+2. Run `utopia.compiler --mode production` (generate route modules/metadata + dune rules + build metadata)
 3. Run `dune build --root <workspace> --no-print-directory .`
 4. Emit build report (route count, generated files, output dirs)
 5. Fail fast on route conflicts, invalid segments, undeclared params, and missing `static_paths`
@@ -550,7 +570,7 @@ If the requested port is already in use, `utopia dev` currently selects the next
 
 ### `prod` flow (implemented)
 
-1. Verify `_utopia/routes.manifest`, `_utopia/dune`, and the built generated `server_main.exe` exist
+1. Verify `_utopia/dune`, generated route modules, and the built generated `server_main.exe` exist
 2. Resolve `PORT` and `HOST` from environment
 3. Start the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects, or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects
 4. Forward the child exit code
@@ -573,10 +593,10 @@ The CLI supports executable aliases: `utopia-build` is equivalent to `utopia bui
 
 ### Architecture (implemented)
 
-Framework server logic lives in `lib/server/server.ml` and is copied into generated projects as `_utopia/Utopia_server.ml`. The compiler also generates a per-project executable in `_utopia/server_main.ml` that:
+Framework server logic lives in `lib/utopia/Utopia_server.ml`, and generated projects link against it through the shared `utopia` library. The compiler also generates a per-project executable in `_utopia/server_main.ml` that:
 - Depends on the copied `Utopia_server` support module (framework: routing, RSC rendering, asset serving, SSG)
-- Depends on a private, project-scoped generated native pages library
-- Wires route definitions to compiled page/layout modules and starts the Dream server
+- Depends on private, project-scoped generated native libraries for pages and APIs
+- Wires generated route metadata loaders plus compiled module registries and starts the Dream server
 
 This separation means the framework server logic is reusable and the user's page code is linked in at build time.
 
@@ -584,20 +604,23 @@ This separation means the framework server logic is reusable and the user's page
 
 1. Parse request target into URL segments
 2. If the target points at generated assets (`target/`, `dist/`, or known direct assets such as `output.css`), serve it from source `_utopia/` or built `_build/default/.../_utopia/`
-3. If the request is `POST`, resolve the server function from generated `FunctionReferences` and stream an `application/react.action` response
-4. Match URL segments against generated routes ordered by specificity
-5. For ordinary `GET`, render the compiled route shell/document and stream HTML with `ReactServerDOM.render_html`
-6. For `GET` with `Accept: application/react.component`, render either a full router tree or a parent-relative diff tree and stream it with `ReactServerDOM.render_model_value`
-7. If no route matches and the request is `/`, render the dev route index page when no index page exists
-8. Return `404` for unmatched routes
+3. If the target is `/api/*`, match API routes first
+4. For matched API routes, run middleware chain and handler; framework-generated API errors return JSON envelopes
+5. If the request is `POST` and not handled by API routing, resolve the server function from generated `FunctionReferences` and stream an `application/react.action` response
+6. Match URL segments against generated page routes ordered by specificity
+7. For ordinary `GET`, render the compiled route shell/document and stream HTML with `ReactServerDOM.render_html`
+8. For `GET` with `Accept: application/react.component`, render either a full router tree or a parent-relative diff tree and stream it with `ReactServerDOM.render_model_value`
+9. If no page route matches and the request is `/`, render the dev route index page when no index page exists
+10. Return `404` for unmatched page routes
 
 **Target request handling (RSC)**:
 - **GET** (no RSC header): stream HTML with `ReactServerDOM.render_html`
 - **GET** with `Accept: application/react.component`: stream either a full-tree or diff payload with `ReactServerDOM.render_model_value`
-- **POST**: decode action arguments, resolve `FunctionReferences`, and stream `application/react.action`
+- **/api/**: route to API middleware/handler chain before server-action and page routing
+- **POST** (non-API): decode action arguments, resolve `FunctionReferences`, and stream `application/react.action`
 - **GET /dist/\***: serve bundled JS assets from esbuild output
 
-The generated-server path renders compiled native page/layout modules. The standalone manifest-only fallback path still exists for non-generated server usage, but `utopia dev` and `utopia prod` intentionally launch the generated executable so compiled pages, compiled layouts, router helpers, and server-function registries are active.
+Generated runtime renders compiled native page/layout/API modules through `_utopia/server_main.exe`.
 
 ### Caching (implemented)
 
@@ -611,28 +634,15 @@ Static assets are resolved from generated-project roots first, then build-output
 
 Content types are inferred from file extension (`.js`, `.css`, `.json`, `.map`, `.wasm`, `.svg`, `.png`, `.ico`, `.woff`, `.woff2`). Path traversal (`..`) is rejected with 400.
 
-## Manifest Wire Format (implemented)
+## Generated Route Metadata (implemented)
 
-### Route manifest (`_utopia/routes.manifest`)
+Runtime route loading is module-based, not TSV-manifest-based.
 
-Tab-separated values, one route per line:
+- `Routes.get_all ()` returns page route metadata.
+- `Routes.Api.get_all ()` returns API route metadata.
+- Native module registries resolve metadata entries to compiled page/layout/API modules.
 
-```
-<route>\t<kind>\t<source_file>\t<matcher>\t<params>\t<layouts>\t<has_metadata>\t<static>
-```
-
-| Field | Format | Example |
-|-------|--------|---------|
-| route | Filesystem-style path | `users/[id]` |
-| kind | `code` or `markdown` | `code` |
-| source_file | Relative path from project root | `pages/users/[id].re` |
-| matcher | Server-style pattern | `users/:id` |
-| params | Comma-separated `name:kind` pairs | `id:single` |
-| layouts | Semicolon-separated source paths | `pages/layout.re;pages/users/layout.re` |
-| has_metadata | `true` or `false` | `true` |
-| static | `true` or `false` | `false` |
-
-Matcher segment format (differs from filesystem):
+Matcher segment format used in generated metadata:
 
 | Filesystem | Matcher | Meaning |
 |-----------|---------|---------|
@@ -641,7 +651,7 @@ Matcher segment format (differs from filesystem):
 | `[...slug]` | `*slug` | Catch-all param |
 | `[[...slug]]` | `**slug` | Optional catch-all param |
 
-Param kind values: `single`, `catch_all`, `optional_catch_all`.
+Param kind values remain `single`, `catch_all`, `optional_catch_all`.
 
 ## Error Catalog
 
@@ -667,11 +677,15 @@ Param kind values: `single`, `catch_all`, `optional_catch_all`.
 
 **Project structure errors**
 - `pages/` directory does not exist
+- Page route normalizes under reserved `/api/*` namespace
+
+**API compilation errors**
+- Duplicate API route conflict key
+- Multiple `_middleware` files in the same `api/` directory
 
 ### Server errors
 
-- Route manifest file not found
-- Invalid manifest entry (wrong field count, unknown kind, malformed params)
+- Invalid generated route metadata entry
 - Invalid `PORT` environment variable (non-integer, falls back to 8080)
 
 ### HTTP errors
@@ -680,7 +694,9 @@ Param kind values: `single`, `catch_all`, `optional_catch_all`.
 |--------|-----------|
 | 400 | Asset path contains `..` traversal |
 | 404 | Asset not found in any asset root |
-| 404 | No route matches request path |
+| 404 | No page route matches request path |
+| 404 | API route not found (`/api/*`, JSON envelope) |
+| 500 | Unhandled API exception (JSON envelope) |
 
 ### CLI errors
 
@@ -708,7 +724,7 @@ Param kind values: `single`, `catch_all`, `optional_catch_all`.
 
 1. **Cram tests** (`bin/tests/`) -- End-to-end CLI and compiler behavior. Create fixture `pages/` directories, run commands, assert output. (implemented)
 2. **Cram tests** (`markdown/tests/`) -- Markdown rendering pipeline. (implemented)
-3. **Unit tests** -- Core logic: routing, segment parsing, manifest parsing, conflict detection. Using alcotest. (not implemented)
+3. **Unit tests** -- Core logic: routing, segment parsing, generated route metadata loading, conflict detection. Using alcotest. (not implemented)
 4. **Integration tests** -- HTTP request/response against a running server. (not implemented)
 
 ### Coverage rule
@@ -724,7 +740,7 @@ Tests create minimal fixture directories (temporary `pages/`, `api/`, etc.) and 
 Performance is a feature. The `bench/` directory contains:
 
 - **Routing micro-benchmarks** (`bench/bench_routing.ml`): `normalize_target`, `target_segments`, `match_segments`, `find_match` (scaling 10-500 routes), `escape_html`, `parse_matcher`, `render_code_page`. (implemented)
-- **HTTP benchmarks** (`bench/bench_http.sh`): End-to-end request throughput via `wrk` against all manifest routes plus 404 handling. (implemented)
+- **HTTP benchmarks** (`bench/bench_http.sh`): End-to-end request throughput via `wrk` against all generated routes plus 404 handling. (implemented)
 
 Performance-sensitive changes should run benchmarks before and after to verify no regressions. No specific targets are set yet -- the current server layer (Dream) is a known bottleneck.
 
@@ -782,7 +798,7 @@ Each generated project builds through three related outputs:
 | Output | Generated location | Naming | Purpose |
 |--------|--------------------|--------|---------|
 | Melange sources | `_utopia/` | `Utopia_page__*`, `Utopia_lib__*`, `Lib__*`, runtime support | Compile browser-facing JS into `target/<project>/_utopia/...` |
-| Native sources | `_utopia/native/` | same mirrored modules plus native-only support | Build the private generated pages library |
+| Native sources | `_utopia/native/` | same mirrored modules plus native-only support | Build private generated pages and API libraries |
 | Bundled browser assets | `_utopia/dist/` | esbuild output | Ship `client_entry_melange.js`, `bootstrap.js`, and code-split chunks |
 
 Markdown pages also get per-page `.html` build rules so the markdown pipeline can participate in Dune's dependency graph.
@@ -792,9 +808,9 @@ Markdown pages also get per-page `.html` build rules so the markdown pipeline ca
 `utopia.compiler` generates `_utopia/dune` in four stages:
 
 1. Ensure `_utopia/` and `_utopia/native/` exist
-2. Copy static runtime support files from `lib/utopia_runtime/files/` plus canonical server/type modules into those directories
-3. Scan `pages/`, `lib/`, and optional `routes/` schemas; compute route entries, metadata/static flags, layouts, and diagnostics
-4. Build structured dune stanzas with the internal `Dune_sexp` library and write `_utopia/dune`, `_utopia/routes.manifest`, `_utopia/paths.mjs`, `_utopia/Utopia_routes.ml`, and `_utopia/server_main.ml`
+2. Copy static generated-project asset files from `lib/utopia/` into those directories
+3. Scan `pages/`, `api/`, `lib/`, and optional `routes/` schemas; compute route entries, API entries, metadata/static flags, layouts/middleware, and diagnostics
+4. Build structured dune stanzas with the internal `Dune_sexp` library and write `_utopia/dune`, `_utopia/paths.mjs`, `_utopia/Routes.ml`, and `_utopia/server_main.ml`
 
 The compiler no longer hand-concatenates dune source strings. `bin/compiler/Generated_dune.ml` constructs typed sexps and serializes them into the final file.
 
@@ -820,7 +836,7 @@ The generated `_utopia/dune` file contains:
 4. Copy rules for optional route-schema modules
 5. A root `melange.emit` stanza that compiles the mirrored user modules plus generated runtime support (`Utopia.re`, `Utopia_call_server.re`, `Utopia_router.re`, `client_entry_melange.re`, etc.)
 6. Markdown build rules that turn `pages/*.md` into `.html` via `utopia.markdown`
-7. A `subdir native` block containing native mirrors, copied `Utopia_routes.ml`, and the private project-scoped pages library
+7. A `subdir native` block containing native mirrors and private project-scoped pages/API libraries
 8. An `esbuild` alias rule that runs `node _utopia/esbuild.config.mjs` from the project root
 9. A generated `server_main` executable stanza
 10. An `ssg` alias that runs `./server_main.exe --ssg`
@@ -836,6 +852,10 @@ The generated `_utopia/dune` file contains:
 - Libraries: `utopia.markdown_runtime`, `server-reason-react.runtime`, `server-reason-react.react`, `server-reason-react.reactDom`, `server-reason-react.fetch`, `server-reason-react.url_native`, `server-reason-react.webapi`, `melange-json`
 - PPX stack: `server-reason-react.ppx`, `server-reason-react.browser_ppx`, `server-reason-react.melange_ppx`, `melange-json-native.ppx`
 - Shared-folder prefixes are emitted per-module: source-relative mirrors use `../../`, generated native support uses `_utopia/native/`
+
+**Native API library**
+- Separate project-scoped native API library for `api/` handlers and middleware modules
+- Uses the same native PPX stack and shared `Lib` ergonomics as server-side page modules
 
 ### esbuild integration (partial)
 
@@ -858,24 +878,25 @@ The compiler creates `_utopia/` if missing, copies static support files into `_u
 ### End-to-end build graph (implemented)
 
 ```
-pages/ + lib/ + routes/ schemas
+pages/ + api/ + lib/ + routes/ schemas
         |
         v
 utopia.compiler
   - copies runtime support into _utopia/ and _utopia/native/
-  - writes dune + routes.manifest + paths.mjs + Utopia_routes.ml + server_main.ml
+  - writes dune + paths.mjs + Routes.ml + server_main.ml
         |
         v
 dune build
   - melange.emit -> target/<project>/_utopia/*.js
-  - native library -> pages_<project-scope>
+  - native libraries -> pages_<project-scope> + api_<project-scope>
   - executable -> _build/default/<project>/_utopia/server_main.exe
   - alias esbuild -> _utopia/dist/*.js + bootstrap.js
   - alias ssg -> _utopia/static/**
         |
         v
 Runtime
+  /api/* -> API middleware + handler (JSON errors for framework-generated 404/500)
   GET -> `ReactServerDOM.render_html`
   GET Accept: application/react.component -> `ReactServerDOM.render_model_value`
-  POST -> `ReactServerDOM.create_action_response`
+  POST (non-API) -> `ReactServerDOM.create_action_response`
 ```

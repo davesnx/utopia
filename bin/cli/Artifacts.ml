@@ -34,11 +34,15 @@ let dune_root_args () =
 
 let dune_build_args targets = [ "build" ] @ dune_root_args () @ targets
 let dune_clean_args () = [ "clean" ] @ dune_root_args ()
-let routes_manifest_ref () = Utopia_path.routes_manifest (project_paths ())
 let generated_dune_ref () = Utopia_path.generated_dune (project_paths ())
 
 let generated_server_exe_ref () =
   Utopia_path.generated_server_exe (project_paths ())
+
+let generated_server_build_target () =
+  let project = project_paths () in
+  Fpath.(Utopia_path.project_utopia_dir project / "server_main.exe")
+  |> Fpath.to_string
 
 let artifact_path artifact =
   artifact |> Utopia_path.file_path |> Utopia_path.to_string
@@ -49,7 +53,7 @@ let artifact_exists artifact =
   artifact |> Utopia_path.file_path |> Utopia_path.exists
 
 let required_server_artifacts () =
-  [ routes_manifest_ref (); generated_dune_ref (); generated_server_exe_ref () ]
+  [ generated_dune_ref (); generated_server_exe_ref () ]
 
 let missing_artifacts artifacts =
   List.filter (fun artifact -> not (artifact_exists artifact)) artifacts

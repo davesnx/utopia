@@ -1,37 +1,136 @@
 # API routes
 
-Add file-based API routing with the same conventions as page routing.
+Add file-based API routing and, in the same phase, refactor page route loading away from manifest files to generated module registries.
 
 ---
 
 ## Goal
 
-Files in `api/` map to API endpoints. Same segment parsing as pages (`[param]`, `[...slug]`, `[[...slug]]`). Handlers receive raw Dream requests and return Dream responses. Middleware composes by directory ancestry.
+Files in `api/` map to API endpoints using the same segment conventions as pages (`[param]`, `[...slug]`, `[[...slug]]`, route groups, parallel slots).
+
+This phase also replaces manifest-driven runtime loading with generated module-driven loading:
+
+- Page metadata comes from `Routes.get_all ()`
+- API metadata comes from `Routes.Api.get_all ()`
+- Server wiring resolves compiled modules via generated native registries
+- `_utopia/routes.manifest` and `_utopia/api.manifest` are removed
+
+---
+
+## Locked decisions
+
+- Canonical runtime is generated `_utopia/server_main.exe`; standalone `utopia.server` is removed.
+- Request order is: assets -> API -> server actions -> pages.
+- `/api/*` is reserved for API routes; any `pages/**` route normalizing to `/api/*` is a compile-time error.
+- API handlers keep raw Dream contract: `Dream.request -> Dream.response Lwt.t`.
+- API middleware contract is `Dream.handler -> Dream.handler`.
+- API responses are JSON-by-convention with best-effort enforcement:
+  - `Utopia.respond(~status, ~headers, json)` helper is provided.
+  - Framework-generated API errors are always JSON and always include exactly `error`, `code`, `path`.
+- API handler source extensions are `.ml`, `.re`, `.mlx`.
+- Middleware inheritance uses physical directory ancestry, outermost first.
+- API params are exposed through generated typed key accessors under `Routes.Api.Params`.
 
 ---
 
 ## Dependencies
 
-- `plan/01-shared-types.md` -- shared types
-- `plan/02-compiler-rsc.md` -- compiler infrastructure
-- `plan/03-server-rewrite.md` -- server library to wire handlers into
+- `plan/01-shared-types.md` -- shared route segment and param kinds
+- `plan/02-compiler-rsc.md` -- compiler and generated artifacts pipeline
+- `plan/03-server-rewrite.md` -- server library request routing
+- `plan/04-client-components.md` -- keep page/client route APIs compatible while splitting route modules
 
 ---
 
-## Extend the compiler to scan api/
+## Route loading refactor (pages + APIs)
 
-Add a new scanning pass in `compiler.ml` that reads the `api/` directory using the same `read_files_recursive` function. The `api/` directory is optional -- if it doesn't exist, skip silently.
+### Remove manifest-based runtime loading
 
-Reuse the same segment parsing logic (`parse_param_segment`, `normalize_path_segments`, etc.) for API routes. API routes use the same conflict detection and param validation.
+- Stop generating `_utopia/routes.manifest`.
+- Do not add `_utopia/api.manifest`.
+- Remove server runtime startup paths that parse route manifests.
+
+### Generate route registries instead
+
+Route loading is module-driven:
+
+1. `Routes.get_all ()` returns page route metadata (no Dream dependency).
+2. `Routes.Api.get_all ()` returns API route metadata (no Dream dependency).
+3. Native-only generated registries map metadata entries to compiled page/layout/api modules.
+4. `server_main.ml` joins metadata + registries and starts the server.
 
 ---
 
-## Define API route types
+## Split `Routes` generation: shared base + native extension
 
-Add to shared types:
+`Routes` must compile in both Melange and native builds. API request accessors depend on `Dream.request`, so the generator must split outputs:
+
+- Shared base: route constructors/parsers and metadata-safe types usable by both Melange and native.
+- Native extension: server-only additions including:
+  - `Routes.get_all : unit -> page_route_meta list`
+  - `Routes.Api.get_all : unit -> api_route_meta list`
+  - `Routes.Api.Params` typed accessors backed by request-local matched params
+
+The final public API path for server-side code is:
+
+- `Routes.get_all ()`
+- `Routes.Api.get_all ()`
+- `Routes.Api.Params.<...>`
+
+---
+
+## Extend compiler scan to `api/`
+
+Add an API scanning pass in compiler modules (same traversal model as pages):
+
+- Read `api/` recursively via existing filesystem helpers.
+- `api/` is optional; missing directory is not an error.
+- Reuse segment parsing and normalization (`parse_param_segment`, `normalize_path_segments`).
+- Reuse conflict-key detection rules inside the API namespace.
+- API and page conflicts are separate except for reserved prefix rule (`/api/*` owned by API).
+
+---
+
+## Reserved `/api` namespace rule
+
+During page route collection, if a page route normalizes to `api/...`, emit a compile-time error.
+
+Examples that must fail:
+
+- `pages/api/users.re`
+- `pages/(x)/api/index.mlx` (if normalized visible path starts with `api`)
+
+Reason: `/api/*` is exclusively served by API routing.
+
+---
+
+## API route and middleware discovery
+
+### API route files
+
+- Supported: `.ml`, `.re`, `.mlx`
+- Unsupported/ignored for handlers: `.md` and unknown extensions
+- `api/index.*` maps to `/api`
+
+### Middleware files
+
+- Middleware basename is `_middleware`.
+- Supported middleware extensions are `.ml`, `.re`, `.mlx`.
+- Middleware files are excluded from endpoint generation.
+- Middleware applies to descendant API routes by physical directory ancestry.
+- Order in composed chain: outermost directory first.
+- If multiple `_middleware` files exist in the same directory across extensions, emit a compile-time conflict error.
+
+---
+
+## API metadata and typed param access
+
+### API metadata record
+
+Add server-usable API metadata type(s) to shared compiler/server interfaces (exact module placement can follow existing architecture):
 
 ```ocaml
-type api_route_entry = {
+type api_route_meta = {
   route : string;
   matcher : string;
   conflict_key : string;
@@ -42,69 +141,25 @@ type api_route_entry = {
 }
 ```
 
----
+### Typed key accessors
 
-## Handle _middleware.ml files
+Generate typed key accessors under `Routes.Api.Params` that read matched params from request-local storage.
 
-A file named `_middleware.ml` (or `_middleware.re`) in any `api/` subdirectory is collected as middleware for that directory. The compiler:
+Value shapes:
 
-1. Identifies middleware files by their basename (`_middleware`)
-2. Excludes them from route generation (they are not endpoints)
-3. Records them in a middleware-by-directory table (same pattern as layouts)
-4. Each API route carries a list of middleware paths, ordered by directory ancestry (outermost first)
+- `Single` -> `string`
+- `Catch_all` -> `string list`
+- `Optional_catch_all` -> `string list` (`[]` means absent)
 
----
+For required params (`Single`, `Catch_all`), missing values raise an internal error (indicates matcher/registration bug).
 
-## Generate API route manifest
-
-Create a new manifest file `_utopia/api.manifest` with format:
-
-```
-<route>\t<source_file>\t<module>\t<matcher>\t<params>\t<middlewares>
-```
-
-This is separate from `routes.manifest` to keep concerns clean.
+This replaces API-side `params.X` source scanning.
 
 ---
 
-## Generate API handler wiring in server_main.ml
+## API handler contract and JSON helper
 
-The compiler extends the generated `server_main.ml` to include API route wiring:
-
-```ocaml
-let api_routes = [
-  ("/api/health", (module Api_health_native : Utopia_server.Api_handler), []);
-  ("/api/users/:id", (module Api_users_id_native : Utopia_server.Api_handler),
-   [(module Api_middleware_native : Utopia_server.Api_middleware);
-    (module Api_users_middleware_native : Utopia_server.Api_middleware)]);
-]
-```
-
----
-
-## Generate dune rules for API modules
-
-API route files get the same dual-compilation treatment as pages:
-
-```scheme
-(rule
- (deps ../api/health.ml)
- (targets Api_health_melange.ml Api_health_native.ml)
- (action
-  (progn
-   (run cp %{deps} Api_health_melange.ml)
-   (run cp %{deps} Api_health_native.ml))))
-```
-
-API modules are included in the native library stanza. They may or may not need melange compilation (API routes are server-only), but for consistency with the dual-compilation model, include them in both.
-
-Actually, API routes are server-only. Skip melange compilation for API modules. Only generate native variants.
-
----
-
-## Define handler contract in server library
-
-In `utopia_server.ml`:
+In server/runtime library surface:
 
 ```ocaml
 module type Api_handler = sig
@@ -116,38 +171,100 @@ module type Api_middleware = sig
 end
 ```
 
----
-
-## Wire API routes into request handling
-
-Update `route_request` in the server library to check API routes before page routes:
+Provide a helper for JSON responses:
 
 ```ocaml
-let route_request ~pages ~api_routes request =
-  let target = Dream.target request |> normalize_target in
-  (* 1. Asset serving *)
-  if starts_with target "dist/" || starts_with target "target/" then
-    serve_asset target
-  (* 2. API routes *)
-  else if starts_with target "api/" then
-    match find_api_match api_routes (target_segments target) with
-    | None -> Dream.respond ~status:`Not_Found "API route not found"
-    | Some (handler, middlewares, params) ->
-        let wrapped = List.fold_right
-          (fun (module M : Api_middleware) h -> M.middleware h)
-          middlewares handler.handler
-        in
-        wrapped request
-  (* 3. Page routes *)
-  else
-    handle_page_routes ~pages request
+val respond :
+  ?status:Dream.status ->
+  ?headers:(string * string) list ->
+  string ->
+  Dream.response Lwt.t
+```
+
+`respond` sets JSON content-type and merges custom headers.
+
+---
+
+## Server request routing changes
+
+Update server request dispatcher to:
+
+1. Serve assets (`dist/`, `target/`, direct known assets)
+2. If target is `/api/*`, route through API table
+3. Else if method is `POST`, run server-action path
+4. Else route through pages
+
+For API path handling:
+
+- Match route by API matcher rules
+- Store matched params in request-local field for accessor reads
+- Wrap handler by middleware chain (outermost first)
+- Catch unhandled exceptions and return JSON 500 envelope
+- On missing API route return JSON 404 envelope
+
+JSON envelopes (exact keys only):
+
+```json
+{"error":"API route not found","code":"api_not_found","path":"/api/users"}
+```
+
+```json
+{"error":"Internal API error","code":"api_internal_error","path":"/api/users"}
+```
+
+`path` uses raw `Dream.target request`.
+
+---
+
+## Generated module registries and `server_main.ml`
+
+Generate native registries (names can follow existing conventions) for:
+
+- Page module render/metadata/layout resolvers
+- API handler module resolvers
+- API middleware module resolvers
+
+`server_main.ml` should wire runtime via module calls, not inline giant lists, for both pages and APIs.
+
+Conceptually:
+
+```ocaml
+let page_meta = Routes.get_all ()
+let api_meta = Routes.Api.get_all ()
+let pages = Route_modules.resolve_pages page_meta
+let api_routes = Route_modules.resolve_api api_meta
+let () = Utopia_server.start_generated ~pages ~api_routes ...
 ```
 
 ---
 
-## API route conflict detection
+## Dune generation changes
 
-API routes and page routes occupy separate namespaces. An API route `/api/users` does not conflict with a page route `/api/users` because they're served from different directories. However, two API files producing the same conflict key within `api/` is an error.
+### API native library
+
+Generate a separate native API library (project-scoped name) containing API handlers and middleware modules.
+
+- No Melange API compilation.
+- Apply same native PPX stack policy as pages unless explicitly unnecessary.
+- Auto-open generated `Lib` alias so API modules can use shared `lib/` modules consistently.
+
+### Server executable links
+
+Generated `server_main` executable must link:
+
+- generated pages native library
+- generated API native library
+- shared `utopia` runtime library
+
+---
+
+## Remove standalone `utopia.server`
+
+This phase removes the standalone server command/binary path.
+
+- Delete/retire standalone `bin/server/*` executable target.
+- CLI `dev`/`prod` always serve using generated `server_main.exe`.
+- Docs/spec/primitives must no longer describe manifest-mode standalone fallback.
 
 ---
 
@@ -155,62 +272,47 @@ API routes and page routes occupy separate namespaces. An API route `/api/users`
 
 ### Cram tests
 
-**`compiler_scans_api_directory.t`**
-- Create `api/health.ml` and `api/users/[id].ml`
-- Run the compiler
-- Assert `_utopia/api.manifest` contains both routes
-- Assert generated dune has API module rules
+Create/update tests covering:
 
-**`compiler_api_routes_conflict_detection.t`**
-- Create `api/users.ml` and `api/users/index.ml`
-- Run the compiler
-- Assert conflict error is reported
+- compiler scans optional `api/` and generates route metadata modules
+- page routes under `/api/*` fail at compile time
+- API conflicts (`api/users.ml` vs `api/users/index.ml`)
+- middleware collection by ancestry and extension conflict errors
+- generated dune includes separate API native library and server linkage
+- no `_utopia/routes.manifest` and no `_utopia/api.manifest` outputs
+- generated `Routes` split behavior works in melange + native builds
+- generated runtime serves API routes through `server_main.exe`
+- API not found returns JSON 404 with exact `error/code/path`
+- API exception returns JSON 500 with exact `error/code/path`
 
-**`compiler_api_middleware_collection.t`**
-- Create `api/_middleware.ml`, `api/users/_middleware.ml`, `api/users/[id].ml`
-- Run the compiler
-- Assert manifest shows both middlewares for the `[id]` route
+### Server tests
 
-**`compiler_api_optional_directory.t`**
-- Create only `pages/index.re` (no `api/` directory)
-- Run the compiler
-- Assert success (no error about missing `api/`)
+Add routing/runtime tests for:
 
-**`compiler_api_param_validation.t`**
-- Create `api/[id].ml` with `params.name` access
-- Run the compiler
-- Assert undeclared param error
+- dispatch order assets -> API -> actions -> pages
+- API params storage in request-local field
+- typed accessor value shape (`Single`, `Catch_all`, `Optional_catch_all`)
+- middleware order (outermost first)
+- middleware short-circuit behavior
 
-### Unit tests (alcotest)
+---
 
-**`test_api_routing.ml`**
-- API route matching with all segment types
-- Middleware composition order (outermost first)
-- API route specificity ordering
-- API route with no middleware
-- API route with multiple middleware layers
+## Edge cases
 
-### Edge cases
-
-- API route with catch-all segment (`api/[...path].ml`)
-- API route with optional catch-all (`api/[[...path]].ml`)
-- API route in deeply nested directory (`api/v1/users/[id]/posts/[post_id].ml`)
-- Middleware file with `.re` extension instead of `.ml`
-- Middleware file in root `api/` directory
-- Empty `api/` directory
-- `api/` directory with only middleware files (no handlers)
-- API route file that is also a middleware (should error or be clear about precedence)
-- API route with route group: `api/(v1)/users.ml`
-- Very large number of API routes (100+)
-- API route handler that throws an exception
-- Middleware that short-circuits (returns response without calling downstream)
-- Middleware that modifies the request
+- `api/` exists but has only middleware files
+- empty `api/` directory
+- deeply nested dynamic API routes
+- route groups and parallel slots in `api/` path normalization
+- optional catch-all root behavior (`api/[[...path]].ml`)
+- API middleware in root `api/_middleware.*`
+- large API route sets (100+)
+- mixed page+API projects with no route manifest files
 
 ---
 
 ## Performance
 
-API route matching uses the same linear scan as page routes. For typical API sizes (< 100 endpoints), this is fine. The middleware composition happens once per request and involves a small number of function wraps.
+API and page matchers continue using linear specificity-ordered scans in this phase. Keep implementation simple and correct; optimize only with profiling evidence.
 
 ---
 
@@ -218,27 +320,28 @@ API route matching uses the same linear scan as page routes. For typical API siz
 
 | Action | File |
 |--------|------|
-| Modify | `bin/compiler.ml` (add API scanning, manifest generation, dune rules) |
-| Modify | `lib/utopia_server/utopia_server.ml` (add API handler types, routing) |
-| Modify | `lib/utopia_server/utopia_server.mli` (expose API types) |
-| Modify | `lib/utopia_types/utopia_types.ml` (add api_route_entry if needed) |
-| Create | `bin/tests/compiler_scans_api_directory.t` |
-| Create | `bin/tests/compiler_api_routes_conflict_detection.t` |
-| Create | `bin/tests/compiler_api_middleware_collection.t` |
-| Create | `bin/tests/compiler_api_optional_directory.t` |
-| Create | `bin/tests/compiler_api_param_validation.t` |
-| Create | `lib/utopia_server/test/test_api_routing.ml` |
+| Modify | `bin/compiler/compiler.ml` (scan `api/`, remove manifest writes, generate route registries) |
+| Modify | `bin/compiler/Routes.ml` (shared + native split generation inputs, reserved `/api` check) |
+| Modify | `bin/compiler/Generated_dune.ml` (separate API native library + server linkage) |
+| Modify | `bin/compiler/Server_main.ml` (load registries via `get_all`) |
+| Modify | `lib/server/server.ml` (API runtime wiring, JSON error envelopes, dispatch order) |
+| Modify | `lib/utopia/Utopia.re` and/or server runtime surface (add `respond` helper exposure) |
+| Delete/Modify | `bin/server/*` (remove standalone server command path) |
+| Create/Modify | compiler and server tests for API and registry-based loading |
+| Modify | `plan/spec.md` |
+| Modify | `plan/primitives.md` |
 
 ---
 
 ## Acceptance criteria
 
-- `api/` directory is scanned and API routes are generated
-- API routes use the same segment conventions as pages
-- Middleware files are collected and compose correctly
-- API route conflicts are detected at compile time
-- Param accesses are validated for API routes
-- API requests are routed correctly by the server
-- Middleware runs in the correct order
-- Missing `api/` directory does not cause errors
-- All tests pass
+- API routes are collected from `api/` with page-equivalent segment conventions.
+- `/api/*` is API-only; `pages` routes under `/api/*` fail compile-time.
+- Middleware is collected by physical ancestry and composes outermost first.
+- `Routes.get_all ()` and `Routes.Api.get_all ()` drive runtime loading.
+- Route manifest files are not generated or read at runtime.
+- `server_main.exe` is the only supported serving entrypoint.
+- API 404/500 framework errors are JSON with exactly `error`, `code`, `path`.
+- `Routes.Api.Params` accessors read request-local matched params with agreed value shapes.
+- Generated builds still pass melange + native compilation for pages while supporting native API libs.
+- All updated tests pass.

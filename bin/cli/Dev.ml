@@ -47,7 +47,10 @@ let run args =
 
   let dune = Binaries.resolve_bin "dune" in
   Terminal.print_step "Building project";
-  let code = Process.run_command dune (Artifacts.dune_build_args [ "." ]) in
+  let code =
+    Process.run_command dune
+      (Artifacts.dune_build_args [ Artifacts.generated_server_build_target () ])
+  in
   if code <> 0 then (
     Terminal.print_err "Initial dune build failed";
     exit code);

@@ -2,6 +2,30 @@ type page_kind = Code_page | Markdown_page
 type param_kind = Single | Catch_all | Optional_catch_all
 type route_segment = Static of string | Param of string * param_kind
 
+type page_route_meta = {
+  route : string;
+  matcher : string;
+  conflict_key : string;
+  params : (string * param_kind) list;
+  layouts : string list;
+  kind : page_kind;
+  source_file : string;
+  module_name : string;
+  has_metadata : bool;
+  static : bool;
+  has_static_paths : bool;
+}
+
+type api_route_meta = {
+  route : string;
+  matcher : string;
+  conflict_key : string;
+  params : (string * param_kind) list;
+  middlewares : string list;
+  source_file : string;
+  module_name : string;
+}
+
 let kind_of_extension = function
   | ".ml" | ".mlx" | ".re" -> Some Code_page
   | ".md" -> Some Markdown_page

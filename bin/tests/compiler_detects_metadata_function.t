@@ -10,9 +10,9 @@
   > EOF
   $ printf "let page = ()\n" > pages/About.re
   $ utopia.compiler > /dev/null
-  $ cat _utopia/routes.manifest
-  about	code	pages/About.re	about			false	false
-  home	code	pages/Home.re	home			true	false
-  $ grep "metadata" _utopia/server_main.ml
-      ~layouts:[] ~render:about_make_page ~metadata:None
-      ~layouts:[] ~render:home_make_page ~metadata:(Some Pages__Home.metadata)
+  $ grep -F 'source_file = "pages/About.re"; module_name = "Pages__About"; has_metadata = false;' _utopia/Routes.ml
+    ({ route = "about"; matcher = "about"; conflict_key = "about"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/About.re"; module_name = "Pages__About"; has_metadata = false; static = false; has_static_paths = false } : Utopia_types.page_route_meta);
+  $ grep -F 'source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = true;' _utopia/Routes.ml
+    ({ route = "home"; matcher = "home"; conflict_key = "home"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = true; static = false; has_static_paths = false } : Utopia_types.page_route_meta);
+  $ grep -F '| "pages/Home.re" -> Some Pages__Home.metadata' _utopia/server_main.ml
+      | "pages/Home.re" -> Some Pages__Home.metadata

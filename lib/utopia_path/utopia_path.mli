@@ -5,7 +5,7 @@ type project = {
 }
 
 type file_ref = { path : Fpath.t; display : string }
-type binary = Cli | Compiler | Server
+type binary = Cli | Compiler
 
 val of_string_exn : string -> Fpath.t
 val to_string : Fpath.t -> string
@@ -26,7 +26,6 @@ val project_generated_directory : project -> Fpath.t
 val project_generated_native_directory : project -> Fpath.t
 val project_shared_lib_directory : project -> Fpath.t
 val workspace_root_from_build_path : Fpath.t -> Fpath.t option
-val routes_manifest : project -> file_ref
 val generated_dune : project -> file_ref
 val generated_esbuild_config : project -> file_ref
 val generated_esbuild_paths : project -> file_ref

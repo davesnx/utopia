@@ -78,11 +78,15 @@ fi
 
 log "Server is ready (PID ${SERVER_PID})"
 
-# Read routes from manifest for benchmarking
+# Read routes from generated page metadata for benchmarking
 ROUTES=()
-while IFS=$'\t' read -r route kind source_file matcher params layouts; do
-  ROUTES+=("/${route}")
-done < "${DEMO_DIR}/_utopia/routes.manifest"
+while IFS= read -r route; do
+  ROUTES+=("${route}")
+done < <(
+  grep 'Utopia_types.page_route_meta' "${DEMO_DIR}/_utopia/Routes.ml" |
+    sed -E 's/.*route = "([^"]*)".*/\1/' |
+    awk '{ if ($0 == "") print "/"; else print "/" $0 }'
+)
 
 printf "\n"
 printf "${BOLD}  Utopia HTTP Benchmarks${RESET}\n"

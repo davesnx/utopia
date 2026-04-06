@@ -1,5 +1,8 @@
 open Utopia_types
 
+let pages_directory = "pages"
+let api_directory = "api"
+
 type compiled_code_file = {
   relative_file : string;
   extension : string;
@@ -86,6 +89,34 @@ let code_files_for_build files =
               base_name = Names.compiled_page_module_name file;
             }
       | _ -> None)
+
+let is_api_middleware_relative_file relative_file =
+  String.equal
+    (Filename.remove_extension (Filename.basename relative_file))
+    "_middleware"
+
+let api_code_files_for_build files =
+  files
+  |> List.filter_map (fun file ->
+      match kind_of_extension (Filename.extension file) with
+      | Some Code_page ->
+          Some
+            {
+              relative_file = file;
+              extension = Filename.extension file;
+              base_name = Names.compiled_api_module_name file;
+            }
+      | _ -> None)
+
+let api_handler_files_for_build files =
+  api_code_files_for_build files
+  |> List.filter (fun (file : compiled_code_file) ->
+      not (is_api_middleware_relative_file file.relative_file))
+
+let api_middleware_files_for_build files =
+  api_code_files_for_build files
+  |> List.filter (fun (file : compiled_code_file) ->
+      is_api_middleware_relative_file file.relative_file)
 
 let markdown_files_for_build files =
   files

@@ -79,12 +79,7 @@ let copy_runtime_files () =
   let generated_directory =
     Utopia_path.project_generated_directory project |> Utopia_path.to_string
   in
-  let generated_native_directory =
-    Utopia_path.project_generated_native_directory project
-    |> Utopia_path.to_string
-  in
   Filesystem.ensure_directory generated_directory;
-  Filesystem.ensure_directory generated_native_directory;
   let copy_into directory file =
     let source_file = resolve_project_support_source file in
     let target_file =
@@ -92,5 +87,4 @@ let copy_runtime_files () =
     in
     Filesystem.copy_file source_file target_file
   in
-  List.iter (copy_into generated_directory) Utopia_runtime.root_files;
-  List.iter (copy_into generated_native_directory) Utopia_runtime.native_files
+  List.iter (copy_into generated_directory) Utopia_runtime.root_files

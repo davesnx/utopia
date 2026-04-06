@@ -7,7 +7,7 @@ type tree = {
 
 let empty_tree = { route_entry = None; children = [] }
 
-let route_segments entry =
+let route_segments (entry : Routes.route_entry) =
   if entry.Routes.route = "" then []
   else
     entry.Routes.route |> String.split_on_char '/'
@@ -22,7 +22,8 @@ let specificity_of_segment = function
   | Param (_, Catch_all) -> 2
   | Param (_, Optional_catch_all) -> 1
 
-let compare_route_specificity left right =
+let compare_route_specificity (left : Routes.route_entry)
+    (right : Routes.route_entry) =
   let rec compare_scores left_scores right_scores =
     match (left_scores, right_scores) with
     | [], [] -> 0
@@ -41,7 +42,7 @@ let compare_route_specificity left right =
   if result = 0 then String.compare left.Routes.route right.Routes.route
   else result
 
-let rec add_entry tree segments entry =
+let rec add_entry tree segments (entry : Routes.route_entry) =
   match segments with
   | [] -> { tree with route_entry = Some entry }
   | segment :: rest ->
@@ -59,9 +60,9 @@ let rec add_entry tree segments entry =
       in
       { tree with children = other_children @ [ (segment, updated_child) ] }
 
-let build_tree route_entries =
+let build_tree (route_entries : Routes.route_entry list) =
   route_entries
-  |> List.sort (fun left right ->
+  |> List.sort (fun (left : Routes.route_entry) (right : Routes.route_entry) ->
       String.compare left.Routes.route right.Routes.route)
   |> List.fold_left
        (fun tree entry -> add_entry tree (route_segments entry) entry)
@@ -76,10 +77,10 @@ let module_name_of_segment = function
   | Param (name, Optional_catch_all) ->
       Names.sanitize_module_component ("optional_catch_all_" ^ name)
 
-let module_path_of_entry entry =
+let module_path_of_entry (entry : Routes.route_entry) =
   route_segments entry |> List.map module_name_of_segment |> String.concat "."
 
-let constructor_name_of_entry entry =
+let constructor_name_of_entry (entry : Routes.route_entry) =
   Names.route_constructor_name_of_source entry.Routes.source_file
 
 let ocaml_expr_of_param_kind = function
@@ -87,11 +88,11 @@ let ocaml_expr_of_param_kind = function
   | Catch_all -> "Utopia_types.Catch_all"
   | Optional_catch_all -> "Utopia_types.Optional_catch_all"
 
-let params_module_ref entry =
+let params_module_ref (entry : Routes.route_entry) =
   let path = module_path_of_entry entry in
   if path = "" then "Route_params" else path ^ ".Route_params"
 
-let segments_expr entry =
+let segments_expr (entry : Routes.route_entry) =
   let render_piece = function
     | Static segment -> Printf.sprintf "[%S]" (String.lowercase_ascii segment)
     | Param (name, kind) when entry.Routes.route_schema_has_params ->
@@ -112,7 +113,7 @@ let segments_expr entry =
   | piece :: rest ->
       List.fold_left (fun acc piece -> acc ^ " @ " ^ piece) piece rest
 
-let make_signature entry =
+let make_signature (entry : Routes.route_entry) =
   let param_args =
     if entry.Routes.route_schema_has_params then
       if entry.Routes.params = [] then [] else [ "~params" ]
@@ -131,12 +132,12 @@ let make_signature entry =
   in
   String.concat " " (param_args @ query_args @ hash_args @ [ "()" ])
 
-let route_value_available entry =
+let route_value_available (entry : Routes.route_entry) =
   (not entry.Routes.route_schema_has_params)
   && entry.Routes.params
      |> List.for_all (fun (_name, kind) -> kind = Optional_catch_all)
 
-let render_route_entry indent entry =
+let render_route_entry indent (entry : Routes.route_entry) =
   let lines = ref [] in
   let add line = lines := !lines @ [ indent ^ line ] in
   let add_body line = lines := !lines @ [ indent ^ "  " ^ line ] in
@@ -221,11 +222,11 @@ let indent_block prefix text =
   |> List.map (fun line -> prefix ^ line)
   |> String.concat "\n"
 
-let query_module_ref entry =
+let query_module_ref (entry : Routes.route_entry) =
   let path = module_path_of_entry entry in
   if path = "" then "Route_query" else path ^ ".Route_query"
 
-let hash_module_ref entry =
+let hash_module_ref (entry : Routes.route_entry) =
   let path = module_path_of_entry entry in
   if path = "" then "Route_hash" else path ^ ".Route_hash"
 
@@ -274,7 +275,8 @@ let render_current_success entry field_exprs =
 
 let wrap_expression text = "(\n" ^ text ^ "\n)"
 
-let render_current_decode entry ~field_exprs ~raw_params =
+let render_current_decode (entry : Routes.route_entry) ~field_exprs ~raw_params
+    =
   let path_field_exprs =
     if entry.Routes.route_schema_has_params then [ "params = params" ]
     else field_exprs
@@ -340,7 +342,7 @@ let render_inner_match original_pattern body =
   Printf.sprintf "match path_segments with\n| %s ->\n%s\n| _ -> None"
     original_pattern (indent_block "    " body)
 
-let render_exact_current_branch entry =
+let render_exact_current_branch (entry : Routes.route_entry) =
   let original_pattern, lowercase_pattern =
     exact_patterns (route_segments entry)
   in
@@ -354,7 +356,7 @@ let render_exact_current_branch entry =
     (pattern_check lowercase_pattern)
     (indent_block "  " (render_inner_match original_pattern body))
 
-let render_catch_all_current_branch entry name prefix =
+let render_catch_all_current_branch (entry : Routes.route_entry) name prefix =
   let prefix_original =
     prefix
     |> List.map (function
@@ -395,7 +397,8 @@ let render_catch_all_current_branch entry name prefix =
     (pattern_check lowercase_pattern)
     (indent_block "  " (render_inner_match original_pattern body))
 
-let render_optional_catch_all_current_branches entry name prefix =
+let render_optional_catch_all_current_branches (entry : Routes.route_entry) name
+    prefix =
   let prefix_original =
     prefix
     |> List.map (function
@@ -446,7 +449,7 @@ let render_optional_catch_all_current_branches entry name prefix =
             present_body));
   ]
 
-let render_current_branches entry =
+let render_current_branches (entry : Routes.route_entry) =
   match List.rev (route_segments entry) with
   | Param (name, Catch_all) :: prefix_rev ->
       [ render_catch_all_current_branch entry name (List.rev prefix_rev) ]
@@ -455,7 +458,7 @@ let render_current_branches entry =
         (List.rev prefix_rev)
   | _ -> [ render_exact_current_branch entry ]
 
-let render_current_constructor entry =
+let render_current_constructor (entry : Routes.route_entry) =
   let fields =
     (if entry.Routes.route_schema_has_params then
        [ Printf.sprintf "params : %s.t" (params_module_ref entry) ]
@@ -474,7 +477,7 @@ let render_current_constructor entry =
   if fields = [] then Printf.sprintf "  | %s" constructor
   else Printf.sprintf "  | %s of { %s }" constructor (String.concat "; " fields)
 
-let render_current_module route_entries =
+let render_current_module (route_entries : Routes.route_entry list) =
   let constructors =
     match route_entries with
     | [] -> [ "  | No_match" ]
@@ -505,10 +508,125 @@ let render_current_module route_entries =
         matcher;
       ])
 
-let generate route_entries =
+let ocaml_expr_of_page_kind = function
+  | Code_page -> "Utopia_types.Code_page"
+  | Markdown_page -> "Utopia_types.Markdown_page"
+
+let ocaml_expr_of_param (name, kind) =
+  Printf.sprintf "(%S, %s)" name (ocaml_expr_of_param_kind kind)
+
+let ocaml_expr_of_params params =
+  params
+  |> List.map ocaml_expr_of_param
+  |> String.concat "; " |> Printf.sprintf "[%s]"
+
+let ocaml_expr_of_string_list values =
+  values
+  |> List.map (fun value -> Printf.sprintf "%S" value)
+  |> String.concat "; " |> Printf.sprintf "[%s]"
+
+let render_page_meta_entry (entry : Routes.route_entry) =
+  Printf.sprintf
+    "  ({ route = %S; matcher = %S; conflict_key = %S; params = %s; layouts = \
+     %s; kind = %s; source_file = %S; module_name = %S; has_metadata = %b; \
+     static = %b; has_static_paths = %b } : Utopia_types.page_route_meta);"
+    entry.route entry.matcher entry.conflict_key
+    (ocaml_expr_of_params entry.params)
+    (ocaml_expr_of_string_list entry.layouts)
+    (ocaml_expr_of_page_kind entry.kind)
+    entry.source_file
+    (Names.compiled_page_module_name_of_source entry.source_file)
+    entry.has_metadata entry.static entry.has_static_paths
+
+let render_api_meta_entry (entry : Routes.api_route_entry) =
+  Printf.sprintf
+    "    ({ route = %S; matcher = %S; conflict_key = %S; params = %s; \
+     middlewares = %s; source_file = %S; module_name = %S } : \
+     Utopia_types.api_route_meta);"
+    entry.route entry.matcher entry.conflict_key
+    (ocaml_expr_of_params entry.params)
+    (ocaml_expr_of_string_list entry.middlewares)
+    entry.source_file entry.module_name
+
+let api_param_entries api_entries =
+  let seen = Hashtbl.create 16 in
+  api_entries
+  |> List.iter (fun (entry : Routes.api_route_entry) ->
+      entry.params
+      |> List.iter (fun (name, kind) ->
+          if not (Hashtbl.mem seen name) then Hashtbl.add seen name kind));
+  seen |> Hashtbl.to_seq |> List.of_seq
+  |> List.sort (fun (left, _) (right, _) -> String.compare left right)
+
+let render_api_param_accessor (name, kind) =
+  match kind with
+  | Single ->
+      Printf.sprintf
+        "      let %s (request : Dream.request) =\n\
+        \        Utopia_server.api_param_single_exn request %S"
+        name name
+  | Catch_all ->
+      Printf.sprintf
+        "      let %s (request : Dream.request) =\n\
+        \        Utopia_server.api_param_many_exn request %S"
+        name name
+  | Optional_catch_all ->
+      Printf.sprintf
+        "      let %s (request : Dream.request) =\n\
+        \        Utopia_server.api_param_optional_many request %S"
+        name name
+
+let render_api_module api_entries =
+  let sorted_entries =
+    api_entries
+    |> List.sort (fun (left : Routes.api_route_entry) right ->
+        String.compare left.route right.route)
+  in
+  let metadata_lines =
+    sorted_entries |> List.map render_api_meta_entry |> String.concat "\n"
+  in
+  let accessor_lines =
+    api_param_entries sorted_entries
+    |> List.map render_api_param_accessor
+    |> String.concat "\n\n"
+  in
+  String.concat "\n"
+    [
+      "module Api = struct";
+      "  let get_all () : Utopia_types.api_route_meta list =";
+      "    [";
+      metadata_lines;
+      "    ]";
+      "";
+      "  module Params = struct";
+      (if accessor_lines = "" then "" else accessor_lines);
+      "  end";
+      "end";
+    ]
+
+let render_page_metadata_loader route_entries =
+  let sorted_entries =
+    route_entries
+    |> List.sort (fun (left : Routes.route_entry) right ->
+        String.compare left.route right.route)
+  in
+  let lines =
+    sorted_entries |> List.map render_page_meta_entry |> String.concat "\n"
+  in
+  String.concat "\n"
+    [
+      "let get_all () : Utopia_types.page_route_meta list =";
+      "  [";
+      lines;
+      "  ]";
+    ]
+
+let generate route_entries api_entries =
   [
     build_tree route_entries |> render_tree "";
     render_current_module route_entries;
+    render_page_metadata_loader route_entries;
+    render_api_module api_entries;
   ]
   |> List.filter (fun section -> section <> "")
   |> String.concat "\n\n"

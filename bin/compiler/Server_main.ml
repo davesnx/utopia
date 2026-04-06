@@ -16,132 +16,225 @@ let ocaml_params_list params =
       Printf.sprintf "(%S, %s)" name (ocaml_expr_of_param_kind kind))
   |> String.concat "; " |> Printf.sprintf "[%s]"
 
-let ocaml_make_page_expr entry =
-  match entry.Routes.kind with
+let page_render_branch (entry : Routes.route_entry) =
+  match entry.kind with
+  | Markdown_page -> None
   | Code_page ->
-      Printf.sprintf
-        "fun () -> Utopia_server.wrap_raw_inner_html_element (%s.make \
-         (%s.makeProps ()))"
-        (Names.compiled_page_module_name_of_source entry.Routes.source_file)
-        (Names.compiled_page_module_name_of_source entry.Routes.source_file)
-  | Markdown_page ->
-      Printf.sprintf "fun () -> Utopia_server.render_markdown_body %S"
-        entry.Routes.source_file
+      Some
+        (Printf.sprintf
+           "  | %S -> Some (fun () -> \
+            Utopia_server.wrap_raw_inner_html_element (%s.make (%s.makeProps \
+            ())))"
+           entry.source_file
+           (Names.compiled_page_module_name_of_source entry.source_file)
+           (Names.compiled_page_module_name_of_source entry.source_file))
 
-let ocaml_metadata_expr entry =
-  if entry.Routes.has_metadata then
-    Printf.sprintf "~metadata:(Some %s.metadata)"
-      (Names.compiled_page_module_name_of_source entry.Routes.source_file)
-  else "~metadata:None"
-
-let ocaml_layout_info layout =
-  let path = Routes.layout_route_path layout in
-  Printf.sprintf
-    "{ Utopia_route_builder.path = %S;\n\
-    \      render = (fun children ->\n\
-    \        Utopia_server.wrap_raw_inner_html_element (%s.make (%s.makeProps \
-     ~children ()))) }"
-    path
-    (Names.compiled_page_module_name_of_source layout)
-    (Names.compiled_page_module_name_of_source layout)
-
-let ocaml_layout_infos_list layouts =
-  if layouts = [] then "[]"
+let page_metadata_branch (entry : Routes.route_entry) =
+  if not entry.has_metadata then None
   else
-    layouts |> List.map ocaml_layout_info |> String.concat ";\n    "
-    |> Printf.sprintf "[\n    %s\n  ]"
+    Some
+      (Printf.sprintf "  | %S -> Some %s.metadata" entry.source_file
+         (Names.compiled_page_module_name_of_source entry.source_file))
 
-let ocaml_route_bindings entry =
-  let make_page_name =
-    Names.generated_route_binding_name entry.Routes.source_file "make_page"
-  in
-  let layouts_name =
-    Names.generated_route_binding_name entry.Routes.source_file "layouts"
-  in
-  let router_name =
-    Names.generated_route_binding_name entry.Routes.source_file "router"
-  in
+let page_static_paths_branch (entry : Routes.route_entry) =
+  if not entry.has_static_paths then None
+  else
+    Some
+      (Printf.sprintf "  | %S -> Some %s.static_paths" entry.source_file
+         (Names.compiled_page_module_name_of_source entry.source_file))
+
+let layout_info_branch source_file =
+  let path = Routes.layout_route_path source_file in
   Printf.sprintf
-    "let %s =\n\
-    \  %s\n\n\
-     let %s =\n\
-    \  %s\n\n\
-     let %s =\n\
-    \  Utopia_route_builder.build_router ~matcher:%S ~make_page:%s ~layouts:%s\n"
-    make_page_name
-    (ocaml_make_page_expr entry)
-    layouts_name
-    (ocaml_layout_infos_list entry.Routes.layouts)
-    router_name entry.Routes.matcher make_page_name layouts_name
+    "  | %S -> Some { Utopia_route_builder.path = %S; render = (fun children \
+     -> Utopia_server.wrap_raw_inner_html_element (%s.make (%s.makeProps \
+     ~children ()))) }"
+    source_file path
+    (Names.compiled_page_module_name_of_source source_file)
+    (Names.compiled_page_module_name_of_source source_file)
 
-let ocaml_static_expr entry =
-  if entry.Routes.static then " ~static:true" else ""
+let api_handler_branch (entry : Routes.api_route_entry) =
+  Printf.sprintf "  | %S -> Some %s.handler" entry.source_file entry.module_name
 
-let ocaml_static_paths_expr entry =
-  if entry.Routes.has_static_paths then
-    Printf.sprintf " ~static_paths:(Some %s.static_paths)"
-      (Names.compiled_page_module_name_of_source entry.Routes.source_file)
-  else ""
+let api_middleware_branch source_file =
+  Printf.sprintf "  | %S -> Some %s.middleware" source_file
+    (Names.compiled_api_module_name_of_source source_file)
 
-let ocaml_route_entry entry =
-  let make_page_name =
-    Names.generated_route_binding_name entry.Routes.source_file "make_page"
-  in
-  let layouts_name =
-    Names.generated_route_binding_name entry.Routes.source_file "layouts"
-  in
-  let router_name =
-    Names.generated_route_binding_name entry.Routes.source_file "router"
-  in
-  let kind_constructor =
-    match entry.Routes.kind with
-    | Code_page -> "Utopia_server.Generated_route.code"
-    | Markdown_page -> "Utopia_server.Generated_route.markdown"
-  in
-  let render_arg =
-    match entry.Routes.kind with
-    | Code_page -> Printf.sprintf " ~render:%s" make_page_name
-    | Markdown_page -> ""
-  in
-  Printf.sprintf
-    "  %s\n\
-    \    ~route:%S ~matcher:%S ~params:%s ~source_file:%S\n\
-    \    ~layouts:%s%s %s\n\
-    \    ~layout_renderers:(List.map (fun (l : \
-     Utopia_route_builder.layout_info) -> l.render) %s)\n\
-    \    ~router_shell:%s.Utopia_route_builder.shell\n\
-    \    ~router_tree:%s.Utopia_route_builder.tree\n\
-    \    ~router_subtree:%s.Utopia_route_builder.subtree%s%s ();"
-    kind_constructor entry.Routes.route entry.Routes.matcher
-    (ocaml_params_list entry.Routes.params)
-    entry.Routes.source_file
-    (ocaml_string_list entry.Routes.layouts)
-    render_arg
-    (ocaml_metadata_expr entry)
-    layouts_name router_name router_name router_name (ocaml_static_expr entry)
-    (ocaml_static_paths_expr entry)
+let render_match_with_default ~subject ~default branches =
+  match branches with
+  | [] -> default
+  | _ ->
+      String.concat "\n"
+        ([ "match " ^ subject ^ " with" ] @ branches @ [ "  | _ -> " ^ default ])
 
-let generate route_entries =
-  let sorted_entries =
+let resolver_argument_name branches =
+  match branches with [] -> "_source_file" | _ -> "source_file"
+
+let render_route_modules route_entries api_entries =
+  let page_render_branches =
+    route_entries |> List.filter_map page_render_branch
+  in
+  let page_render_arg = resolver_argument_name page_render_branches in
+  let page_metadata_branches =
+    route_entries |> List.filter_map page_metadata_branch
+  in
+  let page_metadata_arg = resolver_argument_name page_metadata_branches in
+  let page_static_paths_branches =
+    route_entries |> List.filter_map page_static_paths_branch
+  in
+  let page_static_paths_arg =
+    resolver_argument_name page_static_paths_branches
+  in
+  let layout_sources =
     route_entries
-    |> List.sort (fun left right ->
-        String.compare left.Routes.route right.Routes.route)
+    |> List.concat_map (fun (entry : Routes.route_entry) -> entry.layouts)
+    |> List.sort_uniq String.compare
   in
-  let route_bindings =
-    sorted_entries |> List.map ocaml_route_bindings |> String.concat "\n"
+  let layout_branches = layout_sources |> List.map layout_info_branch in
+  let layout_arg = resolver_argument_name layout_branches in
+  let api_handler_branches = api_entries |> List.map api_handler_branch in
+  let api_handler_arg = resolver_argument_name api_handler_branches in
+  let api_middleware_sources =
+    api_entries
+    |> List.concat_map (fun (entry : Routes.api_route_entry) ->
+        entry.middlewares)
+    |> List.sort_uniq String.compare
   in
-  let route_lines =
-    sorted_entries |> List.map ocaml_route_entry |> String.concat "\n"
+  let api_middleware_branches =
+    api_middleware_sources |> List.map api_middleware_branch
   in
-  Printf.sprintf
-    "%s\n\
-     let generated_routes = [\n\
-     %s\n\
-     ]\n\n\
-     let () =\n\
-    \  match Array.to_list Sys.argv with\n\
-    \  | [ _; \"--ssg\" ] -> Utopia_server.ssg_generated generated_routes\n\
-    \  | _ ->\n\
-    \    Utopia_server.start_generated generated_routes \
-     ~lookup_server_function:FunctionReferences.get\n"
-    route_bindings route_lines
+  let api_middleware_arg = resolver_argument_name api_middleware_branches in
+  String.concat "\n"
+    [
+      "module Route_modules = struct";
+      Printf.sprintf "  let resolve_page_render %s =" page_render_arg;
+      render_match_with_default ~subject:page_render_arg ~default:"None"
+        page_render_branches
+      |> String.split_on_char '\n'
+      |> List.map (fun line -> "  " ^ line)
+      |> String.concat "\n";
+      "";
+      Printf.sprintf "  let resolve_page_metadata %s =" page_metadata_arg;
+      render_match_with_default ~subject:page_metadata_arg ~default:"None"
+        page_metadata_branches
+      |> String.split_on_char '\n'
+      |> List.map (fun line -> "  " ^ line)
+      |> String.concat "\n";
+      "";
+      Printf.sprintf "  let resolve_page_static_paths %s ="
+        page_static_paths_arg;
+      render_match_with_default ~subject:page_static_paths_arg ~default:"None"
+        page_static_paths_branches
+      |> String.split_on_char '\n'
+      |> List.map (fun line -> "  " ^ line)
+      |> String.concat "\n";
+      "";
+      Printf.sprintf "  let resolve_layout_info %s =" layout_arg;
+      render_match_with_default ~subject:layout_arg ~default:"None"
+        layout_branches
+      |> String.split_on_char '\n'
+      |> List.map (fun line -> "  " ^ line)
+      |> String.concat "\n";
+      "";
+      "  let resolve_layout_infos source_files =";
+      "    source_files |> List.filter_map resolve_layout_info";
+      "";
+      "  let resolve_page (meta : Utopia_types.page_route_meta) =";
+      "    let layouts = resolve_layout_infos meta.layouts in";
+      "    let metadata = resolve_page_metadata meta.source_file in";
+      "    let static_paths =";
+      "      if meta.has_static_paths then resolve_page_static_paths \
+       meta.source_file";
+      "      else None";
+      "    in";
+      "    match meta.kind with";
+      "    | Utopia_types.Code_page -> (";
+      "        match resolve_page_render meta.source_file with";
+      "        | None -> None";
+      "        | Some render ->";
+      "            let router =";
+      "              Utopia_route_builder.build_router ~matcher:meta.matcher \
+       ~make_page:render ~layouts";
+      "            in";
+      "            Some";
+      "              (Utopia_server.Generated_route.code ~route:meta.route \
+       ~matcher:meta.matcher";
+      "                 ~params:meta.params ~source_file:meta.source_file \
+       ~layouts:meta.layouts";
+      "                 ~render ~metadata ~layout_renderers:(List.map (fun (l \
+       : Utopia_route_builder.layout_info) -> l.render) layouts)";
+      "                 ~router_shell:router.Utopia_route_builder.shell";
+      "                 ~router_tree:router.Utopia_route_builder.tree";
+      "                 ~router_subtree:router.Utopia_route_builder.subtree";
+      "                 ~static:meta.static ?static_paths ()))";
+      "    | Utopia_types.Markdown_page ->";
+      "        let render = fun () -> Utopia_server.render_markdown_body \
+       meta.source_file in";
+      "        let router =";
+      "          Utopia_route_builder.build_router ~matcher:meta.matcher \
+       ~make_page:render ~layouts";
+      "        in";
+      "        Some";
+      "          (Utopia_server.Generated_route.markdown ~route:meta.route \
+       ~matcher:meta.matcher";
+      "             ~params:meta.params ~source_file:meta.source_file \
+       ~layouts:meta.layouts";
+      "             ~metadata ~layout_renderers:(List.map (fun (l : \
+       Utopia_route_builder.layout_info) -> l.render) layouts)";
+      "             ~router_shell:router.Utopia_route_builder.shell";
+      "             ~router_tree:router.Utopia_route_builder.tree";
+      "             ~router_subtree:router.Utopia_route_builder.subtree";
+      "             ~static:meta.static ())";
+      "";
+      "  let resolve_pages metadata = metadata |> List.filter_map resolve_page";
+      "";
+      Printf.sprintf "  let resolve_api_handler %s =" api_handler_arg;
+      render_match_with_default ~subject:api_handler_arg ~default:"None"
+        api_handler_branches
+      |> String.split_on_char '\n'
+      |> List.map (fun line -> "  " ^ line)
+      |> String.concat "\n";
+      "";
+      Printf.sprintf "  let resolve_api_middleware %s =" api_middleware_arg;
+      render_match_with_default ~subject:api_middleware_arg ~default:"None"
+        api_middleware_branches
+      |> String.split_on_char '\n'
+      |> List.map (fun line -> "  " ^ line)
+      |> String.concat "\n";
+      "";
+      "  let resolve_api_middlewares source_files =";
+      "    source_files |> List.filter_map resolve_api_middleware";
+      "";
+      "  let resolve_api (metadata : Utopia_types.api_route_meta list) =";
+      "    metadata";
+      "    |> List.filter_map (fun (meta : Utopia_types.api_route_meta) ->";
+      "           match resolve_api_handler meta.source_file with";
+      "           | None -> None";
+      "           | Some handler ->";
+      "               Some";
+      "                 (Utopia_server.Generated_api_route.make \
+       ~route:meta.route";
+      "                    ~matcher:meta.matcher ~params:meta.params \
+       ~source_file:meta.source_file";
+      "                    ~middlewares:(resolve_api_middlewares \
+       meta.middlewares) ~handler ()))";
+      "end";
+    ]
+
+let generate route_entries api_entries =
+  let route_modules = render_route_modules route_entries api_entries in
+  String.concat "\n\n"
+    [
+      route_modules;
+      "let page_meta = Routes.get_all ()";
+      "let api_meta = Routes.Api.get_all ()";
+      "let pages = Route_modules.resolve_pages page_meta";
+      "let api_routes = Route_modules.resolve_api api_meta";
+      "";
+      "let () =";
+      "  match Array.to_list Sys.argv with";
+      "  | [ _; \"--ssg\" ] -> Utopia_server.ssg_generated pages";
+      "  | _ ->";
+      "      Utopia_server.start_generated ~pages ~api_routes \
+       ~lookup_server_function:FunctionReferences.get";
+    ]

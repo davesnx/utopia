@@ -81,7 +81,7 @@ let route_key_of_relative_file relative_file =
                message)
       | Ok _params -> Ok (Routes.route_of_segments segments))
 
-let load route_entries =
+let load (route_entries : Routes.route_entry list) =
   if not (Filesystem.directory_exists schema_directory) then ([], [])
   else
     let files =
@@ -91,7 +91,7 @@ let load route_entries =
     in
     let valid_route_keys =
       route_entries
-      |> List.map (fun entry -> entry.Routes.route)
+      |> List.map (fun (entry : Routes.route_entry) -> entry.Routes.route)
       |> List.sort_uniq String.compare
     in
     let parsed_entries, parse_errors =
@@ -190,7 +190,7 @@ let load route_entries =
                          has_params
                          && not
                               (List.exists
-                                 (fun entry ->
+                                 (fun (entry : Routes.route_entry) ->
                                    entry.Routes.route = route_key
                                    && entry.Routes.params <> [])
                                  route_entries)
@@ -261,13 +261,13 @@ let load route_entries =
     in
     (entries, List.rev parse_errors @ List.rev duplicate_errors @ orphan_errors)
 
-let attach route_entries schema_entries =
+let attach (route_entries : Routes.route_entry list) schema_entries =
   let schema_by_route = Hashtbl.create 16 in
   schema_entries
   |> List.iter (fun entry ->
       Hashtbl.replace schema_by_route entry.route_key entry);
   route_entries
-  |> List.map (fun entry ->
+  |> List.map (fun (entry : Routes.route_entry) ->
       match Hashtbl.find_opt schema_by_route entry.Routes.route with
       | None -> entry
       | Some schema ->

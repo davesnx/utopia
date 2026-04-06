@@ -33,8 +33,8 @@
     module Param_id = struct
       module Route_params = Route_schema__Users__Id.Params
       let make ~params () =
-  | Users_id of { params : Users.Param_id.Route_params.t }
-      let params = Users.Param_id.Route_params.decode [("id", Utopia_route.Params.one id)] in
+    | Users_id of { params : Users.Param_id.Route_params.t }
+        let params = Users.Param_id.Route_params.decode [("id", Utopia_route.Params.one id)] in
   $ export UTOPIA_ROOT="$(dirname "$OPAM_SWITCH_PREFIX")"
   $ export OCAMLPATH="$UTOPIA_ROOT/_build/install/default/lib"
   $ dune build --root . @melange _utopia/server_main.exe > /dev/null

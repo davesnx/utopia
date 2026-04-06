@@ -1,9 +1,9 @@
 let pages_directory = "pages"
 
-let find_route_conflicts entries =
+let find_route_conflicts (entries : Routes.route_entry list) =
   let grouped = Hashtbl.create 32 in
   List.iter
-    (fun entry ->
+    (fun (entry : Routes.route_entry) ->
       let current =
         match Hashtbl.find_opt grouped entry.Routes.conflict_key with
         | Some entries -> entries
@@ -12,7 +12,7 @@ let find_route_conflicts entries =
       Hashtbl.replace grouped entry.Routes.conflict_key (entry :: current))
     entries;
   Hashtbl.fold
-    (fun _key grouped_entries acc ->
+    (fun _key (grouped_entries : Routes.route_entry list) acc ->
       if List.length grouped_entries > 1 then
         let reversed = List.rev grouped_entries in
         ((List.hd reversed).Routes.route, reversed) :: acc
@@ -21,7 +21,7 @@ let find_route_conflicts entries =
 
 let source_basename source = Filename.basename source
 
-let preferred_source_for_route route entries =
+let preferred_source_for_route route (entries : Routes.route_entry list) =
   let normalized_route = if route = "" then "index" else route in
   let preferred_order =
     [
@@ -32,7 +32,11 @@ let preferred_source_for_route route entries =
       Printf.sprintf "%s/%s.md" pages_directory normalized_route;
     ]
   in
-  let sources = List.map (fun entry -> entry.Routes.source_file) entries in
+  let sources =
+    List.map
+      (fun (entry : Routes.route_entry) -> entry.Routes.source_file)
+      entries
+  in
   match
     List.find_opt (fun candidate -> List.mem candidate sources) preferred_order
   with
@@ -47,7 +51,8 @@ let report_route_conflicts conflicts =
       let preferred_source = preferred_source_for_route route grouped_entries in
       let ordered_sources =
         grouped_entries
-        |> List.map (fun entry -> entry.Routes.source_file)
+        |> List.map (fun (entry : Routes.route_entry) ->
+            entry.Routes.source_file)
         |> List.sort String.compare
       in
       Printf.eprintf "\n    - %s has %d competing page files:\n"
@@ -132,7 +137,7 @@ let has_metadata_export source =
          || starts_with_at trimmed 0 "let metadata="
          || String.equal trimmed "let metadata"))
 
-let detect_metadata_for_entry entry =
+let detect_metadata_for_entry (entry : Routes.route_entry) =
   match entry.Routes.kind with
   | Utopia_types.Markdown_page -> { entry with Routes.has_metadata = false }
   | Utopia_types.Code_page ->
@@ -161,7 +166,7 @@ let has_static_paths_export source =
          || starts_with_at trimmed 0 "let static_paths("
          || starts_with_at trimmed 0 "let static_paths="))
 
-let detect_static_for_entry entry =
+let detect_static_for_entry (entry : Routes.route_entry) =
   match entry.Routes.kind with
   | Utopia_types.Markdown_page -> entry
   | Utopia_types.Code_page ->
@@ -175,7 +180,7 @@ let detect_static_for_entry entry =
         Routes.has_static_paths = has_static_paths_export source;
       }
 
-let report_missing_static_paths entries =
+let report_missing_static_paths (entries : Routes.route_entry list) =
   let issues =
     entries
     |> List.filter (fun entry ->
@@ -187,7 +192,7 @@ let report_missing_static_paths entries =
     Printf.eprintf
       "\n  Static pages with dynamic segments require static_paths:\n";
     issues
-    |> List.iter (fun entry ->
+    |> List.iter (fun (entry : Routes.route_entry) ->
         Printf.eprintf
           "    - %s is marked static but has params [%s] without a \
            static_paths export\n"
@@ -199,7 +204,7 @@ let report_missing_static_paths entries =
        file.\n";
     true)
 
-let unknown_params_for_entry entry =
+let unknown_params_for_entry (entry : Routes.route_entry) =
   match entry.Routes.kind with
   | Utopia_types.Markdown_page -> []
   | Utopia_types.Code_page ->
@@ -211,7 +216,7 @@ let unknown_params_for_entry entry =
       let declared = entry.Routes.params |> List.map fst in
       used |> List.filter (fun name -> not (List.mem name declared))
 
-let report_unknown_param_accesses entries =
+let report_unknown_param_accesses (entries : Routes.route_entry list) =
   let issues =
     entries
     |> List.filter_map (fun entry ->
@@ -222,7 +227,7 @@ let report_unknown_param_accesses entries =
   else (
     Printf.eprintf "\n  Unknown route parameter access detected:\n";
     issues
-    |> List.iter (fun (entry, unknown) ->
+    |> List.iter (fun ((entry : Routes.route_entry), unknown) ->
         let declared =
           entry.Routes.params |> List.map fst |> function
           | [] -> "(none)"

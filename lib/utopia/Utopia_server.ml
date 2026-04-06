@@ -2,6 +2,9 @@ open Utopia_types
 
 type param_value = One of string | Many of string list
 
+let matched_api_params_field : (string * param_value) list Dream.field =
+  Dream.new_field ~name:"utopia_api_params" ()
+
 type generated_route = {
   route : string;
   matcher : string;
@@ -18,6 +21,23 @@ type generated_route = {
   static : bool;
   static_paths : (unit -> (string * string) list list) option;
 }
+
+type generated_api_route = {
+  route : string;
+  matcher : string;
+  params : (string * param_kind) list;
+  middlewares : (Dream.handler -> Dream.handler) list;
+  source_file : string;
+  handler : Dream.handler;
+}
+
+module type Api_handler = sig
+  val handler : Dream.request -> Dream.response Lwt.t
+end
+
+module type Api_middleware = sig
+  val middleware : Dream.handler -> Dream.handler
+end
 
 module Generated_route = struct
   let make ~kind ~route ~matcher ~params ~source_file ~layouts ~render ~metadata
@@ -55,6 +75,11 @@ module Generated_route = struct
       ~router_subtree ~static ()
 end
 
+module Generated_api_route = struct
+  let make ~route ~matcher ~params ~middlewares ~source_file ~handler () =
+    { route; matcher; params; middlewares; source_file; handler }
+end
+
 type route_entry = {
   route : string;
   params : (string * param_kind) list;
@@ -72,7 +97,14 @@ type route_entry = {
   static_paths : (unit -> (string * string) list list) option;
 }
 
-let routes_manifest_file = "_utopia/routes.manifest"
+type api_route_entry = {
+  route : string;
+  params : (string * param_kind) list;
+  source_file : string;
+  segments : route_segment list;
+  middlewares : (Dream.handler -> Dream.handler) list;
+  handler : Dream.handler;
+}
 
 let read_file file =
   In_channel.with_open_bin file (fun channel -> In_channel.input_all channel)
@@ -83,23 +115,6 @@ let page_cache : (string, cache_entry) Hashtbl.t = Hashtbl.create 64
 
 let file_mtime file =
   try Some (Unix.stat file).Unix.st_mtime with Unix.Unix_error _ -> None
-
-let split_fields line =
-  match String.split_on_char '\t' line with
-  | [
-   route; kind; source_file; matcher; params; layouts; _has_metadata; _static;
-  ] ->
-      Some (route, kind, source_file, matcher, params, layouts)
-  | [ route; kind; source_file; matcher; params; layouts; _has_metadata ] ->
-      Some (route, kind, source_file, matcher, params, layouts)
-  | [ route; kind; source_file; matcher; params; layouts ] ->
-      Some (route, kind, source_file, matcher, params, layouts)
-  | _ -> None
-
-let parse_layouts layouts =
-  if layouts = "" then []
-  else
-    layouts |> String.split_on_char ';' |> List.filter (fun item -> item <> "")
 
 let parse_matcher_segment segment =
   if String.length segment >= 2 && String.sub segment 0 2 = "**" then
@@ -131,7 +146,7 @@ let specificity_of_segment = function
   | Param (_, Catch_all) -> 2
   | Param (_, Optional_catch_all) -> 1
 
-let compare_route_specificity left right =
+let compare_route_specificity (left : route_entry) (right : route_entry) =
   let rec compare_scores left_scores right_scores =
     match (left_scores, right_scores) with
     | [], [] -> 0
@@ -146,7 +161,7 @@ let compare_route_specificity left right =
   let right_scores = List.map specificity_of_segment right.segments in
   compare_scores left_scores right_scores
 
-let route_entry_of_generated_route generated_route =
+let route_entry_of_generated_route (generated_route : generated_route) =
   match parse_matcher generated_route.matcher with
   | Error message ->
       Error
@@ -171,7 +186,8 @@ let route_entry_of_generated_route generated_route =
           static_paths = generated_route.static_paths;
         }
 
-let runtime_routes_of_generated_routes generated_routes =
+let runtime_routes_of_generated_routes (generated_routes : generated_route list)
+    =
   generated_routes
   |> List.fold_left
        (fun acc route ->
@@ -183,69 +199,51 @@ let runtime_routes_of_generated_routes generated_routes =
   |> Result.map (fun routes ->
       List.rev routes |> List.sort compare_route_specificity)
 
-let parse_params params =
-  if params = "" then Ok []
-  else
-    params |> String.split_on_char ','
-    |> List.fold_left
-         (fun acc entry ->
-           match (acc, String.split_on_char ':' entry) with
-           | (Error _ as error), _ -> error
-           | Ok _, [ _name ] ->
-               Error (Printf.sprintf "Invalid params spec: %s" entry)
-           | Ok parsed, [ name; kind ] -> (
-               match parse_param_kind kind with
-               | None -> Error (Printf.sprintf "Invalid params kind: %s" kind)
-               | Some parsed_kind -> Ok ((name, parsed_kind) :: parsed))
-           | Ok _, _ -> Error (Printf.sprintf "Invalid params spec: %s" entry))
-         (Ok [])
-    |> Result.map List.rev
+let compare_api_route_specificity (left : api_route_entry)
+    (right : api_route_entry) =
+  let rec compare_scores left_scores right_scores =
+    match (left_scores, right_scores) with
+    | [], [] -> 0
+    | _ :: _, [] -> -1
+    | [], _ :: _ -> 1
+    | left_score :: left_rest, right_score :: right_rest ->
+        if left_score > right_score then -1
+        else if left_score < right_score then 1
+        else compare_scores left_rest right_rest
+  in
+  let left_scores = List.map specificity_of_segment left.segments in
+  let right_scores = List.map specificity_of_segment right.segments in
+  compare_scores left_scores right_scores
 
-let load_routes () =
-  if not (Sys.file_exists routes_manifest_file) then
-    Error
-      (Printf.sprintf
-         "Route manifest not found at %s. Run `dune exec \
-          bin/compiler/compiler.exe` first."
-         routes_manifest_file)
-  else
-    let lines = read_file routes_manifest_file |> String.split_on_char '\n' in
-    lines
-    |> List.filter (fun line -> String.trim line <> "")
-    |> List.fold_left
-         (fun acc line ->
-           match (acc, split_fields line) with
-           | (Error _ as error), _ -> error
-           | Ok _, None -> Error (Printf.sprintf "Invalid route entry: %s" line)
-           | Ok routes, Some (route, kind, source_file, matcher, params, layouts)
-             -> (
-               match parse_kind kind with
-               | None -> Error (Printf.sprintf "Invalid route kind: %s" kind)
-               | Some parsed_kind -> (
-                   match (parse_matcher matcher, parse_params params) with
-                   | Error message, _ | _, Error message -> Error message
-                   | Ok segments, Ok parsed_params ->
-                       Ok
-                         ({
-                            route;
-                            params = parsed_params;
-                            layouts = parse_layouts layouts;
-                            kind = parsed_kind;
-                            source_file;
-                            segments;
-                            render = None;
-                            metadata = None;
-                            layout_renderers = [];
-                            router_shell = None;
-                            router_tree = None;
-                            router_subtree = None;
-                            static = false;
-                            static_paths = None;
-                          }
-                         :: routes))))
-         (Ok [])
-    |> Result.map (fun routes ->
-        List.rev routes |> List.sort compare_route_specificity)
+let api_route_entry_of_generated_route (generated_route : generated_api_route) =
+  match parse_matcher generated_route.matcher with
+  | Error message ->
+      Error
+        (Printf.sprintf "Invalid generated API route '%s': %s"
+           generated_route.route message)
+  | Ok segments ->
+      Ok
+        {
+          route = generated_route.route;
+          params = generated_route.params;
+          source_file = generated_route.source_file;
+          segments;
+          middlewares = generated_route.middlewares;
+          handler = generated_route.handler;
+        }
+
+let runtime_api_routes_of_generated_routes
+    (generated_routes : generated_api_route list) =
+  generated_routes
+  |> List.fold_left
+       (fun acc route ->
+         match (acc, api_route_entry_of_generated_route route) with
+         | (Error _ as error), _ -> error
+         | Ok _, Error message -> Error message
+         | Ok routes, Ok parsed_route -> Ok (parsed_route :: routes))
+       (Ok [])
+  |> Result.map (fun routes ->
+      List.rev routes |> List.sort compare_api_route_specificity)
 
 let starts_with text prefix =
   let text_len = String.length text in
@@ -892,7 +890,7 @@ let take_segments count segments =
   in
   loop count [] segments
 
-let diff_parent_route route_entry current_path request_target =
+let diff_parent_route (route_entry : route_entry) current_path request_target =
   let target_segments = path_segments request_target in
   let current_segments = path_segments current_path in
   let shared_segments =
@@ -902,7 +900,8 @@ let diff_parent_route route_entry current_path request_target =
   route_definition_of_segments
     (take_segments shared_segments route_entry.segments)
 
-let route_navigation_model route_entry request rendered_element =
+let route_navigation_model (route_entry : route_entry) request rendered_element
+    =
   match (route_entry.router_tree, route_entry.router_subtree) with
   | Some render_tree, Some render_subtree -> (
       let full_tree () = render_tree () |> normalize_model_element in
@@ -960,14 +959,14 @@ let rec match_segments route_segments path_segments params =
       Some (List.rev ((name, Many rest_path) :: params))
   | _ -> None
 
-let find_match routes path_segments =
+let find_match (routes : route_entry list) path_segments =
   routes
-  |> List.find_map (fun route ->
+  |> List.find_map (fun (route : route_entry) ->
       match match_segments route.segments path_segments [] with
       | None -> None
       | Some params -> Some (route, params))
 
-let render_index routes =
+let render_index (routes : route_entry list) =
   let links =
     routes
     |> List.map (fun { route; kind; source_file; params; layouts; _ } ->
@@ -1041,6 +1040,82 @@ let text_response ~status message =
   Dream.respond ~status
     ~headers:[ ("Content-Type", "text/plain; charset=utf-8") ]
     message
+
+let has_content_type_header headers =
+  headers
+  |> List.exists (fun (name, _value) ->
+      String.lowercase_ascii name = "content-type")
+
+let respond ?(status = `OK) ?(headers = []) json =
+  let headers =
+    if has_content_type_header headers then headers
+    else ("Content-Type", "application/json; charset=utf-8") :: headers
+  in
+  Dream.respond ~status ~headers json
+
+let matched_api_params request =
+  Dream.field request matched_api_params_field |> Option.value ~default:[]
+
+let find_matched_api_param request name =
+  matched_api_params request
+  |> List.find_map (fun (candidate, value) ->
+      if String.equal candidate name then Some value else None)
+
+let api_param_single_exn request name =
+  match find_matched_api_param request name with
+  | Some (One value) -> value
+  | Some (Many _) ->
+      failwith
+        (Printf.sprintf "API param '%s' was matched with the wrong shape" name)
+  | None -> failwith (Printf.sprintf "Missing required API param '%s'" name)
+
+let api_param_many_exn request name =
+  match find_matched_api_param request name with
+  | Some (Many values) ->
+      if values <> [] then values
+      else
+        failwith
+          (Printf.sprintf
+             "API param '%s' must contain at least one segment, but was empty"
+             name)
+  | Some (One _) ->
+      failwith
+        (Printf.sprintf "API param '%s' was matched with the wrong shape" name)
+  | None -> failwith (Printf.sprintf "Missing required API param '%s'" name)
+
+let api_param_optional_many request name =
+  match find_matched_api_param request name with
+  | Some (Many values) -> values
+  | Some (One _) ->
+      failwith
+        (Printf.sprintf "API param '%s' was matched with the wrong shape" name)
+  | None -> []
+
+let json_escape value =
+  let buffer = Buffer.create (String.length value + 16) in
+  String.iter
+    (fun char ->
+      match char with
+      | '"' -> Buffer.add_string buffer "\\\""
+      | '\\' -> Buffer.add_string buffer "\\\\"
+      | '\b' -> Buffer.add_string buffer "\\b"
+      | '\012' -> Buffer.add_string buffer "\\f"
+      | '\n' -> Buffer.add_string buffer "\\n"
+      | '\r' -> Buffer.add_string buffer "\\r"
+      | '\t' -> Buffer.add_string buffer "\\t"
+      | c when Char.code c < 0x20 ->
+          Buffer.add_string buffer (Printf.sprintf "\\u%04x" (Char.code c))
+      | c -> Buffer.add_char buffer c)
+    value;
+  Buffer.contents buffer
+
+let api_error_response ~status ~error ~code request =
+  let path = Dream.target request |> json_escape in
+  let error = json_escape error in
+  let code = json_escape code in
+  respond ~status
+    (Printf.sprintf "{\"error\":\"%s\",\"code\":\"%s\",\"path\":\"%s\"}" error
+       code path)
 
 let request_action_id request =
   match Dream.header request action_id_header with
@@ -1129,6 +1204,35 @@ let handle_server_function_request ~lookup_server_function request =
           invalid_action_request
             "This server function expects a multipart/form-data request")
 
+let is_api_target target =
+  String.equal target "api" || starts_with target "api/"
+
+let find_api_match (routes : api_route_entry list) path_segments =
+  routes
+  |> List.find_map (fun (route : api_route_entry) ->
+      match match_segments route.segments path_segments [] with
+      | None -> None
+      | Some params -> Some (route, params))
+
+let apply_api_middlewares middlewares handler =
+  List.fold_right (fun middleware acc -> middleware acc) middlewares handler
+
+let route_api_request (api_routes : api_route_entry list) request =
+  let target = Dream.target request |> normalize_target in
+  let segments = target_segments target in
+  match find_api_match api_routes segments with
+  | None ->
+      api_error_response ~status:`Not_Found ~error:"API route not found"
+        ~code:"api_not_found" request
+  | Some (route, params) ->
+      Dream.set_field request matched_api_params_field params;
+      let handler = apply_api_middlewares route.middlewares route.handler in
+      Lwt.catch
+        (fun () -> handler request)
+        (fun _exn ->
+          api_error_response ~status:`Internal_Server_Error
+            ~error:"Internal API error" ~code:"api_internal_error" request)
+
 let accepts_react_component request =
   match Dream.header request "Accept" with
   | Some value ->
@@ -1143,13 +1247,16 @@ let accepts_react_component request =
       loop 0
   | None -> false
 
-let route_request routes index_html ~lookup_server_function request =
+let route_request (routes : route_entry list)
+    (api_routes : api_route_entry list) index_html ~lookup_server_function
+    request =
   let target = Dream.target request |> normalize_target in
   if
     starts_with target "target/"
     || starts_with target "dist/"
     || List.mem target (available_direct_asset_paths ())
   then serve_asset target
+  else if is_api_target target then route_api_request api_routes request
   else
     let segments = target_segments target in
     if Dream.method_ request = `POST then
@@ -1207,26 +1314,19 @@ let rec run_with_port_fallback ~interface ~port pipeline =
       interface next_port;
     run_with_port_fallback ~interface ~port:next_port pipeline
 
-let start_runtime_routes routes ~lookup_server_function =
+let start_runtime_routes (routes : route_entry list)
+    (api_routes : api_route_entry list) ~lookup_server_function =
   Printexc.record_backtrace true;
   Logs.set_level (Some Info);
   Logs.set_reporter (Logs_fmt.reporter ());
   let index_html = render_index routes in
   let enable_logging = Sys.getenv_opt "NO_LOG" = None in
-  let handler = route_request routes index_html ~lookup_server_function in
+  let handler =
+    route_request routes api_routes index_html ~lookup_server_function
+  in
   let pipeline = if enable_logging then Dream.logger @@ handler else handler in
   run_with_port_fallback ~interface:(host_from_env ()) ~port:(port_from_env ())
     pipeline
-
-let run () =
-  match load_routes () with
-  | Ok routes ->
-      Printf.printf "Loaded %d routes from %s\n%!" (List.length routes)
-        routes_manifest_file;
-      start_runtime_routes routes ~lookup_server_function:(fun _ -> None)
-  | Error message ->
-      Printf.eprintf "Error: %s\n%!" message;
-      exit 1
 
 let ensure_directory path =
   let parts = String.split_on_char '/' path in
@@ -1292,13 +1392,15 @@ let ssg_asset_paths () =
   in
   dedupe [] (available_stylesheet_paths () @ available_bootstrap_module_paths ())
 
-let ssg_generated generated_routes =
+let ssg_generated (generated_routes : generated_route list) =
   match runtime_routes_of_generated_routes generated_routes with
   | Error message ->
       Printf.eprintf "SSG Error: %s\n%!" message;
       exit 1
   | Ok routes ->
-      let static_routes = routes |> List.filter (fun r -> r.static) in
+      let static_routes =
+        routes |> List.filter (fun (r : route_entry) -> r.static)
+      in
       if static_routes = [] then (
         Printf.printf "SSG: no static pages found\n%!";
         exit 0);
@@ -1308,7 +1410,7 @@ let ssg_generated generated_routes =
       ssg_asset_paths () |> List.iter copy_ssg_asset;
       let count = ref 0 in
       static_routes
-      |> List.iter (fun route_entry ->
+      |> List.iter (fun (route_entry : route_entry) ->
           if route_entry.params = [] then (
             (* Static page without params *)
             let output = ssg_output_path route_entry.route in
@@ -1353,9 +1455,14 @@ let ssg_generated generated_routes =
                     incr count));
       Printf.printf "SSG: rendered %d page(s) to %s/\n%!" !count ssg_output_dir
 
-let start_generated generated_routes ~lookup_server_function =
-  match runtime_routes_of_generated_routes generated_routes with
-  | Ok routes -> start_runtime_routes routes ~lookup_server_function
-  | Error message ->
+let start_generated ~(pages : generated_route list)
+    ~(api_routes : generated_api_route list) ~lookup_server_function =
+  match
+    ( runtime_routes_of_generated_routes pages,
+      runtime_api_routes_of_generated_routes api_routes )
+  with
+  | Ok routes, Ok api_routes ->
+      start_runtime_routes routes api_routes ~lookup_server_function
+  | Error message, _ | _, Error message ->
       Printf.eprintf "Error: %s\n%!" message;
       exit 1

@@ -11,13 +11,13 @@
   $ (cd demo/basic && utopia.compiler > /dev/null)
   $ (cd demo/notes && utopia.compiler > /dev/null)
   $ grep -qE '\(library \(name pages_\S*demo_basic\) \(wrapped false\)' demo/basic/_utopia/dune
-  $ grep -qF '(modules server_main Utopia_server)' demo/basic/_utopia/dune
-  $ grep -qE 'pages_\S*demo_basic .* cmarkit' demo/basic/_utopia/dune
+  $ grep -qF '(executable (name server_main) (modules server_main)' demo/basic/_utopia/dune
+  $ grep -qE 'libraries pages_\S*demo_basic utopia_\S*demo_basic utopia' demo/basic/_utopia/dune
   $ grep -qF '../lib/BasicShared.re' demo/basic/_utopia/dune
   $ grep -qF '../../lib/BasicShared.re' demo/basic/_utopia/dune
   $ grep -qE '\(library \(name pages_\S*demo_notes\) \(wrapped false\)' demo/notes/_utopia/dune
-  $ grep -qF '(modules server_main Utopia_server)' demo/notes/_utopia/dune
-  $ grep -qE 'pages_\S*demo_notes .* cmarkit' demo/notes/_utopia/dune
+  $ grep -qF '(executable (name server_main) (modules server_main)' demo/notes/_utopia/dune
+  $ grep -qE 'libraries pages_\S*demo_notes utopia_\S*demo_notes utopia' demo/notes/_utopia/dune
   $ grep -qF '../lib/NotesShared.re' demo/notes/_utopia/dune
   $ grep -qF '../../lib/NotesShared.re' demo/notes/_utopia/dune
   $ cat demo/basic/_utopia/paths.mjs

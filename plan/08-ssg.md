@@ -1,12 +1,12 @@
 # SSG
 
-Add opt-in static site generation for pages that declare `let static = true`.
+Add opt-in static site generation for pages that opt into static mode (`let static = true` for code pages, `static: true` frontmatter for markdown pages).
 
 ---
 
 ## Goal
 
-Pages that export `let static = true` are rendered at build time. The resulting HTML is served directly without server-side rendering at request time. This is useful for content-heavy pages that don't need per-request data.
+Pages that opt into static mode are rendered at build time. The resulting HTML is served directly without server-side rendering at request time. This is useful for content-heavy pages that don't need per-request data.
 
 ---
 
@@ -14,24 +14,31 @@ Pages that export `let static = true` are rendered at build time. The resulting 
 
 - `plan/02-compiler-rsc.md` -- compiler generates server_main.ml
 - `plan/03-server-rewrite.md` -- server library with DreamRSC rendering
+- `plan/06-markdown-pipeline.md` -- markdown frontmatter supports `static`
 
 ---
 
 ## Detect static pages in the compiler
 
-The compiler already scans page source files for `params.X` accesses. Extend this to detect `let static = true` (or `let static = true;` in Reason) exports.
+The compiler already scans page source files for `params.X` accesses. Extend this flow with a lightweight lexical scanner that detects `let static = true` (or `let static=true;`) while ignoring comments and string literals.
 
-Use simple source text scanning (not AST parsing):
+Do not use regex-only matching. The scanner should satisfy edge cases such as:
+
+- `let static = true` inside `(* ... *)` comments
+- `let static = true` inside `"..."` strings
+- escaped quotes and nested comment blocks
+
+Suggested implementation shape:
 
 ```ocaml
+type mode = Code | String | Char | Line_comment | Block_comment of int
+
 let detect_static_export source =
-  (* Match "let static = true" with flexible whitespace *)
-  Str.string_match
-    (Str.regexp {|.*let[ \t]+static[ \t]*=[ \t]*true|})
-    source 0
+  let tokens = scan_code_tokens_ignoring_comments_and_strings source in
+  token_sequence_exists tokens ["let"; "static"; "="; "true"]
 ```
 
-This is intentionally simple. False positives are unlikely in practice. If a more robust approach is needed later, the compiler can use an OCaml parser.
+This keeps implementation small and deterministic without pulling in a full parser.
 
 ---
 
@@ -45,6 +52,8 @@ Extend the route manifest format to include a static flag:
 
 Where `<static>` is `true` or `false`.
 
+Also record static origin in generated metadata (`code_export` vs `markdown_frontmatter`) so diagnostics can point to the right source when static configuration is invalid.
+
 ---
 
 ## Build-time rendering
@@ -52,18 +61,17 @@ Where `<static>` is `true` or `false`.
 During `dune build`, static pages are rendered to HTML files. The build pipeline:
 
 1. Compiler marks pages as static in the manifest
-2. The generated `server_main.ml` includes a `--ssg` mode that renders static pages:
+2. The generated `server_main.ml` includes a `--ssg` mode that renders static pages through the same server/RSC HTML rendering path used for normal requests (not `renderToStaticMarkup`):
 
 ```ocaml
 let () =
   match Sys.argv with
   | [| _; "--ssg" |] ->
-      (* Render all static pages to HTML files *)
-      List.iter (fun (route, page, layouts) ->
-        let element = compose_with_layouts layouts (page.make ()) in
-        let html = ReactDOM.renderToStaticMarkup element in
-        write_to_file (ssg_output_path route) html)
-      static_pages
+      (* Render all static pages to HTML files using the standard HTML pipeline *)
+      List.iter (fun static_route ->
+        let html = Utopia_server.render_route_html_for_ssg static_route in
+        write_to_file (ssg_output_path static_route.route) html)
+      static_routes
   | _ ->
       (* Normal server mode *)
       start_server ()
@@ -77,6 +85,8 @@ let () =
  (deps (alias all))
  (action (run ./_utopia/server_main.exe --ssg)))
 ```
+
+Using the shared HTML path ensures layout composition, head metadata, and client bootstrap behavior stay consistent between SSR and SSG.
 
 ---
 
@@ -119,6 +129,25 @@ If `static = true` but no `static_paths` is provided for a dynamic page, the com
 
 ---
 
+## Markdown static pages via frontmatter
+
+Markdown pages participate in SSG via frontmatter:
+
+```markdown
+---
+title: My Post
+static: true
+---
+```
+
+Rules:
+
+1. Markdown `static: true` is treated the same as code-page `let static = true`
+2. Markdown pages with static dynamic routes still require enumerated paths (future frontmatter extension or companion code export)
+3. Invalid markdown `static` values are compiler errors with source location
+
+---
+
 ## Testing
 
 ### Cram tests
@@ -148,15 +177,27 @@ If `static = true` but no `static_paths` is provided for a dynamic page, the com
 - Run the build
 - Assert no static HTML file is generated for it
 
+**`ssg_static_detection_ignores_comments_and_strings.t`**
+- Create a page where `let static = true` appears only in comments/strings
+- Run the compiler
+- Assert page is not marked static
+
+**`ssg_markdown_frontmatter_static.t`**
+- Create `pages/about.md` with frontmatter `static: true`
+- Run the compiler + SSG build
+- Assert static metadata and generated HTML output exist
+
 ### Edge cases
 
 - `let static = false` explicitly (should not be treated as static)
 - `let static = true` in a comment (should not be detected)
 - `let static = true` in a string literal (should not be detected)
+- `let static = true` in a char literal (should not be detected)
 - Static page with layouts (layouts should be rendered into the static HTML)
 - Static page with client components (client JS should be included)
 - Static page with no content (empty `make` function)
 - Static markdown page (markdown pages with frontmatter `static: true`)
+- Markdown frontmatter `static` with invalid values (`"true"`, `yes`, empty)
 - Very large number of static paths (1000+ for a dynamic page)
 - Static page that throws an exception during rendering
 - Re-rendering static pages when source changes (incremental SSG)
@@ -173,7 +214,8 @@ Static pages are rendered once at build time. Serving them is a simple file read
 
 | Action | File |
 |--------|------|
-| Modify | `bin/compiler.ml` (detect static flag, validate static_paths) |
+| Modify | `bin/compiler.ml` (detect static flag, validate static_paths, merge markdown frontmatter static) |
+| Create | `bin/static_detector.ml` (comment/string-safe lexical scanner for `let static = true`) |
 | Modify | `lib/utopia_server/utopia_server.ml` (serve static pages, SSG mode) |
 | Modify | `lib/utopia_types/utopia_types.ml` (add static field to route types) |
 | Create | `bin/tests/ssg_static_page_detected.t` |
@@ -181,15 +223,18 @@ Static pages are rendered once at build time. Serving them is a simple file read
 | Create | `bin/tests/ssg_dynamic_page_requires_paths.t` |
 | Create | `bin/tests/ssg_dynamic_page_with_paths.t` |
 | Create | `bin/tests/ssg_non_static_page_ignored.t` |
+| Create | `bin/tests/ssg_static_detection_ignores_comments_and_strings.t` |
+| Create | `bin/tests/ssg_markdown_frontmatter_static.t` |
 
 ---
 
 ## Acceptance criteria
 
-- `let static = true` is detected in page source files
+- `let static = true` is detected in page source files using a comment/string-safe scanner
 - Static pages are rendered at build time to HTML files
 - Static HTML is served directly without server-side rendering
 - Dynamic static pages require `static_paths` export
+- Markdown frontmatter `static: true` participates in the same SSG flow
 - Static pages include layouts and client component scripts
 - Fallback to SSR works when static HTML is missing
 - All tests pass

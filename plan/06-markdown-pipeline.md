@@ -26,6 +26,7 @@ title: My Guide
 description: A comprehensive guide
 path: custom-route
 layout: pages/docs/layout.re
+static: true
 ---
 
 # Content starts here
@@ -38,13 +39,14 @@ The frontmatter parser:
 3. Extracts the YAML between them
 4. Strips the frontmatter before passing content to cmarkit
 
-Implement a minimal YAML parser (only flat key-value strings are needed, no nested structures). Do not add a full YAML library dependency for four string fields.
+Implement a minimal YAML parser (only flat key-value fields are needed, no nested structures). Do not add a full YAML library dependency for these small metadata keys.
 
 Supported fields:
 - `title` -- string, page title for `<head>`
 - `description` -- string, meta description
 - `path` -- string, override the filesystem-inferred route
 - `layout` -- string, explicit layout file path
+- `static` -- boolean (`true`/`false`), marks markdown page as eligible for SSG
 
 ---
 
@@ -55,6 +57,7 @@ The compiler reads frontmatter from markdown files to:
 1. Apply `path` overrides when generating routes
 2. Record `title` and `description` in an extended manifest format
 3. Apply `layout` overrides (replace the directory-ancestry-inferred layouts)
+4. Record `static` and pass it into route metadata/SSG planning
 
 Add frontmatter parsing to the compiler's page processing pipeline. This runs before route generation so path overrides take effect.
 
@@ -154,6 +157,11 @@ The `Components.t` record is already extensible. The integration point is passin
 - Run the compiler
 - Assert route manifest uses the specified layout
 
+**`markdown_frontmatter_static_flag.t`**
+- Markdown with `static: true`
+- Run the compiler
+- Assert route metadata marks the page as static
+
 **`markdown_frontmatter_missing.t`**
 - Markdown without frontmatter
 - Assert renders normally with no errors
@@ -182,6 +190,7 @@ Promote `markdown/tests/main.t` and `markdown/tests/simple.t` expected output af
 - Frontmatter that is only `---\n---\n` (empty frontmatter)
 - Frontmatter with multiline values (should error or handle gracefully)
 - Frontmatter with special characters in values (colons, quotes)
+- Frontmatter `static` values other than `true`/`false` (clear error)
 - Markdown file that starts with `---` but is actually a thematic break
 - Table with mismatched column counts
 - Table with empty cells
@@ -210,7 +219,7 @@ Frontmatter parsing adds minimal overhead (string scanning for `---` delimiters)
 | Modify | `markdown/elements.re` (add table/footnote default elements) |
 | Create | `markdown/frontmatter.ml` (frontmatter parser) |
 | Modify | `markdown/markdown.ml` (use frontmatter parser) |
-| Modify | `bin/compiler.ml` (read frontmatter, apply path/layout overrides) |
+| Modify | `bin/compiler.ml` (read frontmatter, apply path/layout/static overrides) |
 | Modify | `lib/utopia_server/utopia_server.ml` (use React rendering for markdown) |
 | Create | `markdown/tests/frontmatter.t` |
 | Create | `markdown/tests/tables.t` |
@@ -226,6 +235,7 @@ Frontmatter parsing adds minimal overhead (string scanning for `---` delimiters)
 - `path` overrides change the route in the manifest
 - `layout` overrides change the layout chain
 - `title` and `description` are available as metadata
+- `static` frontmatter toggles markdown-page SSG eligibility
 - Tables render correctly with alignment support
 - Footnotes render with links and back-links
 - No `assert false` crashes remain in the renderer

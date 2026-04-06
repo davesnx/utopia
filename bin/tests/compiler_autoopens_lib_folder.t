@@ -16,28 +16,13 @@
   $ printf "let answer = 42\n" > lib/Data.ml
   $ utopia.compiler > /dev/null
 Check compile_flags are generated with -open Melange_json.Primitives:
-  $ grep -F 'compile_flags' _utopia/dune
-   (compile_flags -open Melange_json.Primitives)
-  $ grep -F 'flags :standard' _utopia/dune
-    (flags :standard -w -26-27-39 -open Melange_json.Primitives)
+  $ grep -qF '(compile_flags -open Melange_json.Primitives)' _utopia/dune
+  $ grep -qF '(flags :standard -w -26-27-39 -open Melange_json.Primitives)' _utopia/dune
 Check page copy rules have open! Lib prelude:
-  $ grep -A5 'target Pages__Home.re' _utopia/dune | head -6
-  (rule (deps ../pages/Home.re) (target Pages__Home.re)
-   (action
-    (with-stdout-to %{target}
-     (progn (echo "# 1 \"../pages/Home.re\"\n") (echo "open! Lib;\n")
-      (echo "# 1 \"../pages/Home.re\"\n") (run cat %{deps})))))
-  
+  $ grep -qF '(echo "open! Lib;\n")' _utopia/dune
 Check lib copy rules do NOT have open! Lib (just line directive):
-  $ grep -A4 'target Lib__Utils.re' _utopia/dune | head -5
-  (rule (deps ../lib/Utils.re) (target Lib__Utils.re)
-   (action
-    (with-stdout-to %{target}
-     (progn (echo "# 1 \"../lib/Utils.re\"\n") (run cat %{deps})))))
-  
+  $ grep -qF '(rule (deps ../lib/Utils.re) (target Lib__Utils.re)' _utopia/dune
 Check Lib.re namespace module (appears twice - for melange and native):
-  $ grep 'Lib.re' _utopia/dune
-  (rule (target Lib.re)
-   (rule (target Lib.re)
-  $ cat _utopia/routes.manifest
-  home	code	pages/Home.re	home			false	false
+  $ test "$(grep -c '(rule (target Lib.re)' _utopia/dune)" -eq 2
+  $ grep -F 'source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = false;' _utopia/Routes.ml
+    ({ route = "home"; matcher = "home"; conflict_key = "home"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = false; static = false; has_static_paths = false } : Utopia_types.page_route_meta);

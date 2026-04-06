@@ -1,3 +1,0 @@
-(library
- (name utopia_types)
- (public_name utopia.types))

@@ -5,7 +5,7 @@ type project = {
 }
 
 type file_ref = { path : Fpath.t; display : string }
-type binary = Cli | Compiler | Server
+type binary = Cli | Compiler
 
 let of_string_exn value =
   match Fpath.of_string value with
@@ -91,11 +91,6 @@ let workspace_root_from_build_path path =
 let project_root_ref project relative_path display =
   { path = Fpath.(project.project_root // relative_path); display }
 
-let routes_manifest project =
-  project_root_ref project
-    (Fpath.v "_utopia/routes.manifest")
-    "_utopia/routes.manifest"
-
 let generated_dune project =
   project_root_ref project (Fpath.v "_utopia/dune") "_utopia/dune"
 
@@ -124,7 +119,6 @@ let generated_server_exe project =
 let build_relative_binary_path = function
   | Cli -> Fpath.v "bin/cli/cli.exe"
   | Compiler -> Fpath.v "bin/compiler/compiler.exe"
-  | Server -> Fpath.v "bin/server/Server.exe"
 
 let built_binary project binary =
   let path = Fpath.(build_root project // build_relative_binary_path binary) in

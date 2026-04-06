@@ -1,7 +1,6 @@
   $ tmp=$(mktemp -d)
   $ mkdir -p "$tmp/work/demo/app/_utopia/dist" "$tmp/work/demo/app/_utopia/static" "$tmp/work/demo/app/target/demo/app/_utopia"
   $ touch "$tmp/work/dune-project"
-  $ touch "$tmp/work/demo/app/_utopia/routes.manifest"
   $ (cd "$tmp/work/demo/app" && utopia clean --build-outputs 2>&1)
   
   utopia clean

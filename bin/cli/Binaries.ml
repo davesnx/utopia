@@ -29,21 +29,41 @@ let resolve_executable_path () =
 
 let binary_of_name = function
   | "utopia.compiler" -> Some Utopia_path.Compiler
-  | "utopia.server" -> Some Utopia_path.Server
   | "utopia" -> Some Utopia_path.Cli
   | "dune" -> None
   | _ -> None
 
+let built_binary_path_for_project project binary =
+  Utopia_path.built_binary project binary
+  |> Utopia_path.file_path |> Utopia_path.to_string
+
+let project_for_workspace_root workspace_root =
+  {
+    Utopia_path.workspace_root;
+    project_root = workspace_root;
+    project_workspace_path = None;
+  }
+
 let built_binary_path name =
   match binary_of_name name with
   | None -> None
-  | Some binary ->
+  | Some binary -> (
       let project = Utopia_path.current_project () in
-      let path =
-        Utopia_path.built_binary project binary
-        |> Utopia_path.file_path |> Utopia_path.to_string
-      in
-      if file_exists path then Some path else None
+      let current_project_path = built_binary_path_for_project project binary in
+      if file_exists current_project_path then Some current_project_path
+      else
+        let executable_workspace_path =
+          resolve_executable_path () |> Utopia_path.of_string_exn
+          |> Utopia_path.workspace_root_from_build_path
+          |> Option.map (fun workspace_root ->
+              let workspace_project =
+                project_for_workspace_root workspace_root
+              in
+              built_binary_path_for_project workspace_project binary)
+        in
+        match executable_workspace_path with
+        | Some path when file_exists path -> Some path
+        | _ -> None)
 
 let resolve_bin name =
   match built_binary_path name with
