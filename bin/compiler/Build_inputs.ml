@@ -44,17 +44,10 @@ let shared_lib_files_for_build () : shared_lib_file list =
           | _ -> None)
   else []
 
-let wrapped_shared_lib_module_name (file : shared_lib_file) =
-  "Lib__" ^ file.module_name
+let shared_lib_module_name (file : shared_lib_file) = "Lib__" ^ file.module_name
 
-let compiled_shared_lib_module_name (file : shared_lib_file) =
-  "Utopia_lib__" ^ file.module_name
-
-let compiled_shared_lib_target (file : shared_lib_file) =
-  Printf.sprintf "%s%s" (compiled_shared_lib_module_name file) file.extension
-
-let wrapped_shared_lib_target (file : shared_lib_file) =
-  Printf.sprintf "%s%s" (wrapped_shared_lib_module_name file) file.extension
+let shared_lib_target (file : shared_lib_file) =
+  Printf.sprintf "%s%s" (shared_lib_module_name file) file.extension
 
 let route_schema_target (file : route_schema_file) =
   Printf.sprintf "%s%s" file.module_name file.extension

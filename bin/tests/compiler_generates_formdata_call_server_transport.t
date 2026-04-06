@@ -1,5 +1,6 @@
 $ mkdir pages _utopia
-$ touch _utopia/dune
+ $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
+ $ touch _utopia/dune
 $ printf "let page = ()\n" > pages/Home.re
 $ utopia.compiler > /dev/null
 $ grep -qF 'let isFormData = ReactServerDOMEsbuild.encodedReplyIsFormData(body);' _utopia/Utopia_router.re

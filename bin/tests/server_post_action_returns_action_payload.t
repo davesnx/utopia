@@ -1,6 +1,6 @@
   $ mkdir pages _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
-  $ printf "(dirs :standard _utopia)\n" > dune
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ cat > pages/Home.re <<'EOF'
   > [@react.server.function]
@@ -23,7 +23,7 @@
   > EOF
   $ utopia.compiler > /dev/null
   $ dune build @melange _utopia/server_main.exe > /dev/null
-  $ dune describe pp _utopia/native/Utopia_page__Home.re > native.pp
+  $ dune describe pp _utopia/native/Pages__Home.re > native.pp
   $ body_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | sed -n '1p')
   $ form_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | sed -n '2p')
   $ PORT=8104 HOST=127.0.0.1 NO_LOG=1 _build/default/_utopia/server_main.exe > server.log 2>&1 &

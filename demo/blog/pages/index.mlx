@@ -1,0 +1,31 @@
+let static = true
+
+let metadata _params =
+  Utopia.Metadata.make
+    ~title:"Blog"
+    ~description:"A static blog built with Utopia SSG."
+    ()
+
+module Navigate = Utopia.Router.Link
+
+let[@react.component] make () =
+  <div>
+    <ul>
+      (Blog_data.posts
+       |> List.map (fun (post : Blog_data.post) ->
+           <li key=post.slug className="font-medium">
+             <Navigate to_=(Routes.Posts.Param_slug.make ~slug:post.slug ())
+                className="group flex gap-1 -mx-2 px-2 justify-between items-center">
+                 <span className="block text-slate-600 group-hover:text-slate-800 transition-colors">
+                  (React.string post.title)
+                </span>
+                 <span className="text-sm dot-leaders flex-1 text-slate-200 font-normal group-hover:text-slate-500 transition-colors leading-none" />
+                 <time className="block text-slate-500 tabular-nums font-normal tracking-tighter group-hover:text-slate-600 transition-colors self-start">
+                  (React.string post.date)
+                </time>
+              </Navigate>
+            </li>)
+       |> Array.of_list
+       |> React.array)
+    </ul>
+  </div>

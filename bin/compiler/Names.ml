@@ -59,7 +59,7 @@ let generated_module_base relative_file =
   |> String.concat "__"
 
 let compiled_page_module_name relative_file =
-  "Utopia_page__" ^ generated_module_base relative_file
+  "Pages__" ^ generated_module_base relative_file
 
 let strip_pages_prefix source_file =
   let prefix = pages_directory ^ "/" in
@@ -72,6 +72,13 @@ let strip_pages_prefix source_file =
 
 let native_module_name_of_source source_file =
   generated_module_base (strip_pages_prefix source_file)
+
+let route_constructor_name_of_source source_file =
+  strip_pages_prefix source_file
+  |> Filename.remove_extension |> String.split_on_char '/'
+  |> List.filter (fun segment -> segment <> "")
+  |> List.map sanitize_library_component
+  |> String.concat "_" |> String.capitalize_ascii
 
 let compiled_page_module_name_of_source source_file =
   compiled_page_module_name (strip_pages_prefix source_file)

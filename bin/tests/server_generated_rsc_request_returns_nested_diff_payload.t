@@ -1,6 +1,6 @@
   $ mkdir -p pages/about _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
-  $ printf "(dirs :standard _utopia)\n" > dune
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ cat > pages/about/Team.re <<'EOF'
   > [@react.component]

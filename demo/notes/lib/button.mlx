@@ -1,16 +1,8 @@
-module Navigate = Utopia.Router.Navigate
+module Navigate = Utopia.Router.Link
 
-type kind =
-  | Default
-  | Accent
-
-type width =
-  | Auto
-  | Full
-
-type state =
-  | Enabled
-  | Disabled
+type kind = Default | Accent
+type width = Auto | Full
+type state = Enabled | Disabled
 
 let join_classes class_names =
   class_names
@@ -20,28 +12,34 @@ let join_classes class_names =
 let kind_class = function
   | Default -> ""
   | Accent ->
-      "bg-[#1a1917] border-[#1a1917] text-[#ddd9d1] hover:bg-[#262521] hover:border-[#262521] hover:text-[#f3efe7] disabled:bg-[#2f2d29] disabled:border-[#2f2d29] disabled:text-[#97938a] disabled:hover:bg-[#2f2d29]"
+      "bg-[#1a1917] border-[#1a1917] text-[#ddd9d1] hover:bg-[#262521] \
+       hover:border-[#262521] hover:text-[#f3efe7] disabled:bg-[#2f2d29] \
+       disabled:border-[#2f2d29] disabled:text-[#97938a] \
+       disabled:hover:bg-[#2f2d29]"
 
-let width_class = function
-  | Auto -> ""
-  | Full -> "w-full"
-
-let is_disabled = function
-  | Enabled -> false
-  | Disabled -> true
+let width_class = function Auto -> "" | Full -> "w-full"
+let is_disabled = function Enabled -> false | Disabled -> true
 
 let class_name ~(kind : kind) ~(width : width) ?(extra = "") () =
   join_classes
-    [ "inline-flex items-center justify-center border border-[#d8d7d2] text-[#1d1d1f] font-medium leading-[1.2] cursor-pointer transition-colors duration-[120ms] hover:bg-[#f1f0ea] disabled:cursor-default disabled:text-[#b2b1ac] disabled:hover:bg-transparent";
+    [
+      "inline-flex items-center justify-center border border-[#d8d7d2] \
+       text-[#1d1d1f] font-medium leading-[1.2] cursor-pointer \
+       transition-colors duration-[120ms] hover:bg-[#f1f0ea] \
+       disabled:cursor-default disabled:text-[#b2b1ac] \
+       disabled:hover:bg-transparent";
       kind_class kind;
       width_class width;
-      extra ]
+      extra;
+    ]
 
 module Action = struct
   let[@react.component] make ~(children : React.element) ~onClick ~kind
-      ?(state = Enabled) ?(width = Auto)
-      ?(className = "") () =
-    <button type_="button" onClick disabled=(is_disabled state)
+      ?(state = Enabled) ?(width = Auto) ?(className = "") () =
+    <button
+      type_="button"
+      onClick
+      disabled=(is_disabled state)
       className=(class_name ~kind ~width ~extra:className ())>
       children
     </button>
@@ -50,18 +48,24 @@ end
 module Submit = struct
   let[@react.component] make ~(children : React.element) ~kind
       ?(state = Enabled) ?(width = Auto) ?(className = "") () =
-    <button type_="submit" disabled=(is_disabled state)
+    <button
+      type_="submit"
+      disabled=(is_disabled state)
       className=(class_name ~kind ~width ~extra:className ())>
       children
     </button>
 end
 
 module Link = struct
-  let[@react.component] make ~(children : React.element)
-      ~(to_ : Utopia.Route.t) ~kind ?(width = Auto)
-      ?(className = "") () =
-    <Navigate to_
-      className=(join_classes [ "js-route-link"; class_name ~kind ~width ~extra:className () ])>
+  let[@react.component] make ~(children : React.element) ~(to_ : Utopia.Route.t)
+      ~kind ?(width = Auto) ?(className = "") () =
+    <Navigate
+      to_
+      className=(join_classes
+                   [
+                     "js-route-link";
+                     class_name ~kind ~width ~extra:className ();
+                   ])>
       children
     </Navigate>
 end

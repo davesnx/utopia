@@ -403,7 +403,7 @@ let () =
   let routes_100 = generate_routes 100 in
   let routes_500 = generate_routes 500 in
 
-  Printf.printf "\n  Utopia Server Benchmarks\n";
+  Printf.printf "\n  utopia server benchmarks\n";
   Printf.printf "  %s\n\n" (String.make 72 '-');
 
   Printf.printf "  String operations:\n";

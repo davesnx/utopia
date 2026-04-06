@@ -1,4 +1,4 @@
-# Utopia Agent Rules
+# utopia Agent Rules
 
 ## Primitives Maintenance
 

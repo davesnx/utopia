@@ -1,2 +1,3 @@
 (cram
- (deps %{bin:utopia.compiler} %{bin:utopia} %{bin:utopia.server}))
+ (deps %{bin:utopia.compiler} %{bin:utopia} %{bin:utopia.server}
+  (alias_rec install)))

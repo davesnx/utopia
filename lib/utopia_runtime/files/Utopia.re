@@ -1,7 +1,7 @@
 open! Melange_json.Primitives;
 
 let make = Utopia_router.make;
-let callServer = Utopia_router.callServer;
+let callServer = Utopia_call_server.callServer;
 let currentUrl = Utopia_router.currentUrl;
 let browserPath = Utopia_router.browserPath;
 

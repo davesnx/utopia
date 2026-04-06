@@ -1,4 +1,8 @@
-(dirs :standard _utopia \ node_modules)
+(dirs :standard \ node_modules)
+
+(include _utopia/dune)
+
+(data_only_dirs _utopia node_modules)
 
 (rule
  (target output.css)

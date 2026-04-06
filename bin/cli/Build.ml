@@ -29,7 +29,7 @@ let run _args =
 
   Terminal.print_step "Generating route manifest and dune rules";
   let compiler = Binaries.resolve_bin "utopia.compiler" in
-  let code = Process.run_command compiler [] in
+  let code = Process.run_command compiler [ "--mode"; "production" ] in
   if code <> 0 then (
     Terminal.print_err "Compiler failed (see errors above)";
     exit code);

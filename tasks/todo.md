@@ -1,5 +1,42 @@
 # Execution Plan
 
+## Active slice
+
+- [completed] Prototype a `demo/notes/_dune` source-ownership experiment so `lib/` belongs to real Dune stanzas for editor/LSP work
+- [completed] Rewire the checked-in `demo/notes/_utopia/dune` native build to depend on the source `lib/` library instead of mirrored `Lib__*` copies
+- [completed] Add a focused Merlin config for `demo/notes/pages/` and measure how far source `.mlx` diagnostics get, especially for dynamic filenames like `[tag].mlx`
+- [completed] Verify the experiment with targeted `dune build` and `ocamllsp` probes, then record the working limits and fallout
+
+## Review
+
+- The compiler now emits a single `_utopia/dune` file that carries both the runtime build stanzas and the source-owned editor-support stanzas. Root projects opt into it with `(include _utopia/dune)` plus `(data_only_dirs _utopia)`.
+- `demo/notes/dune` and `demo/blog/dune` now use the single generated `_utopia/dune` flow instead of the earlier `_dune/dune.inc` experiment.
+- The updated cram coverage in `bin/tests/compiler_generates_source_lib_support.t` and `bin/tests/compiler_generates_source_page_support.t` now proves the compiler emits source-owned `lib/` and static-page stanzas into `_utopia/dune` itself.
+- Direct `ocamllsp` probing with an injected type error now reports source diagnostics for `demo/notes/lib/notes_data.ml`, so the previous `No config found` failure is resolved for source-owned `.ml` shared-lib files.
+- A real source-owned `.mlx` file under `demo/notes/lib/button.mlx` no longer hits the `No config found` path, but `ocamllsp` still reports an `mlx-pp` migration error plus bogus syntax/hole diagnostics there. That points at the current Merlin/`mlx` tooling path rather than Dune ownership.
+- The remaining invalid-basename dynamic routes were migrated to directory-based params (`demo/notes/pages/notes/[tag]/index.mlx` and `demo/blog/pages/posts/[slug]/index.mlx`). After also switching source-owned page libraries to `-shared-folder-prefix=`, `ocamllsp` now reports direct type diagnostics on those moved `.mlx` files too.
+- Generated demo code now depends on a real shared `utopia` library for reusable runtime modules, while `_utopia/Utopia.re` is reduced to a tiny project wrapper over `Utopia_base` plus generated `Utopia_routes`. The public route API also moved from `Utopia.Routes.Current/current` to `Utopia.Routes.t/of_route`, and router links now use `Utopia.Router.Link`.
+
+## Active slice
+
+- [completed] Audit `tasks/` notes, `plan/spec.md`, and the live compiler/CLI/server code for spec drift
+- [completed] Refresh `plan/spec.md` so implemented behavior matches the current build, server-function, SSG, and dev/runtime flow
+- [completed] Add explicit spec coverage for generated `_utopia/dune` structure and current dune RPC usage in `utopia dev`
+- [completed] Sync `plan/primitives.md` with any terminology or behavior changes introduced by the spec refresh
+
+## Review
+
+- `plan/spec.md` now reflects the implemented server-function flow, current RSC/SSG behavior, generated-server request handling, route-manifest format, and the actual `utopia build` / `utopia dev` / `utopia prod` behavior.
+- The spec now includes explicit sections for how `_utopia/dune` is generated, what stanzas it contains, how the Melange/native/esbuild pieces fit together, and how dune RPC is used by `utopia dev` today.
+- `plan/primitives.md` was synced for the updated route manifest shape, client entry/runtime support files, SSG semantics, server library/executable wording, current dev-mode behavior, and a new `Dune RPC` glossary entry.
+
+## Active slice
+
+- [completed] Capture the agreed first-pass dev task in `tasks/dev-full-reload-and-browser-overlay.md`
+- [pending] Teach `utopia build` and `utopia dev` to fail fast on missing npm deps and explicitly build `@_utopia/esbuild`
+- [pending] Replace the old live-reload plan with a dev event channel that carries build diagnostics to the browser
+- [pending] Add a unified development overlay for build failures plus hydration/navigation/action runtime failures
+
 ## Completed
 
 - [completed] Phase 00 cleanup and legacy removal
@@ -220,6 +257,19 @@
 
 ## Active slice
 
+- [completed] Reproduce the root cause of `make dev` failing with `inotify_add_watch(...): No space left on device`
+- [completed] Exclude the local `_opam` switch from root Dune workspace scanning so watch mode does not traverse dependency trees under the repo
+- [completed] Re-run non-watch and watch-mode verification to confirm the inotify failure is gone
+
+## Review
+
+- `make dev` was failing because `opam exec -- dune build -w @all` ran in a repo-local switch, so Dune watch mode traversed `_opam/` under the workspace root and exhausted Linux inotify watches while walking `_opam/lib/tm-grammars` and other dependency directories.
+- The root `dune` file now excludes `_opam` alongside `node_modules`, which keeps the local switch available for `opam exec` while preventing Dune from treating it as part of the watched workspace.
+- Pre-fix reproduction showed `df -h` and `df -i` had ample free space/inodes, so the error was a watch-limit failure rather than actual disk exhaustion.
+- Post-fix verification passed with `opam exec -- dune build @all`, and a bounded `timeout 20s make dev` run no longer emitted any `inotify_add_watch(...): No space left on device` errors before termination.
+
+## Active slice
+
 - [in_progress] Fix the stale notes demo runtime path so removed folder-based generated artifacts do not survive the dynamic-tag refactor
 - [pending] Clean the notes demo build outputs before bundling and verify no folder-based generated chunks remain
 
@@ -238,6 +288,21 @@
 ## Review
 
 - `demo/notes/lib/notes_data.ml` now stores tags as `slug + name + optional description`, bumps the demo schema version so the SQLite store resets to the new shape, and requires note creation to submit an existing `tag_slug` instead of creating tags implicitly.
+
+## Active slice
+
+- [completed] Add a Utopia-owned build mode to compiler output so generated `_utopia/paths.mjs` carries `projectPath`, `buildMode`, and `nodeEnv`
+- [completed] Rewire generated esbuild config to set `process.env.NODE_ENV` internally, enable production minification, and keep bundle behavior unchanged in development
+- [completed] Split browser `callServer` into a standalone runtime module so `client_entry.re` no longer imports router code through `Utopia.re`
+- [completed] Refresh demo build scripts, test coverage, and `plan/primitives.md`, then verify the real `demo/blog` production bundle size
+
+## Review
+
+- `bin/compiler/compiler.ml` now accepts `--mode development|production`, with direct compiler runs defaulting to development while `utopia build` and `utopia dev` explicitly select production and development modes.
+- `_utopia/paths.mjs` now carries `projectPath`, `buildMode`, and `nodeEnv`, and the generated `esbuild.config.mjs` sets `process.env.NODE_ENV` internally before loading env-sensitive Node tooling.
+- The runtime now has a dedicated `Utopia_call_server.re` support module, and `client_entry.re` imports that module directly so the initial browser shell no longer needs to pull `callServer` through `Utopia.re` and `Utopia_router.re`.
+- The focused cram coverage passes for generated esbuild config output, default-vs-production build mode metadata, and `utopia build` emitting production-mode `_utopia/paths.mjs` for nested projects.
+- A clean production bundle measurement for `demo/blog` now shows `337,938` bytes raw / `105,912` bytes gzip / `91,206` bytes brotli total across emitted JS, with `client_entry_melange.js` at `194,570` raw / `60,769` gzip / `52,060` brotli and React/RSC runtime chunks resolved to `*.production.js` artifacts.
 - `demo/notes/pages/notes/layout.mlx` moves `Create Tag` above the tag list and replaces the old inline footer form with a compact popup dialog that accepts a required name and optional description, while keeping `New Note` pinned at the bottom.
 - `demo/notes/pages/notes/new.mlx` replaces the `datalist` tag field with a local fuzzy combobox that filters existing tags by name, description, or slug and only allows saving once a real tag is selected.
 - `demo/notes/pages/index.mlx`, `demo/notes/pages/notes/index.mlx`, and `demo/notes/pages/notes/[tag].mlx` now render tag display names instead of slug labels, and the note view header no longer renders the tag description.
@@ -676,3 +741,208 @@
 - `demo/notes/pages/notes/new.mlx` now uses a markdown textarea instead of the old HTML `contentEditable` surface, and `demo/notes/pages/notes/[tag].mlx` styles rendered markdown, inline code, and Ochre blocks inside the note view.
 - The seeded `design` note now includes both inline code and a fenced `mlx` block so the checked-in demo actually exercises the new highlighting path.
 - Verification passed for `opam exec -- dune build .`, `opam exec -- dune runtest markdown/tests`, the `demo/notes/` build steps (`dune exec ../../bin/compiler/compiler.exe`, `dune build output.css _utopia/server_main.exe @_utopia/melange`, and `node _utopia/esbuild.config.mjs`), plus a live `curl http://127.0.0.1:8176/notes/design` check confirming server-rendered `utopia-inline-code` and `ochre utopia-markdown-code-block` markup.
+
+## Active slice
+
+- [in_progress] Rename the root `Makefile` demo `run-*` targets to the `demo-run-*` naming scheme and update repo references
+- [completed] Increase every `demo/blog/` Tailwind slate utility by one grade
+- [completed] Re-run the blog demo verification after the slate color tweak and capture review notes
+
+## Review
+
+- The `demo/blog/` source now bumps every Tailwind `slate-*` utility one grade darker across the page shell, post list, about page, markdown renderer components, post footer, and inline-code styling in `styles.css`.
+- Verification passed for `make -C demo/blog generate`, which rebuilt the blog assets and re-rendered the static output under `demo/blog/_utopia/static/` with the updated classes.
+
+## Active slice
+
+- [completed] Reproduce the `demo/blog/` markdown line-wrap bug and locate the shared renderer branch dropping soft breaks
+- [completed] Render soft markdown breaks as spaces and add regression coverage for wrapped inline content
+- [completed] Verify the markdown tests pass and the blog post HTML no longer concatenates wrapped words
+
+## Review
+
+- `markdown/render.ml` now renders CommonMark soft breaks as `React.string " "` instead of dropping them, so wrapped source lines inside a paragraph keep their expected spacing.
+- `markdown/tests/simple.t` now asserts both the inline-link case and a plain wrapped-text case, which catches the exact regression that made `demo/blog/` paragraphs collapse words together.
+- Verification passed for `opam exec -- dune runtest markdown/tests` and `_build/default/markdown/markdown.exe < demo/blog/content/hello-utopia.md`, whose first paragraph now renders `It takes a file-based routing approach` instead of concatenating `Ittakes`.
+
+## Active slice
+
+- [completed] Move `demo/blog/` post metadata out of `lib/blog_data.ml` and into markdown frontmatter
+- [completed] Refactor `demo/blog/lib/blog_data.ml` to load metadata from `content/*.md` frontmatter and strip it before markdown rendering
+- [completed] Inline `title`, `date`, and `description` frontmatter into each `demo/blog/content/*.md` file, update `plan/primitives.md`, and verify the demo build/render path
+
+## Review
+
+- `demo/blog/lib/blog_data.ml` no longer owns a hardcoded `posts` metadata list; it now scans `demo/blog/content/*.md`, parses top-of-file frontmatter for `title`, `date`, and `description`, and sorts the resulting posts by descending date.
+- The same module now strips the frontmatter block before handing markdown to `Utopia_markdown`, so rendered post bodies start at the actual article content while page metadata still comes from the frontmatter.
+- Each checked-in blog post markdown file now carries its own `title`, `date`, and `description` block, and `plan/primitives.md` documents that `demo/blog/` already uses this demo-local frontmatter flow even though compiler-wide markdown frontmatter remains planned.
+- Verification passed for `opam exec -- npm run build` in `demo/blog/`, plus a live render check against `_build/default/demo/blog/_utopia/server_main.exe` showing `GET /` and `GET /posts/hello-utopia` both return `200` with the expected frontmatter-derived `<title>`/description and no frontmatter block rendered into the post body.
+- `opam exec -- npm run ssg` still fails in `demo/blog/` because the generated `_utopia/ssg` alias looks for `demo/blog/_utopia/_utopia/server_main.exe`; that appears unrelated to this frontmatter refactor and remains unfixed.
+
+## Active slice
+
+- [completed] Replace `demo/blog/` npm-script build automation with a local `Makefile`
+- [completed] Fix and explain the generated SSG alias path bug that currently emits `_utopia/_utopia/server_main.exe`
+- [completed] Verify the new `demo/blog/Makefile` build and SSG flow, then update docs/review notes
+
+## Review
+
+- `demo/blog/Makefile` is now the canonical local entrypoint for the blog demo, with `compile`, `build`, `run`, `ssg`, and `clean` targets; `demo/blog/package.json` keeps only the JS dependencies and no longer defines npm scripts.
+- The root `Makefile` blog helpers (`compile-blog`, `run-blog`, `ssg-blog`) now delegate to `demo/blog/Makefile` instead of shelling out through `npm run ...`.
+- The SSG path bug came from `bin/compiler/Generated_dune.ml`: it generated the `_utopia/dune` alias as `(run ./_utopia/server_main.exe --ssg)` even though that stanza already lives inside `_utopia/`, so Dune resolved it as `_utopia/_utopia/server_main.exe`. The generator now emits `(run ./server_main.exe --ssg)` instead.
+- Regenerating `demo/blog/_utopia/dune` now produces the corrected alias `(rule (deps (alias all)) (alias ssg) (action (run ./server_main.exe --ssg)))`, and `opam exec -- dune build @_utopia/ssg` succeeds from `demo/blog/`.
+- Verification passed for `make build && make ssg` in `demo/blog/`, which rendered the static output under `demo/blog/_utopia/static/`, and `make -n compile-blog run-blog ssg-blog` at repo root, which shows the root wrappers now call the blog-local Makefile.
+
+## Active slice
+
+- [completed] Move `demo/notes/` off npm scripts onto a local `Makefile`
+- [completed] Fix the compiler build-mode constructor regression that currently breaks `make -C demo/* build`
+- [completed] Rename the blog generation target from `ssg` to `generate`, update root wrappers/docs, and verify the new demo commands
+
+## Review
+
+- `demo/notes/` now has a local `Makefile` with `compile`, `build`, `run`, `dev`, `watch-compile`, and `clean`; `demo/notes/package.json` now carries only the JS dependencies and no longer defines npm scripts.
+- The notes demo build preserves the current production-mode behavior from the old npm script by regenerating `_utopia/` with `../../_build/default/bin/compiler/compiler.exe --mode production` before building `output.css`, `_utopia/server_main.exe`, `@_utopia/melange`, and `@_utopia/esbuild`.
+- Root notes automation now delegates to that workspace Makefile: `run-demo`, `run-demo-watch`, `compile-demo`, `compile-demo-watch`, `build-generated`, and `bench/bench_http.sh` no longer shell out through `npm run build`.
+- The user-facing blog generation target is now `make -C demo/blog generate`, and the root wrapper is `make generate-blog`; the underlying generated Dune alias remains `@_utopia/ssg`, but that shorthand is no longer exposed through the public demo Makefile targets.
+- The compiler build-mode regression came from `bin/compiler/compiler.ml` using names outside the public `Esbuild` interface; it now calls the exported values `Esbuild.development` and `Esbuild.production`, which restores `make -C demo/* build`.
+- Verification passed for `make -C demo/blog build`, `make -C demo/blog generate`, `make -C demo/notes build`, and `make -n run-demo run-demo-watch compile-demo compile-demo-watch build-generated generate-blog` at repo root.
+
+## Active slice
+
+- [completed] Add a scoped CLI clean mode for transient project build outputs so demo automation can stop shelling out to raw `rm -rf`
+- [completed] Replace the remaining in-repo demo `rm -rf` cleanups with the new CLI entrypoint in Makefiles and package scripts
+- [completed] Re-run focused CLI/demo verification and update `plan/primitives.md` plus these review notes
+
+## Review
+
+- `bin/cli/Clean.ml` now supports `utopia clean --build-outputs`, which removes only `_utopia/dist`, `_utopia/static`, and the project-scoped Melange target directory under `target/.../_utopia` without running `dune clean` or deleting the checked-in/generated `_utopia/*` scaffold.
+- Full `utopia clean` still performs the broader cleanup, but now also removes the project-scoped `target/.../_utopia` output so stale Melange artifacts do not survive a full clean.
+- `demo/notes/Makefile`, `demo/blog/Makefile`, `demo/notes/package.json`, and `demo/blog/package.json` now route their transient cleanup through the CLI instead of embedding raw `rm -rf` commands.
+- `plan/primitives.md` and `plan/spec.md` now document the narrower `--build-outputs` mode and the extra `target/.../_utopia` cleanup performed by the default clean flow.
+- Verification passed for `opam exec -- dune build bin/cli/cli.exe`, `opam exec -- dune runtest bin/tests/cli_clean_with_nothing_to_clean.t bin/tests/cli_clean_build_outputs.t`, `make -n -C demo/notes compile clean`, `make -n -C demo/blog compile clean`, and a focused search showing no remaining `rm -rf` usage in the repo-owned demo Makefiles/package scripts/root Makefile.
+
+## Active slice
+
+- [completed] Add `make -C demo/blog serve` so the static blog can be generated and served from `_utopia/static/` without the generated app server
+- [completed] Verify the new static serve target with a live HTTP check and update the docs/task notes
+
+## Review
+
+- `demo/blog/Makefile` now exposes `serve`, which depends on `generate` and then serves the project-local `demo/blog/_utopia/static/` tree through `python3 -m http.server`, with `HOST` and `PORT` overrides.
+- The blog `generate` target no longer shells through Dune's `@_utopia/ssg` alias; it runs the built `../../_build/default/demo/blog/_utopia/server_main.exe --ssg` directly from `demo/blog/`, which makes the generated static output land under `demo/blog/_utopia/static/` instead of the repo-root `_utopia/static/`.
+- Verification passed for `make -C demo/blog serve PORT=8186`, with live `HEAD /` and `HEAD /posts/hello-utopia/` checks both returning `200` from the plain static file server.
+
+## Active slice
+
+- [completed] Add `# 1` line directives to generated mirrored page and shared-lib wrappers so Merlin/LSP locations point back to the original sources
+- [completed] Extend compiler mirror snapshot coverage to pin the new directives for both `.re` and `.ml` wrappers
+- [completed] Run focused compiler/demo verification and capture the results here
+
+## Review
+
+- `bin/compiler/Generated_dune.ml` now emits an OCaml line directive immediately after any generated `open!` prelude and before the mirrored source body, using the same relative source path already present in each Dune rule dep (for example `../lib/blog_data.ml` or `../../pages/Home.re`).
+- `bin/tests/compiler_autoopens_lib_folder.t` now snapshots those directives for both Reason page/shared-lib mirrors and an `.ml` shared-lib mirror, which pins the exact wrapper shape for both melange and native `_utopia` outputs.
+- Focused verification passed for `opam exec -- dune runtest bin/tests/compiler_autoopens_lib_folder.t`, and regenerating `demo/blog/_utopia/dune` via `make -C demo/blog compile` now produces `# 1 "../lib/blog_data.ml"` and `# 1 "../../lib/blog_data.ml"` in the `Utopia_lib__Blog_data.ml` and `Lib__Blog_data.ml` rules.
+
+## Active slice
+
+- [completed] Fix the SRR shared-folder-prefix regression introduced by the new line directives so mirrored sources still preprocess under `make dev`
+- [completed] Add regression coverage that exercises `%platform` in a mirrored source and pins the split preprocess prefixes in generated `_utopia/dune`
+- [completed] Re-run focused compiler and blog/demo builds, then capture the results here
+
+## Review
+
+- The `make dev` failure was not caused by `copy_files`; it came from `server-reason-react.ppx` validating `loc.pos_fname` against `-shared-folder-prefix`. The new `# 1` directives changed those filenames for mirrored sources, so the PPX prefixes had to be split by module type.
+- `bin/compiler/Generated_dune.ml` now emits source-relative PPX prefixes only for mirrored `.ml` and `.re` modules (`../` and `../../`), while generated `_utopia/*` runtime modules keep `_utopia/` and `_utopia/native/`. That preserves the location fix for `blog_data.ml` without breaking SRR's generated runtime modules.
+- `.mlx` mirrors now deliberately skip `# 1` directives. Those files pass through the MLX dialect and SRR client-component extraction, which require a stable `_utopia/...` logical filename; using a source-relative directive there causes incompatible filename expectations inside SRR.
+- Regression coverage now includes: `bin/tests/compiler_autoopens_lib_folder.t` exercising `switch%platform` in a mirrored `.re` page plus `.ml` shared-lib wrappers with line directives, `bin/tests/compiler_generates_dune_rules.t` pinning the extra `../` and `../../` shared-folder prefixes, and `bin/tests/compiler_supports_mlx_extension.t` proving `.mlx` projects keep `_utopia` prefixes, omit `# 1` directives, and still build with a `[@react.client.component]` page.
+- Verification passed for `opam exec -- dune build bin/compiler/compiler.exe`, `opam exec -- dune runtest bin/tests/compiler_generates_dune_rules.t bin/tests/compiler_autoopens_lib_folder.t bin/tests/compiler_supports_mlx_extension.t`, `make -C demo/blog compile`, `opam exec -- dune build demo/blog/_utopia/server_main.exe @demo/blog/_utopia/melange`, and `opam exec -- dune build @all`.
+
+## Active slice
+
+- [completed] Give `demo/blog/lib/` a real source-tree Dune stanza so Merlin sees `blog_data.ml` with SRR PPX context instead of as a raw file
+- [completed] Verify `demo/blog/lib/blog_data.ml` now has a preprocess config and still coexists with the generated `_utopia` build
+- [completed] Record the results and any remaining gaps for `pages/*.mlx` editor support
+
+## Review
+
+- `demo/blog/dune` now defines a source-tree `subdir lib (library ...)` stanza named `blog_source_lib`, so `demo/blog/lib/blog_data.ml` belongs to a real Dune OCaml library instead of existing only as an input dep to generated `_utopia` wrapper rules.
+- That source-tree library uses the native SRR PPX stack with `-shared-folder-prefix=lib/`, depends on `pages_demo_blog` plus the markdown/runtime libraries used by the blog content module, and keeps the existing `-w -26-27-39` warning profile.
+- `opam exec -- dune describe pp demo/blog/lib/blog_data.ml` now succeeds and shows `[%platform]` / `match%platform` rewritten away in the preprocessed output, which is the missing condition for ocamllsp to stop reporting `Uninterpreted extension 'platform'` on that source file.
+- The new editor-oriented source stanza coexists with the generated build: verification passed for `opam exec -- dune build demo/blog/lib/blog_source_lib.cma demo/blog/_utopia/server_main.exe @demo/blog/_utopia/melange` and `opam exec -- dune build @all`.
+- This fix is intentionally scoped to `demo/blog/lib/*.ml`. Raw route files under `pages/*.mlx` still are not covered by a real source-tree stanza, so source-editor support for those files remains a separate, larger problem.
+
+## Active slice
+
+- [completed] Compare why source `lib/` files and source `pages/` files surface different LSP behavior
+- [completed] Confirm which paths belong to real source-tree Dune stanzas versus generated `_utopia` wrapper rules
+- [completed] Capture the root cause and the remaining follow-up needed for consistent page-source editor support
+
+## Review
+
+- `demo/blog/lib/blog_data.ml` and `demo/blog/pages/layout.mlx` are not owned the same way. `blog_data.ml` belongs to the real source-tree `subdir lib (library ...)` stanza in `demo/blog/dune`, while `layout.mlx` is only compiled through generated `_utopia` wrapper rules in `demo/blog/_utopia/dune`.
+- That ownership difference is directly visible in Dune: `opam exec -- dune describe pp demo/blog/lib/blog_data.ml --build-dir _build_lsp_probe_lib` succeeds, while `opam exec -- dune describe pp demo/blog/pages/layout.mlx --build-dir _build_lsp_probe_pages` fails because the source page file is not part of any source-tree stanza.
+- The compiler intentionally emits `# 1` line directives for non-`.mlx` mirrored files but skips them for `.mlx` mirrors in `bin/compiler/Generated_dune.ml`, because SRR + MLX preprocessing expects stable `_utopia/...` logical filenames. So page-source diagnostics are not mapped back to `pages/*.mlx` the same way lib-source diagnostics are mapped back to `lib/*.ml`.
+- In practice, `pages/` currently looks quieter because it is still a generated-wrapper world, not because it has better direct source-editor support. Making the two folders behave the same will require an editor-oriented page-wrapper strategy for `.mlx` routes, which is a larger follow-up than the small `lib/` source-stanza fix.
+
+## Active slice
+
+- [in_progress] Design a generated `_utopia/dune` editor-support path so both `pages/` and `lib/` use the same approach without project-local source stanzas
+- [pending] Implement the generated hidden stanzas/rules, remove the one-off `demo/blog` source-tree `lib` stanza, and keep runtime builds unchanged
+- [pending] Add regression coverage for source-owner/editor behavior plus `.mlx` page diagnostics, then verify with focused Dune/compiler checks
+- [pending] Update `plan/primitives.md` if the generated `_utopia` editor-support structure becomes a named maintained concept
+
+## Investigation note
+
+- [completed] Verify whether `.mlx` page mirrors can safely use `# 1` source directives while keeping the existing stable `_utopia/...` SRR shared-folder prefixes
+
+## Review
+
+- The user correctly flagged that generated wrappers should place `# 1` directives first. `bin/compiler/Generated_dune.ml` now emits the directive as the first line and re-emits it after any injected prelude, so copied `.ml`/`.re` sources still map back to line 1 of the original file.
+- That change is valid for the non-`.mlx` wrappers already using line directives, and `bin/tests/compiler_autoopens_lib_folder.t` was updated to pin the new wrapper shape.
+- `.mlx` remains different for a concrete reason: adding `# 1` directives to the real `demo/notes/_utopia/dune` rules for `Utopia_page__Notes__Tag.mlx` immediately caused `Server_reason_react_ppx.Error(_)` in both the melange and native preprocess stanzas, even while leaving the stable `_utopia/` and `_utopia/native/` shared-folder prefixes unchanged.
+- So the current `.mlx` exclusion is not just stale policy. The SRR + MLX path still rejects line-directed mirrored `.mlx` files, which is why type errors in `demo/notes/pages/notes/[tag].mlx` still surface through `_utopia/native/Utopia_page__Notes__Tag.mlx` today.
+
+## Active slice
+
+- [completed] Pin `server-reason-react` in the local opam switch to commit `5be5626897` so Utopia uses the improved PPX diagnostics
+- [completed] Reproduce the `.mlx` `# 1` failure on `demo/notes/pages/notes/[tag].mlx` against the pinned PPX and capture the exact error text
+- [completed] Summarize the precise PPX mismatch that still blocks `.mlx` source mapping
+
+## Review
+
+- The local opam switch now uses `server-reason-react` commit `5be562689712124c1f7344c09f9de4ea9582d13a`, which is the PR branch commit that turns the old `Server_reason_react_ppx.Error(_)` crash into a readable compiler error.
+- Baseline reproduction with the user's intentional type error still reported generated filenames (`demo/notes/_utopia/Utopia_page__Notes__Tag.mlx` and `demo/notes/_utopia/native/Utopia_page__Notes__Tag.mlx`), confirming the original source-mapping issue remains in Utopia's generated Dune setup.
+- Adding `# 1` directives to the mirrored `[tag].mlx` rules alone now reports the exact blocker: `react.server.function` in `../pages/notes/[tag].mlx` / `../../pages/notes/[tag].mlx` no longer matches the generated `_utopia/` / `_utopia/native/` shared-folder-prefix passed to `server-reason-react.ppx`.
+- When `Utopia_page__Notes__Tag` is also moved into source-relative per-module PPX prefixes (`../` for melange and `../../` for native), the PPX succeeds and the build reports the real type error on the source file path instead: `../pages/notes/[tag].mlx` and `../../pages/notes/[tag].mlx`.
+- So the corrected conclusion is: `.mlx` source mapping is not blocked by `# 1` itself. It requires `# 1` and matching per-module `-shared-folder-prefix` values to move together for mirrored `.mlx` page modules that contain `react.server.function` / `react.client.component` rewrites.
+
+## Active slice
+
+- [completed] Update `Generated_dune.ml` so mirrored `.mlx` modules opt into both source line directives and source-relative SRR shared-folder-prefixes
+- [completed] Extend the `.mlx` compiler regression to cover source-mapped error paths instead of generated `_utopia` filenames
+- [completed] Regenerate and verify `demo/notes/_utopia/dune` so the real `[tag].mlx` build now reports the source file path
+
+## Review
+
+- `bin/compiler/Generated_dune.ml` now treats mirrored `.mlx` modules the same way as mirrored `.ml`/`.re` modules: generated page/lib wrappers emit `# 1` line directives, and those same modules move into the source-relative `-shared-folder-prefix=../` / `../../` per-module groups.
+- This keeps the two SRR invariants aligned for mirrored `.mlx` sources: the filename seen by the compiler is the source path, and the filename expected by `server-reason-react.ppx` matches that same source path.
+- `bin/tests/compiler_supports_mlx_extension.t` now covers the real regression path by generating an `.mlx` page that uses both `[@react.server.function]` and `[@react.client.component]`, verifying the generated `_utopia/dune` contains source line directives plus source-relative prefixes, then introducing a type error and asserting the failing build mentions `pages/Home.mlx` rather than `_utopia/Utopia_page__Home.mlx`.
+- Regenerated `demo/notes/_utopia/dune` now shows `# 1` directives for mirrored `.mlx` pages/lib modules and places `Utopia_page__Notes__Tag` in the source-relative per-module preprocess group, which is the concrete fix required for the user's original LSP/build-path issue.
+- Verification passed for `opam exec -- dune build bin/compiler/compiler.exe`, `opam exec -- dune runtest bin/tests/compiler_generates_dune_rules.t bin/tests/compiler_supports_mlx_extension.t`, and an isolated `opam exec -- dune build demo/notes/_utopia/server_main.exe @demo/notes/_utopia/melange --build-dir _build_verify_notes_mlx3`, which now reports the user's intentional type error against `../pages/notes/[tag].mlx` and `../../pages/notes/[tag].mlx` instead of the generated `_utopia` paths.
+
+## Follow-up note
+
+- The compiler-side source mapping fix does not give ocamllsp config for `demo/notes/pages/notes/[tag].mlx`. Dune still cannot own `[tag].mlx` as a source module (`bad source file name: [tag] is not a valid module name`), so the editor opens the raw source path without a Dune/Merlin config even though build diagnostics are now remapped onto that same path via `# 1` directives.
+
+## Final choice
+
+- [completed] Revert `.mlx` source mapping so build diagnostics for invalid dynamic-route filenames return to `_utopia/...` paths instead of diverging from what ocamllsp can configure
+
+## Review
+
+- `bin/compiler/Generated_dune.ml` again excludes `.mlx` from source-relative `-shared-folder-prefix` groups and from emitted `# 1` line directives, while keeping the earlier non-`.mlx` line-directive ordering fix intact.
+- `bin/tests/compiler_supports_mlx_extension.t` still exercises an `.mlx` page containing both `[@react.server.function]` and `[@react.client.component]`, but now asserts the safe generated-Dune shape for `.mlx`: `_utopia/` and `_utopia/native/` prefixes remain, no source-relative prefixes are emitted, and no `# 1` directives appear for `.mlx` mirrors.
+- Regenerated `demo/notes/_utopia/dune` now matches that reverted `.mlx` policy, and an isolated `opam exec -- dune build demo/notes/_utopia/server_main.exe @demo/notes/_utopia/melange --build-dir _build_verify_notes_revert` again reports the user's intentional type error on `demo/notes/_utopia/Utopia_page__Notes__Tag.mlx` and `demo/notes/_utopia/native/Utopia_page__Notes__Tag.mlx`.
+- This restores consistency with ocamllsp for dynamic route source files like `[tag].mlx`: the editor still lacks direct config for the raw source filename, but build diagnostics no longer claim the source file is fully configured when Merlin cannot actually typecheck it.

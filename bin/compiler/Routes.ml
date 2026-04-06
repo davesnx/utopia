@@ -11,6 +11,8 @@ type route_entry = {
   kind : page_kind;
   source_file : string;
   has_metadata : bool;
+  static : bool;
+  has_static_paths : bool;
   route_schema_source : string option;
   route_schema_has_params : bool;
   route_schema_module : string option;
@@ -188,6 +190,8 @@ let route_entry_of_file file kind =
               kind;
               source_file;
               has_metadata = false;
+              static = false;
+              has_static_paths = false;
               route_schema_source = None;
               route_schema_has_params = false;
               route_schema_module = None;

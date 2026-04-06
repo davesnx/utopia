@@ -1,0 +1,20 @@
+{
+  "name": "utopia-blog-demo",
+  "private": true,
+  "scripts": {
+    "build": "dune exec ../../bin/cli/cli.exe -- clean --build-outputs && dune exec ../../bin/compiler/compiler.exe -- --mode production > /dev/null && DUNE_JOBS=${DUNE_JOBS:-8} dune build output.css _utopia/server_main.exe @_utopia/melange && node _utopia/esbuild.config.mjs",
+    "ssg": "npm run build && dune build @_utopia/ssg"
+  },
+  "dependencies": {
+    "esbuild": "^0.21.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "server-reason-react-esbuild-plugin": "file:../../_opam/.opam-switch/sources/server-reason-react/packages/esbuild-plugin",
+    "server-reason-react-server-dom-esbuild": "file:../../_opam/.opam-switch/sources/server-reason-react/packages/react-server-dom-esbuild"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.2.2",
+    "@tailwindcss/typography": "^0.5.19",
+    "tailwindcss": "^4.2.2"
+  }
+}

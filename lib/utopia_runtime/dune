@@ -8,6 +8,7 @@
   (files/ReactServerDOMEsbuild.re as utopia_runtime/ReactServerDOMEsbuild.re)
   (files/FunctionReferences.re as utopia_runtime/FunctionReferences.re)
   (files/Utopia.re as utopia_runtime/Utopia.re)
+  (files/Utopia_call_server_source_support.re as utopia_runtime/Utopia_call_server_source_support.re)
    (files/Utopia_route.ml as utopia_runtime/Utopia_route.ml)
    (files/Utopia_route_builder.ml as utopia_runtime/Utopia_route_builder.ml)
    (files/esbuild.config.mjs as utopia_runtime/esbuild.config.mjs)

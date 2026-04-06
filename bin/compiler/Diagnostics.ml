@@ -142,6 +142,63 @@ let detect_metadata_for_entry entry =
       in
       { entry with Routes.has_metadata = has_metadata_export source }
 
+let has_static_export source =
+  source |> String.split_on_char '\n'
+  |> List.exists (fun line ->
+      let trimmed = String.trim line in
+      let is_top_level = String.length line > 0 && line.[0] = 'l' in
+      is_top_level
+      && (starts_with_at trimmed 0 "let static = true"
+         || starts_with_at trimmed 0 "let static=true"))
+
+let has_static_paths_export source =
+  source |> String.split_on_char '\n'
+  |> List.exists (fun line ->
+      let trimmed = String.trim line in
+      let is_top_level = String.length line > 0 && line.[0] = 'l' in
+      is_top_level
+      && (starts_with_at trimmed 0 "let static_paths "
+         || starts_with_at trimmed 0 "let static_paths("
+         || starts_with_at trimmed 0 "let static_paths="))
+
+let detect_static_for_entry entry =
+  match entry.Routes.kind with
+  | Utopia_types.Markdown_page -> entry
+  | Utopia_types.Code_page ->
+      let source =
+        In_channel.with_open_bin entry.Routes.source_file (fun channel ->
+            In_channel.input_all channel)
+      in
+      {
+        entry with
+        Routes.static = has_static_export source;
+        Routes.has_static_paths = has_static_paths_export source;
+      }
+
+let report_missing_static_paths entries =
+  let issues =
+    entries
+    |> List.filter (fun entry ->
+        entry.Routes.static && entry.Routes.params <> []
+        && not entry.Routes.has_static_paths)
+  in
+  if issues = [] then false
+  else (
+    Printf.eprintf
+      "\n  Static pages with dynamic segments require static_paths:\n";
+    issues
+    |> List.iter (fun entry ->
+        Printf.eprintf
+          "    - %s is marked static but has params [%s] without a \
+           static_paths export\n"
+          entry.Routes.source_file
+          (entry.Routes.params |> List.map fst |> String.concat ", "));
+    Printf.eprintf
+      "\n\
+      \  Fix: add `let static_paths () = [ [(\"param\", \"value\")] ]` to each \
+       file.\n";
+    true)
+
 let unknown_params_for_entry entry =
   match entry.Routes.kind with
   | Utopia_types.Markdown_page -> []

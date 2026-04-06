@@ -39,7 +39,7 @@ let run args =
     exit 1);
 
   let compiler = Binaries.resolve_bin "utopia.compiler" in
-  let code = Process.run_command compiler [] in
+  let code = Process.run_command compiler [ "--mode"; "development" ] in
   if code <> 0 then (
     Terminal.print_err "Initial compilation failed (see errors above)";
     exit code);

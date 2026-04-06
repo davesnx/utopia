@@ -1,55 +1,72 @@
 open Notes_data
 
 let metadata _params =
-  Utopia.Metadata.make
-    ~title:"All Notes"
-    ~description:"Browse every note across all tags."
-    ()
+  Utopia.Metadata.make ~title:"All Notes"
+    ~description:"Browse every note across all tags." ()
 
 let react_array items = React.array (Array.of_list items)
 
-module Navigate = Utopia.Router.Navigate
-
+module Navigate = Utopia.Router.Link
 
 let[@react.component] make () =
   let scroll_container_class =
-    "min-h-screen overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgb(140_118_79_/_35%)_transparent] [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-[rgb(140_118_79_/_28%)] [&::-webkit-scrollbar-thumb]:bg-clip-padding"
+    "min-h-screen overflow-y-auto [scrollbar-width:thin] \
+     [scrollbar-color:rgb(140_118_79_/_35%)_transparent] \
+     [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] \
+     [&::-webkit-scrollbar-track]:bg-transparent \
+     [&::-webkit-scrollbar-thumb]:border-2 \
+     [&::-webkit-scrollbar-thumb]:border-transparent \
+     [&::-webkit-scrollbar-thumb]:bg-[rgb(140_118_79_/_28%)] \
+     [&::-webkit-scrollbar-thumb]:bg-clip-padding"
   in
   let note_rows =
     tag_summaries ()
     |> List.map (fun (summary : tag_summary) ->
-            notes_for_tag summary.slug
-            |> List.map (fun (note : note) ->
-                   <Navigate key=note.summary.slug to_=note.summary.route
-                    className="js-route-link block border-b border-[#e4e2db] px-6 py-4 text-left hover:bg-[#f6f5f1] sm:px-8">
-                    <div className="flex items-baseline justify-between gap-4">
-                      <h2 className="text-[18px] font-medium tracking-[-0.02em] text-[#1d1d1f]">
-                        (React.string note.summary.title)
-                      </h2>
-                      <span className="shrink-0 text-[12px] text-[#8a8984]">
-                        (React.string note.summary.updated_at)
-                      </span>
-                    </div>
-                    <p className="mt-2 max-w-[44rem] text-[14px] leading-6 text-[#5d5c57]">
-                      (React.string note.summary.preview)
-                    </p>
-                    <p className="mt-3 text-[12px] text-[#8a8984]">
-                      (React.string summary.name)
-                    </p>
-                  </Navigate>))
+        notes_for_tag summary.slug
+        |> List.map (fun (note : note) ->
+            <Navigate
+              key=note.summary.slug
+              to_=note.summary.route
+              className="js-route-link block border-b border-[#e4e2db] px-6 \
+                         py-4 text-left hover:bg-[#f6f5f1] sm:px-8">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2
+                  className="text-[18px] font-medium tracking-[-0.02em] \
+                             text-[#1d1d1f]">
+                  (React.string note.summary.title)
+                </h2>
+                <span className="shrink-0 text-[12px] text-[#8a8984]">
+                  (React.string note.summary.updated_at)
+                </span>
+              </div>
+              <p
+                className="mt-2 max-w-[44rem] text-[14px] leading-6 \
+                           text-[#5d5c57]">
+                (React.string note.summary.preview)
+              </p>
+              <p className="mt-3 text-[12px] text-[#8a8984]">
+                (React.string summary.name)
+              </p>
+            </Navigate>))
     |> List.flatten
   in
   <main className=scroll_container_class>
     <header className="border-b border-[#e4e2db] px-6 py-5 sm:px-8">
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+        <p
+          className="text-[11px] font-medium uppercase tracking-[0.18em] \
+                     text-[#8a8984]">
           (React.string "Overview")
         </p>
-        <h2 className="mt-2 text-[30px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">
+        <h2
+          className="mt-2 text-[30px] font-semibold tracking-[-0.03em] \
+                     text-[#1d1d1f]">
           (React.string "All Notes")
         </h2>
         <p className="mt-3 max-w-[34rem] text-[15px] leading-7 text-[#5d5c57]">
-          (React.string "Browse every note or open a tag from the sidebar to see just one stack.")
+          (React.string
+             "Browse every note or open a tag from the sidebar to see just one \
+              stack.")
         </p>
       </div>
     </header>

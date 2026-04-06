@@ -1,16 +1,16 @@
   $ mkdir -p pages/users routes/users _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
-  $ printf "(dirs :standard _utopia)\n" > dune
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ cat > pages/users/[id].ml <<'EOF'
-  > let make () =
+  > let[@react.component] make () =
   >   let route =
-  >     Utopia.Routes.Users.Param_id.make
-  >       ~params:{ Utopia.Routes.Users.Param_id.Route_params.id = 42 }
+  >     Routes.Users.Param_id.make
+  >       ~params:{ Routes.Users.Param_id.Route_params.id = 42 }
   >       ()
   >   in
-  >   match Utopia.Routes.current route with
-  >   | Some (Utopia.Routes.Current.Users__Id { params }) ->
+  >   match Routes.of_route route with
+  >   | Some (Routes.Users_id { params }) ->
   >       React.string (string_of_int params.id)
   >   | _ -> React.string "invalid"
   > EOF
@@ -28,11 +28,13 @@
   > end
   > EOF
   $ utopia.compiler > /dev/null
-  $ grep -E "module Users = struct|module Param_id = struct|module Route_params = Route_schema__Users__Id.Params|let make ~params \(\) =|Users__Id of \{ params : Users.Param_id.Route_params.t \}|Route_params.decode \[\(" _utopia/Utopia_routes.ml
+  $ grep -E "module Users = struct|module Param_id = struct|module Route_params = Route_schema__Users__Id.Params|let make ~params \(\) =|Users_id of \{ params : Users.Param_id.Route_params.t \}|Route_params.decode \[\(" _utopia/Routes.ml
   module Users = struct
     module Param_id = struct
       module Route_params = Route_schema__Users__Id.Params
       let make ~params () =
-    | Users__Id of { params : Users.Param_id.Route_params.t }
-        let params = Users.Param_id.Route_params.decode [("id", Utopia_route.Params.one id)] in
-  $ dune build @melange _utopia/server_main.exe > /dev/null
+  | Users_id of { params : Users.Param_id.Route_params.t }
+      let params = Users.Param_id.Route_params.decode [("id", Utopia_route.Params.one id)] in
+  $ export UTOPIA_ROOT="$(dirname "$OPAM_SWITCH_PREFIX")"
+  $ export OCAMLPATH="$UTOPIA_ROOT/_build/install/default/lib"
+  $ dune build --root . @melange _utopia/server_main.exe > /dev/null

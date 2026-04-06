@@ -1,4 +1,6 @@
 type dev = { port : string; host : string; no_watch : bool; verbose : bool }
+type clean_mode = Full | Build_outputs
+type clean = { mode : clean_mode }
 
 let default_dev =
   {
@@ -12,6 +14,8 @@ let default_dev =
     verbose = false;
   }
 
+let default_clean = { mode = Full }
+
 let parse_dev args =
   let rec loop config = function
     | [] -> config
@@ -24,3 +28,13 @@ let parse_dev args =
         exit 1
   in
   loop default_dev args
+
+let parse_clean args =
+  let rec loop config = function
+    | [] -> config
+    | "--build-outputs" :: rest -> loop { mode = Build_outputs } rest
+    | unknown :: _ ->
+        Printf.eprintf "Unknown clean flag: %s\n%!" unknown;
+        exit 1
+  in
+  loop default_clean args

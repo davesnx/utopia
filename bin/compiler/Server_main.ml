@@ -74,6 +74,15 @@ let ocaml_route_bindings entry =
     (ocaml_layout_infos_list entry.Routes.layouts)
     router_name entry.Routes.matcher make_page_name layouts_name
 
+let ocaml_static_expr entry =
+  if entry.Routes.static then " ~static:true" else ""
+
+let ocaml_static_paths_expr entry =
+  if entry.Routes.has_static_paths then
+    Printf.sprintf " ~static_paths:(Some %s.static_paths)"
+      (Names.compiled_page_module_name_of_source entry.Routes.source_file)
+  else ""
+
 let ocaml_route_entry entry =
   let make_page_name =
     Names.generated_route_binding_name entry.Routes.source_file "make_page"
@@ -102,14 +111,15 @@ let ocaml_route_entry entry =
      Utopia_route_builder.layout_info) -> l.render) %s)\n\
     \    ~router_shell:%s.Utopia_route_builder.shell\n\
     \    ~router_tree:%s.Utopia_route_builder.tree\n\
-    \    ~router_subtree:%s.Utopia_route_builder.subtree;"
+    \    ~router_subtree:%s.Utopia_route_builder.subtree%s%s ();"
     kind_constructor entry.Routes.route entry.Routes.matcher
     (ocaml_params_list entry.Routes.params)
     entry.Routes.source_file
     (ocaml_string_list entry.Routes.layouts)
     render_arg
     (ocaml_metadata_expr entry)
-    layouts_name router_name router_name router_name
+    layouts_name router_name router_name router_name (ocaml_static_expr entry)
+    (ocaml_static_paths_expr entry)
 
 let generate route_entries =
   let sorted_entries =
@@ -128,6 +138,10 @@ let generate route_entries =
      let generated_routes = [\n\
      %s\n\
      ]\n\n\
-     let () = Utopia_server.start_generated generated_routes \
+     let () =\n\
+    \  match Array.to_list Sys.argv with\n\
+    \  | [ _; \"--ssg\" ] -> Utopia_server.ssg_generated generated_routes\n\
+    \  | _ ->\n\
+    \    Utopia_server.start_generated generated_routes \
      ~lookup_server_function:FunctionReferences.get\n"
     route_bindings route_lines

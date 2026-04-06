@@ -1,0 +1,44 @@
+let static = true
+
+let static_paths () =
+  Blog_data.posts |> List.map (fun (p : Blog_data.post) -> [ ("slug", p.slug) ])
+
+let metadata params =
+  let slug =
+    match List.assoc_opt "slug" params with Some s -> s | None -> ""
+  in
+  match Blog_data.find_post slug with
+  | Some post ->
+      Utopia.Metadata.make ~title:post.title ~description:post.description ()
+  | None -> Utopia.Metadata.make ~title:"Not Found" ()
+
+module Navigate = Utopia.Router.Link
+
+module Post_page = struct
+  let[@react.client.component] make ~(slug : string) ~(title : string)
+      ~(date : string) ~(children : React.element) () =
+    let router = Utopia.useRouter () in
+    match Routes.of_route router.route with
+    | Some (Routes.Posts_slug_index { slug = current_slug })
+      when String.equal current_slug slug ->
+        <div>
+          <div className="flex justify-between items-center mb-7">
+            <h1 className="font-semibold text-slate-800 text-balance">
+              (React.string title)
+            </h1>
+            <time className="tabular-nums tracking-tighter">
+              (React.string date)
+            </time>
+          </div>
+          children
+        </div>
+    | _ -> React.null
+end
+
+let[@react.component] make () =
+  Blog_data.posts
+  |> List.map (fun (post : Blog_data.post) ->
+      <Post_page key=post.slug slug=post.slug title=post.title date=post.date>
+        (Blog_data.render_element post.slug)
+      </Post_page>)
+  |> Array.of_list |> React.array

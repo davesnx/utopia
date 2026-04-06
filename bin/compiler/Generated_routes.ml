@@ -80,7 +80,7 @@ let module_path_of_entry entry =
   route_segments entry |> List.map module_name_of_segment |> String.concat "."
 
 let constructor_name_of_entry entry =
-  Names.native_module_name_of_source entry.Routes.source_file
+  Names.route_constructor_name_of_source entry.Routes.source_file
 
 let ocaml_expr_of_param_kind = function
   | Single -> "Utopia_types.Single"
@@ -495,18 +495,14 @@ let render_current_module route_entries =
           @ [ "    else None" ])
   in
   String.concat "\n"
-    ([ "module Current = struct"; "  type t =" ]
-    @ constructors
+    ([ "type t =" ] @ constructors
     @ [
         "";
-        "  let of_route route =";
-        "    let path_segments = Utopia_route.path_segments route in";
-        "    let lowercase_segments = List.map String.lowercase_ascii \
+        "let of_route route =";
+        "  let path_segments = Utopia_route.path_segments route in";
+        "  let lowercase_segments = List.map String.lowercase_ascii \
          path_segments in";
         matcher;
-        "end";
-        "";
-        "let current = Current.of_route";
       ])
 
 let generate route_entries =

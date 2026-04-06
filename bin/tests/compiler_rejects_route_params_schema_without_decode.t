@@ -1,4 +1,5 @@
   $ mkdir -p pages/users routes/users _utopia
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ printf "let page = ()\n" > pages/users/[id].ml
   $ cat > routes/users/[id].ml <<'EOF'

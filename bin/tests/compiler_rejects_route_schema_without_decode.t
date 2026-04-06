@@ -1,4 +1,5 @@
   $ mkdir pages routes _utopia
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ printf "let page = ()\n" > pages/Search.re
   $ cat > routes/search.re <<'EOF'

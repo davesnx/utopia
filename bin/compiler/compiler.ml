@@ -15,15 +15,47 @@ let file_ref_path file_ref =
 let clear_generated_files project =
   generated_files project
   |> List.iter (fun file_ref ->
-      file_ref |> file_ref_path |> Filesystem.remove_file_if_exists)
+      file_ref |> file_ref_path |> Filesystem.remove_file_if_exists);
+  let generated_dir =
+    Utopia_path.project_generated_directory project |> Utopia_path.to_string
+  in
+  [ "Utopia.re"; "Utopia_routes.ml"; "support/Utopia_call_server.re" ]
+  |> List.iter (fun relative ->
+      Filename.concat generated_dir relative |> Filesystem.remove_file_if_exists)
 
-let run () =
-  print_endline "\n\nUtopia compiler";
+let parse_build_mode argv =
+  let rec loop (mode : Esbuild.build_mode) = function
+    | [] -> mode
+    | [ "--mode" ] ->
+        Printf.eprintf
+          "Missing value for --mode (expected development|production)\n%!";
+        exit 1
+    | "--mode" :: value :: rest ->
+        let mode =
+          match String.lowercase_ascii value with
+          | "development" -> Esbuild.development
+          | "production" -> Esbuild.production
+          | _ ->
+              Printf.eprintf
+                "Invalid --mode value '%s' (expected development|production)\n\
+                 %!"
+                value;
+              exit 1
+        in
+        loop mode rest
+    | unknown :: _ ->
+        Printf.eprintf "Unknown compiler flag: %s\n%!" unknown;
+        exit 1
+  in
+  loop Esbuild.development argv
+
+let run ~build_mode =
+  print_endline "\n\nutopia compiler";
   let project = Project.project_paths () in
   Filesystem.ensure_directory
     (Utopia_path.project_generated_directory project |> Utopia_path.to_string);
-  Runtime_files.copy_runtime_files ();
   clear_generated_files project;
+  Runtime_files.copy_runtime_files ();
   match Filesystem.read_files pages_directory with
   | Error (`Page_directory_doesnt_exist path) ->
       Printf.eprintf "  Error reading the '%s' directory\n" path
@@ -44,13 +76,19 @@ let run () =
       let route_entries =
         route_entries |> List.map Diagnostics.detect_metadata_for_entry
       in
+      let route_entries =
+        route_entries |> List.map Diagnostics.detect_static_for_entry
+      in
       let conflicts = Diagnostics.find_route_conflicts route_entries in
       let has_unknown_param_accesses =
         Diagnostics.report_unknown_param_accesses route_entries
       in
+      let has_missing_static_paths =
+        Diagnostics.report_missing_static_paths route_entries
+      in
       let has_errors =
         route_parse_errors <> [] || route_schema_errors <> [] || conflicts <> []
-        || has_unknown_param_accesses
+        || has_unknown_param_accesses || has_missing_static_paths
       in
       if has_errors then (
         if route_parse_errors <> [] then
@@ -61,11 +99,19 @@ let run () =
         exit 1)
       else (
         print_endline "\n  Generating rules\n";
-        let dune_rules =
+        let source_support_dune =
+          Generated_source_dune.generate recursive_pages route_entries
+        in
+        let runtime_dune =
           Generated_dune.generate recursive_pages route_entries
         in
+        let dune_rules =
+          [ source_support_dune; runtime_dune ]
+          |> List.filter (fun value -> String.trim value <> "")
+          |> String.concat "\n\n"
+        in
         let route_manifest = Manifest.generate route_entries in
-        let esbuild_paths = Esbuild.generate_paths () in
+        let esbuild_paths = Esbuild.generate_paths ~build_mode () in
         let generated_routes = Generated_routes.generate route_entries in
         let server_main = Server_main.generate route_entries in
         print_endline dune_rules;
@@ -87,4 +133,4 @@ let run () =
           (file_ref_path (Utopia_path.generated_server_source project))
           server_main)
 
-let () = run ()
+let () = run ~build_mode:(parse_build_mode (Array.to_list Sys.argv |> List.tl))

@@ -15,11 +15,14 @@ type generated_route = {
   router_shell : string -> React.element;
   router_tree : unit -> React.element;
   router_subtree : string -> React.element option;
+  static : bool;
+  static_paths : (unit -> (string * string) list list) option;
 }
 
 module Generated_route = struct
   let make ~kind ~route ~matcher ~params ~source_file ~layouts ~render ~metadata
-      ~layout_renderers ~router_shell ~router_tree ~router_subtree =
+      ~layout_renderers ~router_shell ~router_tree ~router_subtree
+      ?(static = false) ?(static_paths = None) () =
     {
       route;
       matcher;
@@ -33,19 +36,23 @@ module Generated_route = struct
       router_shell;
       router_tree;
       router_subtree;
+      static;
+      static_paths;
     }
 
   let code ~route ~matcher ~params ~source_file ~layouts ~render ~metadata
-      ~layout_renderers ~router_shell ~router_tree ~router_subtree =
+      ~layout_renderers ~router_shell ~router_tree ~router_subtree
+      ?(static = false) ?(static_paths = None) () =
     make ~kind:Code_page ~route ~matcher ~params ~source_file ~layouts
       ~render:(Some render) ~metadata ~layout_renderers ~router_shell
-      ~router_tree ~router_subtree
+      ~router_tree ~router_subtree ~static ~static_paths ()
 
   let markdown ~route ~matcher ~params ~source_file ~layouts ~metadata
-      ~layout_renderers ~router_shell ~router_tree ~router_subtree =
+      ~layout_renderers ~router_shell ~router_tree ~router_subtree
+      ?(static = false) () =
     make ~kind:Markdown_page ~route ~matcher ~params ~source_file ~layouts
       ~render:None ~metadata ~layout_renderers ~router_shell ~router_tree
-      ~router_subtree
+      ~router_subtree ~static ()
 end
 
 type route_entry = {
@@ -61,6 +68,8 @@ type route_entry = {
   router_shell : (string -> React.element) option;
   router_tree : (unit -> React.element) option;
   router_subtree : (string -> React.element option) option;
+  static : bool;
+  static_paths : (unit -> (string * string) list list) option;
 }
 
 let routes_manifest_file = "_utopia/routes.manifest"
@@ -77,6 +86,10 @@ let file_mtime file =
 
 let split_fields line =
   match String.split_on_char '\t' line with
+  | [
+   route; kind; source_file; matcher; params; layouts; _has_metadata; _static;
+  ] ->
+      Some (route, kind, source_file, matcher, params, layouts)
   | [ route; kind; source_file; matcher; params; layouts; _has_metadata ] ->
       Some (route, kind, source_file, matcher, params, layouts)
   | [ route; kind; source_file; matcher; params; layouts ] ->
@@ -154,6 +167,8 @@ let route_entry_of_generated_route generated_route =
           router_shell = Some generated_route.router_shell;
           router_tree = Some generated_route.router_tree;
           router_subtree = Some generated_route.router_subtree;
+          static = generated_route.static;
+          static_paths = generated_route.static_paths;
         }
 
 let runtime_routes_of_generated_routes generated_routes =
@@ -224,6 +239,8 @@ let load_routes () =
                             router_shell = None;
                             router_tree = None;
                             router_subtree = None;
+                            static = false;
+                            static_paths = None;
                           }
                          :: routes))))
          (Ok [])
@@ -389,9 +406,9 @@ let string_prop ?jsx_name name value =
 
 let dangerously_inner_html html =
   React.JSX.dangerouslyInnerHtml
-    object
-      method __html = html
-    end
+    (object
+       method __html = html
+    end)
 
 let bootstrap_module_paths = [ "/dist/client_entry_melange.js" ]
 let stylesheet_paths = [ "/output.css" ]
@@ -1210,6 +1227,131 @@ let run () =
   | Error message ->
       Printf.eprintf "Error: %s\n%!" message;
       exit 1
+
+let ensure_directory path =
+  let parts = String.split_on_char '/' path in
+  let rec build_path current = function
+    | [] -> ()
+    | segment :: rest ->
+        let next = if current = "" then segment else current ^ "/" ^ segment in
+        if next <> "" && not (Sys.file_exists next) then Sys.mkdir next 0o755;
+        build_path next rest
+  in
+  build_path "" parts
+
+let write_file path content =
+  let channel = open_out path in
+  output_string channel content;
+  close_out channel
+
+let ssg_output_dir = "_utopia/static"
+
+let ssg_output_path route =
+  if route = "" then ssg_output_dir ^ "/index.html"
+  else ssg_output_dir ^ "/" ^ route ^ "/index.html"
+
+let render_ssg_page route_entry request_target params =
+  let flat_params =
+    params |> List.map (fun (name, value) -> (name, One value))
+  in
+  let element =
+    render_route_document route_entry request_target flat_params
+    |> normalize_model_element
+  in
+  let open Lwt.Syntax in
+  Lwt_main.run
+    (let* html, subscribe =
+       ReactServerDOM.render_html
+         ~bootstrapModules:(available_bootstrap_module_paths ())
+         element
+     in
+     let buffer = Buffer.create (String.length html + 1024) in
+     Buffer.add_string buffer html;
+     let* () =
+       subscribe (fun chunk ->
+           Buffer.add_string buffer chunk;
+           Lwt.return_unit)
+     in
+     Lwt.return (Buffer.contents buffer))
+
+let copy_ssg_asset relative_path =
+  let relative = normalize_asset_path relative_path in
+  match first_existing_asset relative_path with
+  | Some source ->
+      let dest = ssg_output_dir ^ "/" ^ relative in
+      ensure_directory (Filename.dirname dest);
+      write_file dest (read_file source);
+      Printf.printf "  copied %s\n%!" relative
+  | None -> ()
+
+let ssg_asset_paths () =
+  let rec dedupe seen = function
+    | [] -> List.rev seen
+    | path :: rest when List.mem path seen -> dedupe seen rest
+    | path :: rest -> dedupe (path :: seen) rest
+  in
+  dedupe [] (available_stylesheet_paths () @ available_bootstrap_module_paths ())
+
+let ssg_generated generated_routes =
+  match runtime_routes_of_generated_routes generated_routes with
+  | Error message ->
+      Printf.eprintf "SSG Error: %s\n%!" message;
+      exit 1
+  | Ok routes ->
+      let static_routes = routes |> List.filter (fun r -> r.static) in
+      if static_routes = [] then (
+        Printf.printf "SSG: no static pages found\n%!";
+        exit 0);
+      Printf.printf "SSG: rendering %d static page(s)\n%!"
+        (List.length static_routes);
+      ensure_directory ssg_output_dir;
+      ssg_asset_paths () |> List.iter copy_ssg_asset;
+      let count = ref 0 in
+      static_routes
+      |> List.iter (fun route_entry ->
+          if route_entry.params = [] then (
+            (* Static page without params *)
+            let output = ssg_output_path route_entry.route in
+            ensure_directory (Filename.dirname output);
+            let request_target =
+              if route_entry.route = "" then "/" else "/" ^ route_entry.route
+            in
+            let html = render_ssg_page route_entry request_target [] in
+            write_file output html;
+            Printf.printf "  %s -> %s\n%!" ("/" ^ route_entry.route) output;
+            incr count)
+          else
+            (* Dynamic page with static_paths *)
+            match route_entry.static_paths with
+            | None ->
+                Printf.eprintf
+                  "  warning: %s is static with params but no static_paths\n%!"
+                  route_entry.source_file
+            | Some get_paths ->
+                let param_sets = get_paths () in
+                param_sets
+                |> List.iter (fun params ->
+                    (* Build the route string with params substituted *)
+                    let route_str =
+                      route_entry.segments
+                      |> List.map (fun seg ->
+                          match seg with
+                          | Static s -> s
+                          | Param (name, _) -> (
+                              match List.assoc_opt name params with
+                              | Some v -> v
+                              | None -> name))
+                      |> String.concat "/"
+                    in
+                    let output = ssg_output_path route_str in
+                    ensure_directory (Filename.dirname output);
+                    let html =
+                      render_ssg_page route_entry ("/" ^ route_str) params
+                    in
+                    write_file output html;
+                    Printf.printf "  /%s -> %s\n%!" route_str output;
+                    incr count));
+      Printf.printf "SSG: rendered %d page(s) to %s/\n%!" !count ssg_output_dir
 
 let start_generated generated_routes ~lookup_server_function =
   match runtime_routes_of_generated_routes generated_routes with

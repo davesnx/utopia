@@ -8,7 +8,7 @@ let metadata _params =
 
 let react_array items = React.array (Array.of_list items)
 
-module Navigate = Utopia.Router.Navigate
+module Navigate = Utopia.Router.Link
 
 let[@react.component] make () =
   let summaries = tag_summaries () in

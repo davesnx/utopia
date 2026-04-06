@@ -1,4 +1,5 @@
   $ mkdir pages _utopia
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ cat > pages/Home.re <<'EOF'
   > let metadata _params =
@@ -10,8 +11,8 @@
   $ printf "let page = ()\n" > pages/About.re
   $ utopia.compiler > /dev/null
   $ cat _utopia/routes.manifest
-  about	code	pages/About.re	about			false
-  home	code	pages/Home.re	home			true
+  about	code	pages/About.re	about			false	false
+  home	code	pages/Home.re	home			true	false
   $ grep "metadata" _utopia/server_main.ml
       ~layouts:[] ~render:about_make_page ~metadata:None
-      ~layouts:[] ~render:home_make_page ~metadata:(Some Utopia_page__Home.metadata)
+      ~layouts:[] ~render:home_make_page ~metadata:(Some Pages__Home.metadata)

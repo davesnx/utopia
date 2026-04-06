@@ -1,3 +1,5 @@
+[@@@warning "-32"]
+
 type destination = Root_only | Native_only | Both
 
 type file = {
@@ -36,6 +38,7 @@ let function_references =
   make_file ~destination:Native_only "FunctionReferences.re"
 
 let utopia = make_file "Utopia.re"
+let utopia_call_server = make_file "Utopia_call_server.re"
 let utopia_route = make_file "Utopia_route.ml"
 let utopia_router = make_file "Utopia_router.re"
 let utopia_router_route = make_file "Utopia_router_route.re"
@@ -59,21 +62,7 @@ let utopia_types_source_file =
     ~repository_source_path:"lib/utopia_types/utopia_types.ml"
     ~installed_source_path:"utopia_runtime/Utopia_types.ml" ()
 
-let all_files =
-  [
-    react_server_dom_esbuild;
-    function_references;
-    utopia;
-    utopia_route;
-    utopia_router;
-    utopia_router_route;
-    utopia_router_link;
-    esbuild_config;
-    client_entry_source_file;
-    utopia_route_builder;
-    utopia_server_source_file;
-    utopia_types_source_file;
-  ]
+let all_files = [ esbuild_config; client_entry_source_file ]
 
 let include_in_root file =
   match file.destination with Root_only | Both -> true | Native_only -> false
@@ -83,30 +72,8 @@ let include_in_native file =
 
 let root_files = List.filter include_in_root all_files
 let native_files = List.filter include_in_native all_files
-
-let melange_module_names =
-  [
-    utopia.module_name;
-    utopia_route.module_name;
-    utopia_types_source_file.module_name;
-    react_server_dom_esbuild.module_name;
-    utopia_router.module_name;
-    utopia_router_route.module_name;
-    utopia_router_link.module_name;
-  ]
-
-let native_module_names =
-  [
-    function_references.module_name;
-    utopia.module_name;
-    utopia_route.module_name;
-    utopia_types_source_file.module_name;
-    utopia_router.module_name;
-    utopia_router_route.module_name;
-    utopia_router_link.module_name;
-    utopia_route_builder.module_name;
-  ]
-
+let melange_module_names = []
+let native_module_names = []
 let target_name file = file.target_name
 let module_name file = file.module_name
 let repository_source_path file = file.repository_source_path

@@ -1,0 +1,32 @@
+(dirs :standard \ node_modules)
+
+(include _utopia/dune)
+
+(data_only_dirs _utopia node_modules)
+
+(rule
+ (target output.css)
+ (enabled_if
+  (= %{profile} dev))
+ (alias client)
+ (deps
+  (source_tree ./pages)
+  (source_tree ./lib)
+  (source_tree ./node_modules)
+  tailwind.config.js
+  styles.css)
+ (action
+  (run
+   node
+   ../../../../demo/blog/node_modules/@tailwindcss/cli/dist/index.mjs
+   --config=../../../../demo/blog/tailwind.config.js
+   --input=../../../../demo/blog/styles.css
+   --output=%{target})))
+
+(alias
+ (name default)
+ (enabled_if
+  (= %{profile} dev))
+   (deps
+    (alias_rec all)
+    (alias client)))

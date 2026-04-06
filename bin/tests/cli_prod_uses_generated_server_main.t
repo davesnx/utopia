@@ -1,6 +1,6 @@
   $ mkdir pages _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
-  $ printf "(dirs :standard _utopia)\n" > dune
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ cat > pages/Home.re <<'EOF'
   > [@react.server.function]
@@ -11,7 +11,7 @@
   > let make = () => <div> {React.string("home")} </div>;
   > EOF
   $ utopia build > /dev/null 2>&1
-  $ dune describe pp _utopia/native/Utopia_page__Home.re > native.pp
+  $ dune describe pp _utopia/native/Pages__Home.re > native.pp
   $ action_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | head -1)
   $ PORT=8110 HOST=127.0.0.1 NO_LOG=1 utopia prod > prod.log 2>&1 &
   $ prod_pid=$!

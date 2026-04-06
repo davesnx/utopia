@@ -12,7 +12,7 @@ let browserDocument: Dom.document = Webapi.Dom.document;
 module App = {
   let initialModel =
     ReactServerDOMEsbuild.createFromReadableStream(
-      ~callServer=Utopia.callServer,
+      ~callServer=Utopia_call_server.callServer,
       srrStream##readable_stream,
     );
 

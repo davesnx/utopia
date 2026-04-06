@@ -10,6 +10,12 @@ let project_scope_identity () =
 let generated_pages_library_name () =
   "pages_" ^ Names.sanitize_library_component (project_scope_identity ())
 
+let generated_utopia_library_name () =
+  "utopia_" ^ Names.sanitize_library_component (project_scope_identity ())
+
+let generated_source_lib_library_name () =
+  "source_lib_" ^ Names.sanitize_library_component (project_scope_identity ())
+
 let workspace_relative_project_path () =
   project_paths () |> Utopia_path.workspace_relative_project_path_string
 

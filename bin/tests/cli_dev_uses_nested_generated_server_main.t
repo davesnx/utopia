@@ -1,7 +1,7 @@
   $ mkdir -p demo/notes/pages demo/notes/lib
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(dirs :standard demo)\n" > dune
-  $ printf "(dirs :standard _utopia)\n" > demo/notes/dune
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > demo/notes/dune
   $ cat > demo/notes/lib/Greeting.re <<'EOF'
   > let label = "nested lib ready";
   > let message = name => "Hello nested dev " ++ name;
@@ -15,7 +15,7 @@
   > let make = () => <div> {React.string(Greeting.label)} </div>;
   > EOF
   $ (cd demo/notes && utopia.compiler > /dev/null)
-  $ dune describe pp demo/notes/_utopia/native/Utopia_page__Home.re > native.pp
+  $ dune describe pp demo/notes/_utopia/native/Pages__Home.re > native.pp
   $ action_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | head -1)
   $ cd demo/notes
   $ PORT=8114 HOST=127.0.0.1 NO_LOG=1 utopia dev --no-watch > dev.log 2>&1 &

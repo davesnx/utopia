@@ -1,0 +1,86 @@
+(rule
+ (deps ../utopia_runtime/files/FunctionReferences.re)
+ (target FunctionReferences.re)
+ (action (run cp %{deps} %{target})))
+
+(rule
+ (deps ../utopia_runtime/files/Utopia_call_server.re)
+ (target Utopia_call_server.re)
+ (action (run cp %{deps} %{target})))
+
+(rule
+ (deps ../utopia_runtime/files/Utopia_route.ml)
+ (target Utopia_route.ml)
+ (action (run cp %{deps} %{target})))
+
+(rule
+ (deps ../utopia_runtime/files/Utopia_router.re)
+ (target Utopia_router.re)
+ (action (run cp %{deps} %{target})))
+
+(rule
+ (deps ../utopia_runtime/files/Utopia_router_link.re)
+ (target Utopia_router_link.re)
+ (action (run cp %{deps} %{target})))
+
+(rule
+ (deps ../utopia_runtime/files/Utopia_router_route.re)
+ (target Utopia_router_route.re)
+ (action (run cp %{deps} %{target})))
+
+(rule
+ (deps ../utopia_runtime/files/Utopia_route_builder.ml)
+ (target Utopia_route_builder.ml)
+ (action (run cp %{deps} %{target})))
+
+(rule
+ (deps ../server/server.ml)
+ (target Utopia_server.ml)
+ (action (run cp %{deps} %{target})))
+
+(rule
+ (deps ../utopia_types/utopia_types.ml)
+ (target Utopia_types.ml)
+ (action (run cp %{deps} %{target})))
+
+(library
+ (name utopia)
+ (public_name utopia)
+ (wrapped false)
+ (flags :standard -w -26-27-32-39)
+ (modules
+  FunctionReferences
+  Utopia
+  Utopia_call_server
+  Utopia_route
+  Utopia_router
+  Utopia_router_link
+  Utopia_router_route
+  Utopia_route_builder
+  Utopia_server
+  Utopia_types)
+ (libraries
+  cmarkit
+  unix
+  logs.fmt
+  fmt
+  dream
+  lwt
+  lwt.unix
+  reason-react
+  utopia.markdown_runtime
+  server-reason-react.runtime
+  server-reason-react.react-server-dom-esbuild
+  server-reason-react.react
+  server-reason-react.reactDom
+  server-reason-react.fetch
+  server-reason-react.url_native
+  server-reason-react.webapi
+  melange-json)
+ (preprocess
+  (pps
+   server-reason-react.ppx
+   -shared-folder-prefix=
+   server-reason-react.browser_ppx
+   server-reason-react.melange_ppx
+   melange-json-native.ppx)))

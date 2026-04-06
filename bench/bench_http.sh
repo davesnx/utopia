@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# HTTP benchmarks for the Utopia server using wrk.
+# HTTP benchmarks for the utopia server using wrk.
 #
 # Prerequisites:
 #   - wrk must be installed
@@ -40,7 +40,7 @@ SERVER_EXE="${PROJECT_ROOT}/_build/default/demo/notes/_utopia/server_main.exe"
 
 # Build the generated demo
 log "Building generated notes demo..."
-(cd "${DEMO_DIR}" && opam exec -- npm run build >/dev/null 2>&1) || error "Failed to build generated demo"
+(make -C "${DEMO_DIR}" build >/dev/null 2>&1) || error "Failed to build generated demo"
 
 if [ ! -x "${SERVER_EXE}" ]; then
   error "Generated server executable not found at ${SERVER_EXE}."

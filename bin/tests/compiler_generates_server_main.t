@@ -1,4 +1,5 @@
   $ mkdir -p pages/about _utopia
+  $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ printf "let page = ()\n" > pages/Home.re
   $ printf "let page = ()\n" > pages/about/Team.re
@@ -12,4 +13,4 @@
     Utopia_route_builder.build_router ~matcher:"guide" ~make_page:guide_make_page ~layouts:guide_layouts
       ~router_shell:about__team_router.Utopia_route_builder.shell
       ~router_tree:guide_router.Utopia_route_builder.tree
-  let () = Utopia_server.start_generated generated_routes ~lookup_server_function:FunctionReferences.get
+      Utopia_server.start_generated generated_routes ~lookup_server_function:FunctionReferences.get

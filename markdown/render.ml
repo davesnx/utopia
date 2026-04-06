@@ -209,14 +209,13 @@ let rec block_to_element ~(state : State.t) block =
   | Code_block (code_block, _meta) -> (
       let info_string = Option.map fst (Code_block.info_string code_block) in
       let lang = Option.bind info_string Code_block.language_of_info_string in
-      let code =
-        Code_block.code code_block |> List.map fst |> String.concat ""
-      in
+      let code_lines = Code_block.code code_block in
+      let code = code_lines |> List.map fst |> String.concat "\n" in
       let contents =
         React.list
           (List.map
              (fun (l, _) -> React.string (html_escaped_string l ^ "\n"))
-             (Code_block.code code_block))
+             code_lines)
       in
       match lang with
       | None ->
@@ -301,7 +300,7 @@ and inline_to_element ~state inline =
   | Break (break, _meta) -> (
       match Break.type' break with
       | `Hard -> state.components.br ()
-      | `Soft -> (* Unsure about the ouput *) React.null)
+      | `Soft -> React.string " ")
   | Code_span (code_span, _meta) ->
       state.components.code ~className:"utopia-inline-code"
         ~children:(React.string (Code_span.code code_span))

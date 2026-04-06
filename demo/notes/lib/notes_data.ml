@@ -32,9 +32,9 @@ let seed_tag_specs =
     ("archive", "Archive", Some "Loose ideas");
   ]
 
-let notes_route = Utopia.Routes.Notes.route
-let new_note_route = Utopia.Routes.Notes.New.route
-let tag_route slug = Utopia.Routes.Notes.Param_tag.make ~tag:slug ()
+let notes_route = Routes.Notes.route
+let new_note_route = Routes.Notes.New.route
+let tag_route slug = Routes.Notes.Param_tag.make ~tag:slug ()
 let note_route tag_slug _slug = tag_route tag_slug
 
 let option_of_non_empty value =
@@ -141,7 +141,7 @@ let seed_notes =
          the shell API should stay compact: `Utopia.useRouter()` ought to be \
          enough most of the time.\n\n\
          ```mlx\n\
-         let route = Utopia.Routes.Notes.Param_tag.make ~tag:\"design\" ()\n\
+         let route = Routes.Notes.Param_tag.make ~tag:\"design\" ()\n\
          router.navigate ~freshness:Utopia.Revalidate route\n\
          ```\n\n\
          Selection can be quiet too: a pale fill, a thin divider, and no \
@@ -414,45 +414,42 @@ let db_file () =
 let db_initialized = ref false
 
 let raw_sql_lines sql =
-  [%platform
-    match () with
-    | Server ->
-        let remove_if_exists path =
-          if Sys.file_exists path then Sys.remove path
-        in
-        let read_file path =
-          In_channel.with_open_bin path In_channel.input_all
-        in
-        let sql_path = Filename.temp_file "utopia-notes" ".sql" in
-        let output_path = Filename.temp_file "utopia-notes" ".out" in
-        let error_path = Filename.temp_file "utopia-notes" ".err" in
-        Fun.protect
-          ~finally:(fun () ->
-            remove_if_exists sql_path;
-            remove_if_exists output_path;
-            remove_if_exists error_path)
-          (fun () ->
-            Out_channel.with_open_bin sql_path (fun channel ->
-                output_string channel ".mode tabs\n.headers off\n";
-                output_string channel sql;
-                output_char channel '\n');
-            let db_path = db_file () in
-            let command =
-              Printf.sprintf "sqlite3 -batch %s < %s > %s 2> %s"
-                (Filename.quote db_path) (Filename.quote sql_path)
-                (Filename.quote output_path)
-                (Filename.quote error_path)
-            in
-            match Sys.command command with
-            | 0 ->
-                read_file output_path |> String.split_on_char '\n'
-                |> List.filter (fun line -> String.trim line <> "")
-            | code ->
-                let error = read_file error_path |> String.trim in
-                failwith (Printf.sprintf "sqlite3 failed (%d): %s" code error))
-    | Client ->
-        let _ = sql in
-        []]
+  match%platform () with
+  | Server ->
+      let remove_if_exists path =
+        if Sys.file_exists path then Sys.remove path
+      in
+      let read_file path = In_channel.with_open_bin path In_channel.input_all in
+      let sql_path = Filename.temp_file "utopia-notes" ".sql" in
+      let output_path = Filename.temp_file "utopia-notes" ".out" in
+      let error_path = Filename.temp_file "utopia-notes" ".err" in
+      Fun.protect
+        ~finally:(fun () ->
+          remove_if_exists sql_path;
+          remove_if_exists output_path;
+          remove_if_exists error_path)
+        (fun () ->
+          Out_channel.with_open_bin sql_path (fun channel ->
+              output_string channel ".mode tabs\n.headers off\n";
+              output_string channel sql;
+              output_char channel '\n');
+          let db_path = db_file () in
+          let command =
+            Printf.sprintf "sqlite3 -batch %s < %s > %s 2> %s"
+              (Filename.quote db_path) (Filename.quote sql_path)
+              (Filename.quote output_path)
+              (Filename.quote error_path)
+          in
+          match Sys.command command with
+          | 0 ->
+              read_file output_path |> String.split_on_char '\n'
+              |> List.filter (fun line -> String.trim line <> "")
+          | code ->
+              let error = read_file error_path |> String.trim in
+              failwith (Printf.sprintf "sqlite3 failed (%d): %s" code error))
+  | Client ->
+      let _ = sql in
+      []
 
 let ensure_schema () =
   ignore

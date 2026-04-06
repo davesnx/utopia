@@ -56,43 +56,56 @@ setup-githooks: ## Setup githooks
 
 .PHONY: create-switch
 create-switch: ## Create opam switch
-	opam switch create . 5.4.1 --deps-only --with-test -y
+	opam switch create . 5.4.1 --deps-only --with-dev-setup --with-test --no-install -y
 
 .PHONY: install
 install:
 	$(DUNE) build @install
-	opam install . --deps-only --with-test
+	opam install . --deps-only --with-test --with-dev-setup -y
 
 .PHONY: pin
 pin: ## Pin dependencies
-	opam pin add server-reason-react.dev "https://github.com/ml-in-barcelona/server-reason-react.git#36ceb5314b6f68b1c666dc6568518111f16d0c83" -y
+	opam pin add server-reason-react.dev "https://github.com/ml-in-barcelona/server-reason-react.git#5be562689712124c1f7344c09f9de4ea9582d13a" -y -n
+	opam pin add ochre.dev "https://github.com/davesnx/ochre.git#054c4973ee2ea475956ae374a63ded3c0768e467" -y -n
 
 .PHONY: init
 init: setup-githooks create-switch pin install ## Create a local dev enviroment
 
 .PHONY: run-demo
-run-demo: build ## Run demo executable
-	cd demo/notes && opam exec -- npm run build && ../../_build/default/demo/notes/_utopia/server_main.exe
+run-demo: ## Run demo executable
+	$(MAKE) -C demo/notes run
 
 .PHONY: run-demo-watch
-run-demo-watch: build ## Run demo executable in watch mode
-	cd demo/notes && ../../_build/default/bin/cli/cli.exe dev
+run-demo-watch: ## Run demo executable in watch mode
+	$(MAKE) -C demo/notes dev
 
 .PHONY: compile-demo
-compile-demo: build ## compile demo executable
-	cd demo/notes && ../../_build/default/bin/compiler/compiler.exe
+compile-demo: ## compile demo executable
+	$(MAKE) -C demo/notes compile
 
 .PHONY: compile-demo-watch
-compile-demo-watch: build ## compile demo executable in watch mode
-	cd demo/notes && ../../_build/default/bin/compiler/compiler.exe --watch
+compile-demo-watch: ## compile demo executable in watch mode
+	$(MAKE) -C demo/notes watch-compile
 
 .PHONY: build-generated
 build-generated: ## Run generated tests
-	cd demo/notes && opam exec -- npm run build
+	$(MAKE) -C demo/notes build
 
 .PHONY: bench
 bench: ## Run routing micro-benchmarks
 	$(DUNE) exec bench/bench_routing.exe
+
+.PHONY: compile-blog
+compile-blog: ## Compile blog demo
+	$(MAKE) -C demo/blog compile
+
+.PHONY: run-blog
+run-blog: ## Run blog demo
+	$(MAKE) -C demo/blog run
+
+.PHONY: generate-blog
+generate-blog: ## Generate static blog pages
+	$(MAKE) -C demo/blog generate
 
 .PHONY: bench-http
 bench-http: ## Run HTTP benchmarks with wrk (requires wrk)

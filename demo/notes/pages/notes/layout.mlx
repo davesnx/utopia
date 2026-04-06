@@ -2,12 +2,12 @@ open Notes_data
 
 let react_array items = React.array (Array.of_list items)
 
-module Navigate = Utopia.Router.Navigate
+module Navigate = Utopia.Router.Link
 
 let create_tag ~(name : string) ~(description : string) =
-  (Js.Promise.resolve (
-    let slug = create_or_lookup_tag ~name ~description in
-    tag_route slug)
+  (Js.Promise.resolve
+     (let slug = create_or_lookup_tag ~name ~description in
+      tag_route slug)
     : Utopia.Route.t Js.Promise.t)
 [@@react.server.function]
 
@@ -18,27 +18,31 @@ module Sidebar_tag = struct
     let is_active = Utopia.Route.same_pathname router.route route in
     let className =
       if is_active then
-        "js-route-link block border-l border-[#cfcfc8] bg-[#e6e4dc] px-5 py-3 text-left"
+        "js-route-link block border-l border-[#cfcfc8] bg-[#e6e4dc] px-5 py-3 \
+         text-left"
       else
-        "js-route-link block border-l border-transparent px-5 py-3 text-left hover:bg-[#f1f0ea]"
+        "js-route-link block border-l border-transparent px-5 py-3 text-left \
+         hover:bg-[#f1f0ea]"
     in
     <Navigate to_=route className>
-      <span className="block text-[15px] font-medium tracking-[-0.01em] text-[#1d1d1f]">
+      <span
+        className="block text-[15px] font-medium tracking-[-0.01em] \
+                   text-[#1d1d1f]">
         (React.string name)
       </span>
       (if description = "" then React.null
        else
-          <span className="mt-1 block text-[12px] leading-5 text-[#7a7974]">
-            (React.string description)
-          </span>)
+         <span className="mt-1 block text-[12px] leading-5 text-[#7a7974]">
+           (React.string description)
+         </span>)
     </Navigate>
 end
 
 module Sidebar_tag_creation = struct
-  let event_value event =
-    ((React.Event.Form.target event)##value : string)
+  let event_value event = ((React.Event.Form.target event)##value : string)
 
-  let event_key (event : React.Event.Keyboard.t) = React.Event.Keyboard.key event
+  let event_key (event : React.Event.Keyboard.t) =
+    React.Event.Keyboard.key event
 
   let[@react.client.component] make () =
     let router = Utopia.useRouter () in
@@ -60,15 +64,14 @@ module Sidebar_tag_creation = struct
         set_is_open (fun _ -> true);
         set_save_error (fun _ -> ""))
     in
-    let close_popup _event =
-      if not is_pending then reset_popup ()
-    in
+    let close_popup _event = if not is_pending then reset_popup () in
     let on_name_change event = set_tag_name (fun _ -> event_value event) in
     let on_description_change event =
       set_tag_description (fun _ -> event_value event)
     in
     let on_key_down (event : React.Event.Keyboard.t) =
-      if String.equal (event_key event) "Escape" && not is_pending then reset_popup ()
+      if String.equal (event_key event) "Escape" && not is_pending then
+        reset_popup ()
     in
     let submit_disabled = is_pending || String.trim tag_name = "" in
     let on_submit event =
@@ -79,69 +82,100 @@ module Sidebar_tag_creation = struct
         let request =
           create_tag.call ~name:tag_name ~description:tag_description
           |> Js.Promise.then_ (fun route ->
-                 reset_popup ();
-                  router.navigate ~freshness:Utopia.Revalidate route;
-                 Js.Promise.resolve ())
+              reset_popup ();
+              router.navigate ~freshness:Utopia.Revalidate route;
+              Js.Promise.resolve ())
           |> Js.Promise.catch (fun _error ->
-                 set_is_pending (fun _ -> false);
-                 set_save_error (fun _ -> "Unable to create the tag.");
-                 Js.Promise.resolve ())
+              set_is_pending (fun _ -> false);
+              set_save_error (fun _ -> "Unable to create the tag.");
+              Js.Promise.resolve ())
         in
         ignore request)
     in
     <div className="relative border-b border-[#d8d7d2] px-4 py-4">
-      <Button.Action onClick=open_popup kind=Button.Accent width=Button.Full
+      <Button.Action
+        onClick=open_popup
+        kind=Button.Accent
+        width=Button.Full
         className="px-4 py-2 text-[13px]">
         (React.string "Create Tag")
       </Button.Action>
       (if not is_open then React.null
        else
-          <div role="dialog" onKeyDown=on_key_down
-            className="absolute left-4 right-4 top-[calc(100%-4px)] z-10 border border-[#d8d7d2] bg-[#fbfaf7] p-4">
-            <form onSubmit=on_submit>
-              <label className="block text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
-                (React.string "Name")
-              </label>
-              <input value=tag_name onChange=on_name_change
-                className="mt-2 block w-full border border-[#d8d7d2] bg-[#fbfaf7] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none placeholder:text-[#a6a59f] focus:border-[#bdbbb5]"
-                placeholder="Tag name" />
-              <label className="mt-4 block text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
-                (React.string "Description")
-              </label>
-              <input value=tag_description onChange=on_description_change
-                className="mt-2 block w-full border border-[#d8d7d2] bg-[#fbfaf7] px-3 py-2 text-[14px] text-[#1d1d1f] outline-none placeholder:text-[#a6a59f] focus:border-[#bdbbb5]"
-                placeholder="Optional" />
-              (if save_error = "" then React.null
-               else
-                   <p className="mt-3 text-[12px] text-[#b42318]">
-                     (React.string save_error)
-                   </p>)
-               <div className="mt-4 flex w-full items-center gap-2">
-                  <Button.Action onClick=close_popup kind=Button.Default
-                    state=(if is_pending then Button.Disabled else Button.Enabled)
-                    width=Button.Full
-                    className="px-3 py-2 text-[12px] text-[#5d5c57] disabled:text-[#b2b1ac]">
-                    (React.string "Cancel")
-                  </Button.Action>
-                  <Button.Submit
-                    state=(if submit_disabled then Button.Disabled else Button.Enabled)
-                    kind=Button.Accent width=Button.Full
-                    className="px-3 py-2 text-[12px]">
-                    (React.string (if is_pending then "Creating..." else "Accept"))
-                  </Button.Submit>
-               </div>
-             </form>
-           </div>)
+         <div
+           role="dialog"
+           onKeyDown=on_key_down
+           className="absolute left-4 right-4 top-[calc(100%-4px)] z-10 border \
+                      border-[#d8d7d2] bg-[#fbfaf7] p-4">
+           <form onSubmit=on_submit>
+             <label
+               className="block text-[11px] font-medium uppercase \
+                          tracking-[0.18em] text-[#8a8984]">
+               (React.string "Name")
+             </label>
+             <input
+               value=tag_name
+               onChange=on_name_change
+               className="mt-2 block w-full border border-[#d8d7d2] \
+                          bg-[#fbfaf7] px-3 py-2 text-[14px] text-[#1d1d1f] \
+                          outline-none placeholder:text-[#a6a59f] \
+                          focus:border-[#bdbbb5]"
+               placeholder="Tag name"
+             />
+             <label
+               className="mt-4 block text-[11px] font-medium uppercase \
+                          tracking-[0.18em] text-[#8a8984]">
+               (React.string "Description")
+             </label>
+             <input
+               value=tag_description
+               onChange=on_description_change
+               className="mt-2 block w-full border border-[#d8d7d2] \
+                          bg-[#fbfaf7] px-3 py-2 text-[14px] text-[#1d1d1f] \
+                          outline-none placeholder:text-[#a6a59f] \
+                          focus:border-[#bdbbb5]"
+               placeholder="Optional"
+             />
+             (if save_error = "" then React.null
+              else
+                <p className="mt-3 text-[12px] text-[#b42318]">
+                  (React.string save_error)
+                </p>)
+             <div className="mt-4 flex w-full items-center gap-2">
+               <Button.Action
+                 onClick=close_popup
+                 kind=Button.Default
+                 state=(if is_pending then Button.Disabled else Button.Enabled)
+                 width=Button.Full
+                 className="px-3 py-2 text-[12px] text-[#5d5c57] \
+                            disabled:text-[#b2b1ac]">
+                 (React.string "Cancel")
+               </Button.Action>
+               <Button.Submit
+                 state=(if submit_disabled then Button.Disabled
+                        else Button.Enabled)
+                 kind=Button.Accent
+                 width=Button.Full
+                 className="px-3 py-2 text-[12px]">
+                 (React.string (if is_pending then "Creating..." else "Accept"))
+               </Button.Submit>
+             </div>
+           </form>
+         </div>)
     </div>
 end
-
 
 let[@react.component] make ~(children : React.element) () =
   let tags = tag_summaries () in
   <div className="flex min-h-screen flex-col md:flex-row">
-    <aside className="flex w-full shrink-0 flex-col border-b border-[#d8d7d2] bg-[#efeee8] md:min-h-screen md:w-[260px] md:border-b-0 md:border-r">
+    <aside
+      className="flex w-full shrink-0 flex-col border-b border-[#d8d7d2] \
+                 bg-[#efeee8] md:min-h-screen md:w-[260px] md:border-b-0 \
+                 md:border-r">
       <div className="border-b border-[#d8d7d2] px-5 py-5">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+        <p
+          className="text-[11px] font-medium uppercase tracking-[0.18em] \
+                     text-[#8a8984]">
           (React.string "Utopia Notes")
         </p>
       </div>
@@ -149,17 +183,24 @@ let[@react.component] make ~(children : React.element) () =
       <nav className="flex flex-1 flex-col py-2">
         (react_array
            (List.map
-               (fun summary ->
-                 <Sidebar_tag key=summary.slug route=summary.route name=summary.name
-                   description=(description_text summary.description) />)
-               tags))
-       </nav>
-       <div className="mt-auto border-t border-[#d8d7d2] px-4 py-4">
-          <Button.Link to_=new_note_route kind=Button.Accent width=Button.Full
-            className="px-4 py-3 text-[13px]">
-            (React.string "New Note")
-          </Button.Link>
-       </div>
-     </aside>
+              (fun summary ->
+                <Sidebar_tag
+                  key=summary.slug
+                  route=summary.route
+                  name=summary.name
+                  description=(description_text summary.description)
+                />)
+              tags))
+      </nav>
+      <div className="mt-auto border-t border-[#d8d7d2] px-4 py-4">
+        <Button.Link
+          to_=new_note_route
+          kind=Button.Accent
+          width=Button.Full
+          className="px-4 py-3 text-[13px]">
+          (React.string "New Note")
+        </Button.Link>
+      </div>
+    </aside>
     <div className="min-w-0 flex-1 bg-[#fbfaf7]">children</div>
   </div>

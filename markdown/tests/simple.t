@@ -16,7 +16,14 @@ Heading
   > [Markdown](http://daringfireball.net/projects/markdown/) lets you write content in a really natural way.
   > 
   > EOF
-  <p><a aria-hidden="false" href="http://daringfireball.net/projects/markdown/">Markdown</a><a aria-hidden="false" href="http://daringfireball.net/projects/markdown/">Markdown</a> lets you write content in a really natural way.</p>
+  <p><a aria-hidden="false" href="http://daringfireball.net/projects/markdown/">Markdown</a> <a aria-hidden="false" href="http://daringfireball.net/projects/markdown/">Markdown</a> lets you write content in a really natural way.</p>
+
+  $ utopia.markdown <<\EOF
+  > Soft
+  > wrapped text
+  > 
+  > EOF
+  <p>Soft wrapped text</p>
 
   $ utopia.markdown <<\EOF
   > # UL
@@ -54,6 +61,15 @@ Heading
   class="utopia-markdown-code"
   console
   globalThis
+
+  $ utopia.markdown <<\EOF | rg -o 'class="line"' | wc -l
+  > ```javascript
+  > console.log("a");
+  > console.log("b");
+  > ```
+  > 
+  > EOF
+  2
 
   $ utopia.markdown <<\EOF
   > ```

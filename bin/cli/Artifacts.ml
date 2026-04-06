@@ -1,8 +1,29 @@
 let source_pages_directory = "pages"
 let build_directory = Utopia_path.build_directory_name
 let generated_directory = Utopia_path.generated_directory_name
+let generated_directory_string = Fpath.to_string generated_directory
+let generated_dist_directory = Filename.concat generated_directory_string "dist"
+
+let generated_static_directory =
+  Filename.concat generated_directory_string "static"
+
 let current_project = lazy (Utopia_path.current_project ())
 let project_paths () = Lazy.force current_project
+
+let project_target_generated_directory () =
+  let project = project_paths () in
+  match project.project_workspace_path with
+  | None -> Filename.concat "target" generated_directory_string
+  | Some path ->
+      Filename.concat "target"
+        (Filename.concat (Fpath.to_string path) generated_directory_string)
+
+let build_output_directories () =
+  [
+    generated_dist_directory;
+    generated_static_directory;
+    project_target_generated_directory ();
+  ]
 
 let workspace_root_string () =
   project_paths () |> fun project ->
