@@ -14,7 +14,8 @@ module Route = {
   };
 
   module Params = {
-    type value = Utopia_route.Params.value = | One(string) | Many(list(string));
+    type value =
+      Utopia_route.Params.value = | One(string) | Many(list(string));
     type t = Utopia_route.Params.t;
     let one = Utopia_route.Params.one;
     let many = Utopia_route.Params.many;
@@ -46,13 +47,10 @@ module Route = {
   let of_json = Utopia_route.of_json;
 };
 
-type navigation_history = Utopia_router.navigation_history =
-  | Push
-  | Replace;
+type navigation_history = Utopia_router.navigation_history = | Push | Replace;
 
-type navigation_freshness = Utopia_router.navigation_freshness =
-  | Use_cache
-  | Revalidate;
+type navigation_freshness =
+  Utopia_router.navigation_freshness = | Use_cache | Revalidate;
 
 let navigation_history_to_json = Utopia_router.navigation_history_to_json;
 let navigation_history_of_json = Utopia_router.navigation_history_of_json;
@@ -62,11 +60,13 @@ let navigation_freshness_of_json = Utopia_router.navigation_freshness_of_json;
 type router = {
   path: string,
   route: Route.t,
-  navigate: (
-    ~history: navigation_history=?,
-    ~freshness: navigation_freshness=?,
-    Route.t,
-  ) => unit,
+  navigate:
+    (
+      ~history: navigation_history=?,
+      ~freshness: navigation_freshness=?,
+      Route.t
+    ) =>
+    unit,
 };
 
 let useRouter = () => {
@@ -94,7 +94,9 @@ module Router = {
           ~className: option(string)=?,
           ~children: React.element,
         ) =>
-      <Utopia_router_link to_ history ?className> children </Utopia_router_link>;
+      <Utopia_router_link to_ history ?className>
+        children
+      </Utopia_router_link>;
   };
 };
 
@@ -135,13 +137,11 @@ module Metadata = {
 
 module Types = {
   type page_kind = Utopia_types.page_kind = | Code_page | Markdown_page;
-  type param_kind = Utopia_types.param_kind =
-    | Single
-    | Catch_all
-    | Optional_catch_all;
-  type route_segment = Utopia_types.route_segment =
-    | Static(string)
-    | Param(string, param_kind);
+  type param_kind =
+    Utopia_types.param_kind = | Single | Catch_all | Optional_catch_all;
+  type route_segment =
+    Utopia_types.route_segment =
+      | Static(string) | Param(string, param_kind);
   type metadata = Utopia_types.metadata;
   type og_image = Utopia_types.og_image;
   type open_graph = Utopia_types.open_graph;

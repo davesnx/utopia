@@ -165,10 +165,9 @@ let render_element slug =
                 | None -> [])
                 [ children ]
             else
-              Utopia_router_link.make
-                (Utopia_router_link.makeProps
-                   ~to_:(Utopia_route.of_href href)
-                   ~className ~children ()))
+              <Utopia_router_link to_=(Utopia_route.of_href href) className>
+                children
+              </Utopia_router_link>)
           ~h1:(fun ?className:_ ?id ~children () ->
             React.createElement "h1"
               ([

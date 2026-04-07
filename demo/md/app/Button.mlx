@@ -1,0 +1,17 @@
+let className =
+  "border border-[rgb(240_240_236_/_0.4)] px-4 py-3 text-left text-[13px] \
+   tracking-[0.18em] text-[rgb(240_240_236_/_0.8)] no-underline \
+   transition-colors duration-200 ease-out \
+   hover:border-[rgb(255_167_89_/_0.5)] hover:bg-[#FFA759] \
+   hover:text-[#151515] cursor-pointer"
+
+module Link = struct
+  let[@react.component] make ~(children : string) ~(to_ : Utopia.Route.t) () =
+    <Utopia.Router.Link to_ className>
+      (React.string children)
+    </Utopia.Router.Link>
+end
+
+module Back = struct
+  let[@react.component] make () = <Link to_=Routes.route>{|⬅️ back|}</Link>
+end

@@ -1,3 +1,4 @@
+let app_directory = "app"
 let pages_directory = "pages"
 
 let find_route_conflicts (entries : Routes.route_entry list) =
@@ -23,14 +24,30 @@ let source_basename source = Filename.basename source
 
 let preferred_source_for_route route (entries : Routes.route_entry list) =
   let normalized_route = if route = "" then "index" else route in
+  let uses_app_directory =
+    entries
+    |> List.exists (fun (entry : Routes.route_entry) ->
+        String.starts_with ~prefix:(app_directory ^ "/")
+          entry.Routes.source_file)
+  in
   let preferred_order =
-    [
-      Printf.sprintf "%s/%s/index.ml" pages_directory normalized_route;
-      Printf.sprintf "%s/%s/index.re" pages_directory normalized_route;
-      Printf.sprintf "%s/%s.ml" pages_directory normalized_route;
-      Printf.sprintf "%s/%s.re" pages_directory normalized_route;
-      Printf.sprintf "%s/%s.md" pages_directory normalized_route;
-    ]
+    if uses_app_directory then
+      let route_directory = if route = "" then "" else route in
+      let page_path extension =
+        if route_directory = "" then
+          Printf.sprintf "%s/page%s" app_directory extension
+        else
+          Printf.sprintf "%s/%s/page%s" app_directory route_directory extension
+      in
+      [ page_path ".ml"; page_path ".re"; page_path ".mlx"; page_path ".md" ]
+    else
+      [
+        Printf.sprintf "%s/%s/index.ml" pages_directory normalized_route;
+        Printf.sprintf "%s/%s/index.re" pages_directory normalized_route;
+        Printf.sprintf "%s/%s.ml" pages_directory normalized_route;
+        Printf.sprintf "%s/%s.re" pages_directory normalized_route;
+        Printf.sprintf "%s/%s.md" pages_directory normalized_route;
+      ]
   in
   let sources =
     List.map
@@ -78,8 +95,8 @@ let report_route_conflicts conflicts =
   Printf.eprintf "\n  Rule: exactly one source file must map to each route.\n\n";
   Printf.eprintf
     "  Recommended convention:\n\
-    \    * folder route: pages/<route>/index.ml\n\
-    \    * leaf route: pages/<parent>/<name>.ml\n"
+    \    * app mode: app/<route>/page.ml (or app/page.ml for /)\n\
+    \    * legacy mode: pages/<route>/index.ml or pages/<parent>/<name>.ml\n"
 
 let report_route_parse_errors errors =
   Printf.eprintf "\n  Invalid page declarations:\n";

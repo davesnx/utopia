@@ -1,28 +1,38 @@
-module Navigate = Utopia.Router.Link
-
 let[@react.component] make ~(children : React.element) () =
   <div
-    className="w-full min-h-screen p-6 sm:p-10 md:p-14 text-sm leading-6 sm:text-[15px] sm:leading-7 md:text-base md:leading-7 text-slate-600 antialiased [font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]">
+    className="w-full min-h-screen p-6 sm:p-10 md:p-14 text-sm leading-6 \
+               sm:text-[15px] sm:leading-7 md:text-base md:leading-7 \
+               text-slate-600 antialiased \
+               [font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]">
     <div className="flex flex-col md:flex-row">
       <nav className="md:mr-14 w-full md:w-16">
-        <ul className="lowercase text-right md:sticky md:top-14 mb-6 md:mb-0 flex gap-2 justify-end md:block">
-          <li className="text-slate-500 hover:text-slate-700 transition-colors -mx-2">
-            <Navigate to_=Routes.route className="inline-block w-full px-2">
+        <ul
+          className="lowercase text-right md:sticky md:top-14 mb-6 md:mb-0 \
+                     flex gap-2 justify-end md:block">
+          <li
+            className="text-slate-500 hover:text-slate-700 transition-colors \
+                       -mx-2">
+            <Utopia.Router.Link
+              to_=Routes.Posts.route className="inline-block w-full px-2">
               (React.string "POSTS")
-            </Navigate>
+            </Utopia.Router.Link>
           </li>
-          <li className="text-slate-500 hover:text-slate-700 transition-colors -mx-2">
-            <Navigate to_=Routes.About.route className="inline-block w-full px-2">
+          <li
+            className="text-slate-500 hover:text-slate-700 transition-colors \
+                       -mx-2">
+            <Utopia.Router.Link
+              to_=Routes.About.route className="inline-block w-full px-2">
               (React.string "ABOUT")
-            </Navigate>
+            </Utopia.Router.Link>
           </li>
         </ul>
       </nav>
       <main className="relative flex-1 max-w-2xl">
-        <div className="absolute w-full h-px opacity-50 bg-slate-300 right-0 md:right-auto md:left-0 md:w-px md:h-full md:opacity-100" />
-        <article className="pl-0 pt-6 md:pt-0 md:pl-14">
-          children
-        </article>
+        <div
+          className="absolute w-full h-px opacity-50 bg-slate-300 right-0 \
+                     md:right-auto md:left-0 md:w-px md:h-full md:opacity-100"
+        />
+        <article className="pl-0 pt-6 md:pt-0 md:pl-14">children</article>
       </main>
     </div>
   </div>

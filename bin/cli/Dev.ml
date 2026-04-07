@@ -33,9 +33,10 @@ let run args =
   Printf.printf "\n%s\n\n" (Terminal.bold "utopia dev");
 
   Terminal.print_step "Running initial build bootstrap";
-  if not (Filesystem.is_directory Artifacts.source_pages_directory) then (
+  if not (Artifacts.has_source_routes_directory ()) then (
     Terminal.print_err
-      "Missing 'pages' directory. Create it and add page files.";
+      "Missing route source directory. Create 'app/' (preferred) or legacy \
+       'pages/'.";
     exit 1);
 
   let compiler = Binaries.resolve_bin "utopia.compiler" in

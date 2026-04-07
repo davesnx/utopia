@@ -1,3 +1,4 @@
+let source_app_directory = "app"
 let source_pages_directory = "pages"
 let build_directory = Utopia_path.build_directory_name
 let generated_directory = Utopia_path.generated_directory_name
@@ -57,3 +58,7 @@ let required_server_artifacts () =
 
 let missing_artifacts artifacts =
   List.filter (fun artifact -> not (artifact_exists artifact)) artifacts
+
+let has_source_routes_directory () =
+  Filesystem.is_directory source_app_directory
+  || Filesystem.is_directory source_pages_directory

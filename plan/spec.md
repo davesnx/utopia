@@ -25,6 +25,7 @@ my-project/
     db.ml                # Server-only database access
     auth.ml
   app/                   # Unified route root (pages + API)
+    button.re            # App-local support module for app/* pages/layouts
     layout.re            # Root layout (optional)
     page.re              # Root page (/)
     about/
@@ -231,6 +232,16 @@ Note: the current layout contract in `Page.ml` is `?key -> ~title -> ~scripts ->
 - Only code pages (`.re`, `.ml`, `.mlx`) can be layouts. No markdown layouts.
 - Exactly one layout per directory. Two layout files in the same directory is a compile-time error.
 - Layouts handle page-level concerns: auth checks, redirects, custom headers.
+
+## App-local modules (implemented)
+
+Non-reserved code files under `app/` are support modules, not routes.
+
+- Eligible files: `.re`, `.ml`, `.mlx`
+- Reserved basenames: `page`, `layout`, `route`, `_middleware`
+- Visibility: available to `page.*` and `layout.*` files in the same directory scope (that directory and descendants)
+
+Example: `app/button.mlx` provides `Button` for pages/layouts under `app/**`.
 
 ## Routing
 

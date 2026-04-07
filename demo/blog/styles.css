@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @config "./tailwind.config.js";
 
-/* Shared fenced code block styling for plain and Ochre-highlighted blocks */
+/* Shared fenced code block styling for plain and ochre-highlighted blocks */
 pre.utopia-markdown-code-block {
   @apply overflow-x-auto rounded-md p-4 text-sm leading-6;
   margin-top: calc(var(--spacing) * 4);

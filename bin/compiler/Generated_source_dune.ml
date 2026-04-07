@@ -52,14 +52,34 @@ let source_page_module_name_opt (file : Build_inputs.compiled_code_file) =
     Some (Names.sanitize_module_component base_name)
   else None
 
-let source_page_library_name page_directory =
+let source_page_library_name ~source_root page_directory =
   let suffix =
-    if page_directory = "" then "pages_root"
-    else Filename.concat "pages" page_directory
+    if page_directory = "" then source_root ^ "_root"
+    else Filename.concat source_root page_directory
   in
   "source_pages_"
   ^ Names.sanitize_library_component
       (Project.project_scope_identity () ^ "_" ^ suffix)
+
+let ancestor_directories directory =
+  if directory = "" then []
+  else
+    let parts = String.split_on_char '/' directory in
+    let rec prefixes current acc = function
+      | [] -> List.rev acc
+      | segment :: rest ->
+          let next =
+            if current = "" then segment else Filename.concat current segment
+          in
+          prefixes next (next :: acc) rest
+    in
+    let all_prefixes = prefixes "" [] parts in
+    let ancestors_without_root =
+      match List.rev all_prefixes with
+      | [] -> []
+      | _self :: reversed_ancestors -> List.rev reversed_ancestors
+    in
+    "" :: ancestors_without_root
 
 let source_page_directories code_files =
   let seen = Hashtbl.create 16 in
@@ -75,7 +95,7 @@ let source_page_directories code_files =
   seen |> Hashtbl.to_seq |> List.of_seq
   |> List.sort (fun (left, _) (right, _) -> String.compare left right)
 
-let generate files _route_entries =
+let generate ~source_root files _route_entries =
   let code_files = Build_inputs.code_files_for_build files in
   let has_shared_lib = Build_inputs.has_shared_lib () in
   let shared_lib_files : Build_inputs.shared_lib_file list =
@@ -120,18 +140,29 @@ let generate files _route_entries =
         ]
     in
     let source_page_stanzas =
+      let page_library_by_directory = Hashtbl.create 16 in
+      page_directories
+      |> List.iter (fun (page_directory, _modules) ->
+          Hashtbl.replace page_library_by_directory page_directory
+            (source_page_library_name ~source_root page_directory));
       page_directories
       |> List.map (fun (page_directory, modules) ->
+          let ancestor_page_libraries =
+            ancestor_directories page_directory
+            |> List.filter_map (fun directory ->
+                Hashtbl.find_opt page_library_by_directory directory)
+          in
           let subdir_path =
-            if page_directory = "" then "pages"
-            else Filename.concat "pages" page_directory
+            if page_directory = "" then source_root
+            else Filename.concat source_root page_directory
           in
           form "subdir"
             [
               atom subdir_path;
               form "library"
                 [
-                  field_atom "name" (source_page_library_name page_directory);
+                  field_atom "name"
+                    (source_page_library_name ~source_root page_directory);
                   field_atom "wrapped" "false";
                   field_atoms "modules" modules;
                   field_atoms "flags"
@@ -139,7 +170,8 @@ let generate files _route_entries =
                     @ [ "-open"; "Melange_json.Primitives" ]);
                   field_atoms "libraries"
                     (source_page_libraries generated_utopia_library_name
-                       ~has_source_lib);
+                       ~has_source_lib
+                    @ ancestor_page_libraries);
                   field "preprocess"
                     [ field_atoms "pps" source_page_preprocess_pps ];
                 ];

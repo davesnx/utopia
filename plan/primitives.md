@@ -11,7 +11,7 @@ Route intent is inferred by filename:
 - `page.re|.ml|.mlx` (and `page.md` for markdown) defines a page route
 - `route.re|.ml|.mlx` defines an API route
 
-`pages/` and `api/` are legacy roots planned for deprecation after app-directory migration.
+`pages/` and `api/` are legacy roots planned for deprecation after app-directory migration. During the compatibility window, the compiler still reads legacy roots when `app/` is absent. If both models are present, `app/` wins and the compiler emits a warning that legacy roots were ignored.
 
 ### Page
 A file named `page.re`, `page.ml`, `page.mlx`, or `page.md` inside `app/` that maps to a URL route. Pages are always **server components**. A page's minimal contract is a single `make` function that returns `React.element`. Path is inferred from the filesystem directory path, layout is inferred from the directory ancestry.
@@ -28,6 +28,11 @@ A file named `layout.re`, `layout.ml`, or `layout.mlx` placed in any directory u
 A layout receives `children` (the rendered child page or nested layout) as its primary prop, plus route context (path, params) for navigation-aware rendering.
 
 Only code pages can be layouts (no `.md` layouts). Exactly one layout per directory; conflicts are compile-time errors.
+
+### App-local Module
+A non-reserved code module (`.re`, `.ml`, or `.mlx`) under `app/` whose basename is not one of `page`, `layout`, `route`, or `_middleware`. App-local modules do not define routes.
+
+They are support modules available to `page.*` and `layout.*` files in the same directory scope (the module's directory and descendants). Example: `app/button.mlx` exposes `Button` to pages/layouts under `app/**`.
 
 ### Route
 A URL path derived from a page's filesystem location. Routes are generated at compile time by the compiler and exposed through generated route registries.
@@ -140,7 +145,7 @@ An esbuild plugin that runs `extract_client_components` before bundling and prep
 ## Build System
 
 ### Compiler (`utopia.compiler`)
-Scans `app/` recursively, classifies `page.*` and `route.*` files, parses directory names into route segments, detects conflicts, collects layouts/middleware, validates param accesses for pages, and generates:
+Scans route sources recursively, preferring canonical `app/` classification (`page.*` and `route.*`) and falling back to legacy `pages/` + `api/` only when `app/` is absent. It parses directory names into route segments, detects conflicts, collects layouts/middleware, validates param accesses for pages, and generates:
 - `_utopia/dune` (dune build rules)
 - `_utopia/Routes.ml` (typed route builders)
 - route metadata loaders (`Routes.get_all`, `Routes.Api.get_all`)
@@ -204,6 +209,7 @@ That single generated `_utopia/dune` file defines:
 - a generated `_utopia/support/` native library that copies the project-local `Utopia`/route/runtime surface from `_utopia/`, includes `FunctionReferences`, and uses a stub `Utopia_call_server.re`
 - a real source-owned `lib/` native library (`source_lib_<project-scope>`) built directly from the user’s `lib/*.ml|*.re|*.mlx` files
 - source-owned page libraries grouped by directory (`source_pages_<project-scope>_...`) for app page/layout files whose basenames are valid module names, such as `app/page.mlx`, `app/layout.mlx`, `app/notes/page.mlx`, or `app/notes/[tag]/page.mlx`
+- ancestor source-page library links (for example `app/about` source stanzas depend on the `app/` root source-page library when present) so Merlin/ocamllsp can resolve app-local modules from parent directories
 - the mirrored runtime/native/melange build stanzas for `_utopia/` itself, wrapped under `(subdir _utopia ...)`
 
 This single-file `_utopia/dune` path exists to give Merlin/ocamllsp real Dune ownership over shared `lib/` source files and page/layout source files whose basenames are valid module names without maintaining a second generated dune file. Dynamic route segments should therefore live in directory names with a `page` file, such as `app/notes/[tag]/page.mlx` or `app/posts/[slug]/page.mlx`, rather than in invalid basenames like `app/notes/[tag].mlx`.
@@ -233,7 +239,7 @@ The dune watch-mode RPC socket used by `utopia dev` for terminal build progress 
 
 ### Checked-in Demo Workspace
 The notes demo also centralizes its repeated action-button styling in `demo/notes/lib/button.mlx`, which exposes shared `Action`, `Submit`, and `Link` components with an explicit `kind` variant (`Default` or `Accent`) while still emitting plain Tailwind utility classes.
-The repository's primary checked-in example project lives at `demo/notes/`. Its route/layout files live under `demo/notes/pages/` as `.mlx` sources, while shared data helpers stay under `demo/notes/lib/`. The notes demo's visual components are page-local and inline inside the route files that render them rather than collected in a shared `notes_ui` module. The demo now models a minimal Utopia Notes shell with one persistent sidebar, a dynamic `/notes/[tag]` tag route plus `/notes/new`, and a SQLite-backed `tags` + `notes` store. Tags persist a route slug, a separate display name, and an optional description. New tags are created from a small sidebar popup, while the note composer selects existing tags only through a custom autocomplete/fuzzy combobox instead of freeform tag creation. Created tags appear in the sidebar even before they contain notes, created notes persist into the selected tag route, and checklist items remain toggleable after creation from those tag-route note views through generated server actions plus router revalidation. The demo keeps its button, scrollbar, selection, and rich-text presentation in Tailwind utility strings directly in the layout/page code, so `demo/notes/styles.css` is now just the Tailwind entrypoint that builds `demo/notes/output.css`. Tag creation, note creation, and checklist toggling all use the generated server action path and return typed `Utopia.Route.t` values directly to the client, so requests flow through the compiler/ppx-registered server-function registry and the generated Dream POST handling without reconstructing raw route strings on the client. `demo/notes/package.json` now regenerates `_utopia/` with the current compiler before building the demo's native and Melange artifacts while capping Dune jobs for this workspace to avoid pathological auto-detected oversubscription. Root helper commands such as `make run-demo`, `make compile-demo`, `make build-generated`, and `bench/bench_http.sh` should target this workspace and launch the generated `server_main.exe` runtime rather than the standalone `utopia.server` source fallback.
+The repository's primary checked-in example project lives at `demo/notes/`. Its route/layout files live under `demo/notes/app/` as `.mlx` sources, while shared data helpers stay under `demo/notes/lib/`. The notes demo's visual components are page-local and inline inside the route files that render them rather than collected in a shared `notes_ui` module. The demo now models a minimal Utopia Notes shell with one persistent sidebar, a dynamic `/notes/[tag]` tag route plus `/notes/new`, and a SQLite-backed `tags` + `notes` store. Tags persist a route slug, a separate display name, and an optional description. New tags are created from a small sidebar popup, while the note composer selects existing tags only through a custom autocomplete/fuzzy combobox instead of freeform tag creation. Created tags appear in the sidebar even before they contain notes, created notes persist into the selected tag route, and checklist items remain toggleable after creation from those tag-route note views through generated server actions plus router revalidation. The demo keeps its button, scrollbar, selection, and rich-text presentation in Tailwind utility strings directly in the layout/page code, so `demo/notes/styles.css` is now just the Tailwind entrypoint that builds `demo/notes/output.css`. Tag creation, note creation, and checklist toggling all use the generated server action path and return typed `Utopia.Route.t` values directly to the client, so requests flow through the compiler/ppx-registered server-function registry and the generated Dream POST handling without reconstructing raw route strings on the client. `demo/notes/package.json` now regenerates `_utopia/` with the current compiler before building the demo's native and Melange artifacts while capping Dune jobs for this workspace to avoid pathological auto-detected oversubscription. Root helper commands such as `make run-demo`, `make compile-demo`, `make build-generated`, and `bench/bench_http.sh` should target this workspace and launch the generated `server_main.exe` runtime rather than the standalone `utopia.server` source fallback.
 
 Local notes demo automation now also lives in `demo/notes/Makefile`; `compile`, `build`, `run`, `dev`, and `watch-compile` are the canonical entrypoints, and the root helper targets plus `bench/bench_http.sh` delegate to that Makefile instead of npm scripts.
 
@@ -306,10 +312,10 @@ An aspirational module similar to SWR or react-query for managing remote data fe
 ## CLI
 
 ### `utopia build`
-Validates project structure, runs the compiler in `production` mode, then runs `dune build`. Emits a build report with route count and generated artifact paths.
+Validates project structure (`app/` preferred, legacy `pages/` still accepted during compatibility), runs the compiler in `production` mode, then runs `dune build`. Emits a build report with route count and generated artifact paths.
 
 ### `utopia dev`
-Development workflow: runs the compiler in `development` mode + initial build, starts `dune build -w` (watch mode with RPC), launches the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects (or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects), and streams structured build progress/diagnostics via dune RPC. The current implementation may probe upward for a free port; the planned dev-overlay milestone pins a single dev origin for the full session.
+Development workflow: validates route source roots (`app/` preferred, legacy `pages/` still accepted during compatibility), runs the compiler in `development` mode + initial build, starts `dune build -w` (watch mode with RPC), launches the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects (or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects), and streams structured build progress/diagnostics via dune RPC. The current implementation may probe upward for a free port; the planned dev-overlay milestone pins a single dev origin for the full session.
 
 ### `utopia prod` (alias: `start`)
 Verifies build artifacts exist, then starts the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects (or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects). Respects `PORT` and `HOST` environment variables, and probes upward from the requested `PORT` when that port is already occupied so startup can continue on the next free port.
@@ -400,6 +406,9 @@ The generated `server_main.exe` accepts a `--ssg` CLI flag. When invoked with `-
 
 ### Blog Demo (`demo/blog/`)
 A static blog demo showcasing SSG. Renders 4 markdown files from `content/` using `Utopia_markdown.element_of_doc` with custom Tailwind-styled `Components`. Pages export `let static = true` and `static_paths`. Design inspired by shud.in: sidebar navigation, dot-leader blog list, clean typography. Local demo automation lives in `demo/blog/Makefile`; `build`, `run`, `generate`, and `serve` are the canonical entrypoints instead of `package.json` scripts. `generate` runs the built generated server with `--ssg` from inside `demo/blog/`, so the static output lands in `demo/blog/_utopia/static/`. `serve` first regenerates that directory and then serves it as plain static files via `python3 -m http.server`, honoring `HOST` and `PORT`.
+
+### Markdown Demo (`demo/md/`)
+A focused markdown-routing demo with a minimal dark monospaced shell (`app/layout.mlx`) and a minimal index route (`app/page.mlx`) that only links to three markdown pages: `app/faq/page.md`, `app/progress/page.md`, and `app/manifest/page.md`. The palette uses dark/light tones with opacity variance plus a single accent color (`#FFA759`). Local automation lives in `demo/md/Makefile`; `compile`, `build`, and `run` are the canonical entrypoints.
 
 ## Markdown
 

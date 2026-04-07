@@ -1,9 +1,5 @@
 (** Utopia_route_builder: constructs router tree, shell, and subtree from route
-    metadata and layout render functions at runtime.
-
-    This replaces the string-based code generation that previously lived in
-    bin/compiler/Server_main.ml. The nesting algorithm is identical, but
-    produces actual React elements instead of OCaml source strings. *)
+    metadata and layout render functions at runtime *)
 
 type layout_info = { path : string; render : React.element -> React.element }
 
@@ -16,12 +12,9 @@ type router_functions = {
 let slash_matcher matcher = if matcher = "" then "/" else "/" ^ matcher
 
 let pass_through_layout () =
-  Utopia_router.PassThroughLayout.make
-    (Utopia_router.PassThroughLayout.makeProps
-       ~children:
-         (Utopia_router_route.PageConsumer.make
-            (Utopia_router_route.PageConsumer.makeProps ()))
-       ())
+  <Utopia_router.PassThroughLayout>
+    <Utopia_router_route.PageConsumer />
+  </Utopia_router.PassThroughLayout>
 
 let has_root_layout layout_nodes =
   List.exists (fun (path, _) -> path = "/") layout_nodes
@@ -85,31 +78,34 @@ let rec build_child ~matcher ~make_page current_path remaining_layouts =
   match remaining_layouts with
   | (path, layout_element) :: rest ->
       let child = build_child ~matcher ~make_page path rest in
-      Utopia_router_route.make
-        (Utopia_router_route.makeProps ~path ~layout:layout_element
-           ~pageconsumer:(Some child) ())
+      <Utopia_router_route
+        path
+        layout=layout_element
+        pageconsumer=(Some child)
+      />
   | [] ->
       let page_element = make_page () in
       if slash_matcher matcher = current_path then page_element
       else
-        Utopia_router_route.make
-          (Utopia_router_route.makeProps ~path:(slash_matcher matcher)
-             ~layout:page_element ~pageconsumer:None ())
+        <Utopia_router_route
+          path=(slash_matcher matcher)
+          layout=page_element
+          pageconsumer=None
+        />
 
 let build_tree ~matcher ~make_page ~layout_nodes =
   let page_path = slash_matcher matcher in
   let root_has = has_root_layout layout_nodes in
   if page_path = "/" && not root_has then
-    Utopia_router_route.make
-      (Utopia_router_route.makeProps ~path:"/" ~layout:(make_page ())
-         ~pageconsumer:None ())
+    <Utopia_router_route path="/" layout=(make_page ()) pageconsumer=None />
   else
     let descendants = descendant_boundary_nodes ~matcher ~layout_nodes in
     let child = build_child ~matcher ~make_page "/" descendants in
-    Utopia_router_route.make
-      (Utopia_router_route.makeProps ~path:"/"
-         ~layout:(root_layout_element layout_nodes)
-         ~pageconsumer:(Some child) ())
+    <Utopia_router_route
+      path="/"
+      layout=(root_layout_element layout_nodes)
+      pageconsumer=(Some child)
+    />
 
 let build_subtree ~matcher ~make_page ~layout_nodes parent_route =
   let descendants = descendant_boundary_nodes ~matcher ~layout_nodes in
@@ -127,10 +123,7 @@ let build_subtree ~matcher ~make_page ~layout_nodes parent_route =
 let make_layout_nodes layouts =
   layouts
   |> List.map (fun li ->
-      ( li.path,
-        li.render
-          (Utopia_router_route.PageConsumer.make
-             (Utopia_router_route.PageConsumer.makeProps ())) ))
+      (li.path, li.render (<Utopia_router_route.PageConsumer />)))
 
 let build_router ~matcher ~make_page ~layouts =
   let tree () =
@@ -138,8 +131,7 @@ let build_router ~matcher ~make_page ~layouts =
     build_tree ~matcher ~make_page ~layout_nodes
   in
   let shell location =
-    Utopia_router.make
-      (Utopia_router.makeProps ~initialPath:location ~children:(tree ()) ())
+    <Utopia_router initialPath=location> (tree ()) </Utopia_router>
   in
   let subtree parent_route =
     let layout_nodes = make_layout_nodes layouts in

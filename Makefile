@@ -107,6 +107,14 @@ run-blog: ## Run blog demo
 generate-blog: ## Generate static blog pages
 	$(MAKE) -C demo/blog generate
 
+.PHONY: compile-md
+compile-md: ## Compile markdown demo
+	$(MAKE) -C demo/md compile
+
+.PHONY: run-md
+run-md: ## Run markdown demo
+	$(MAKE) -C demo/md run
+
 .PHONY: bench-http
 bench-http: ## Run HTTP benchmarks with wrk (requires wrk)
 	./bench/bench_http.sh

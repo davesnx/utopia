@@ -117,11 +117,13 @@ let navigation_freshness_of_json = json =>
 type t = {
   path: string,
   route: Utopia_route.t,
-  navigate: (
-    ~history: navigation_history=?,
-    ~freshness: navigation_freshness=?,
-    Utopia_route.t,
-  ) => unit,
+  navigate:
+    (
+      ~history: navigation_history=?,
+      ~freshness: navigation_freshness=?,
+      Utopia_route.t
+    ) =>
+    unit,
 };
 
 let context: React.Context.t(option(t)) = React.createContext(None);
@@ -263,11 +265,11 @@ let make = (~initialPath: string, ~children: React.element) => {
   };
 
   let%browser_only rec navigate =
-                        (
-                          ~history as navigationHistory=Push,
-                          ~freshness=Use_cache,
-                          to_,
-                        ) => {
+                       (
+                         ~history as navigationHistory=Push,
+                         ~freshness=Use_cache,
+                         to_,
+                       ) => {
     let shouldReplace =
       switch (navigationHistory) {
       | Replace => true
@@ -284,7 +286,8 @@ let make = (~initialPath: string, ~children: React.element) => {
     let nextRequestPath = Utopia_route.request_path(to_);
     let nextBrowserPath = Utopia_route.href(to_);
     let shouldRequestDiff =
-      !shouldRevalidate && Utopia_route.pathname(to_) != URL.pathname(current);
+      !shouldRevalidate
+      && Utopia_route.pathname(to_) != URL.pathname(current);
 
     if (nextBrowserPath == currentBrowserPath && !shouldRevalidate) {
       ();
@@ -340,9 +343,9 @@ let make = (~initialPath: string, ~children: React.element) => {
                  setPath(_ => nextRequestPath);
                  Js.Promise.resolve();
                } else {
-                  navigate(~history=Replace, ~freshness=Revalidate, to_);
-                  Js.Promise.resolve();
-                }
+                 navigate(~history=Replace, ~freshness=Revalidate, to_);
+                 Js.Promise.resolve();
+               }
              | _ =>
                HistoryCache.set(
                  historyCache,
@@ -475,19 +478,16 @@ let make = (~initialPath: string, ~children: React.element) => {
          },
        )
      | Server =>
-        provider(
-          React.Context.makeProps(
-            ~value=
-              Some({
-                path: Utopia_route.request_path(initialRoute),
-                route: initialRoute,
-                 navigate: (~history=?, ~freshness=?, _) =>
-                   failwith("navigate isn't supported on the server"),
-               }),
-            ~children=element,
-            (),
-          ),
-        )
+       provider({
+         "value":
+           Some({
+             path: Utopia_route.request_path(initialRoute),
+             route: initialRoute,
+             navigate: (~history=?, ~freshness=?, _) =>
+               failwith("navigate isn't supported on the server"),
+           }),
+         "children": element,
+       })
      }}
   </React.Fragment>;
 };

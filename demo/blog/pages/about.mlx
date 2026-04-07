@@ -1,10 +1,7 @@
 let static = true
 
 let metadata _params =
-  Utopia.Metadata.make
-    ~title:"About"
-    ~description:"About this blog."
-    ()
+  Utopia.Metadata.make ~title:"About" ~description:"About this blog." ()
 
 let[@react.component] make () =
   <div>
@@ -13,16 +10,26 @@ let[@react.component] make () =
     </h1>
     <p className="mt-7">
       (React.string "This is a demo blog built with ")
-      <a href="https://github.com/davesnx/utopia"
-         className="break-words decoration-from-font underline underline-offset-2 decoration-slate-400 hover:decoration-slate-700">
+      <a
+        href="https://github.com/davesnx/utopia"
+        className="break-words decoration-from-font underline \
+                   underline-offset-2 decoration-slate-400 \
+                   hover:decoration-slate-700">
         (React.string "utopia")
       </a>
-      (React.string ", a static site generator for OCaml and server-reason-react.")
+      (React.string
+         ", a static site generator for OCaml and server-reason-react.")
     </p>
     <p className="mt-7">
-      (React.string "The pages are rendered at build time from MLX components. Blog posts are stored as markdown files, parsed with the shared YAML frontmatter pipeline, and rendered with syntax highlighting powered by Ochre and TextMate grammars.")
+      (React.string
+         "The pages are rendered at build time from MLX components. Blog posts \
+          are stored as markdown files, parsed with the shared YAML \
+          frontmatter pipeline, and rendered with syntax highlighting powered \
+          by ochre and TextMate grammars.")
     </p>
     <p className="mt-7">
-      (React.string "No JavaScript is shipped to the browser. The entire site is static HTML and CSS.")
+      (React.string
+         "No JavaScript is shipped to the browser. The entire site is static \
+          HTML and CSS.")
     </p>
   </div>

@@ -9,18 +9,17 @@
  (enabled_if
   (= %{profile} dev))
  (alias client)
-  (deps
-   (source_tree ./app)
-  (source_tree ./lib)
+ (deps
+  (source_tree ./app)
   (source_tree ./node_modules)
   tailwind.config.js
   styles.css)
  (action
   (run
    node
-   ../../../../demo/notes/node_modules/@tailwindcss/cli/dist/index.mjs
-   --config=../../../../demo/notes/tailwind.config.js
-   --input=../../../../demo/notes/styles.css
+   ../../../../demo/md/node_modules/@tailwindcss/cli/dist/index.mjs
+   --config=../../../../demo/md/tailwind.config.js
+   --input=../../../../demo/md/styles.css
    --output=%{target})))
 
 (alias

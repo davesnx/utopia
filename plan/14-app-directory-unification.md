@@ -27,6 +27,7 @@ This aligns route ergonomics, simplifies compiler traversal, and makes mixed pag
 8. Layout files remain `layout.re|.ml|.mlx` and apply by ancestry under `app/`.
 9. Route segment syntax is unchanged (`[id]`, `[...slug]`, `[[...slug]]`, route groups, parallel slots).
 10. Markdown pages move from arbitrary `*.md` under `pages/` to `page.md` under `app/**`.
+11. Non-reserved code modules under `app/**` (basenames other than `page`, `layout`, `route`, `_middleware`) are support modules, not routes, and are available to `page.*`/`layout.*` files in their directory scope.
 
 ---
 
@@ -34,6 +35,7 @@ This aligns route ergonomics, simplifies compiler traversal, and makes mixed pag
 
 ```text
 app/
+  button.mlx                  # support module for app/* pages/layouts
   layout.mlx
   page.mlx                    # /
   about/
@@ -62,6 +64,7 @@ app/
   - collect `page.*` (max one per directory across extensions)
   - collect `route.*` (max one per directory across extensions)
   - collect `_middleware.*` only under `app/api/**`
+  - collect non-reserved `.re|.ml|.mlx` files as app support modules (no route registration)
 - Reuse existing segment parser based on directory names.
 
 ### 2) Validations
@@ -83,6 +86,7 @@ app/
 - Mirror sources from `app/` instead of `pages/` + `api/`.
 - Keep separate native page/API libraries in generated dune for link boundaries.
 - Preserve Melange/native shared-lib behavior.
+- Include app support-module files in generated page/layout build wiring so they resolve as normal OCaml modules inside their `app/` directory scope.
 
 ### 5) Request handling
 
@@ -128,6 +132,7 @@ Add or update cram tests for:
 8. compatibility mode reading legacy `pages/` + `api/`
 9. precedence warning when both legacy and `app/` are present
 10. markdown `app/**/page.md` handling
+11. app support module visibility from directory scope (e.g. `app/button.mlx` usable from descendant `page.*`/`layout.*` files)
 
 ---
 

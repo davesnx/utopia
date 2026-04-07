@@ -1,22 +1,19 @@
 open Notes_data
 
 let metadata _params =
-  Utopia.Metadata.make
-    ~title:"New Note"
-    ~description:"Compose a new note with markdown and checklists."
-    ()
+  Utopia.Metadata.make ~title:"New Note"
+    ~description:"Compose a new note with markdown and checklists." ()
 
 let react_array items = React.array (Array.of_list items)
 
 let create_note ~(tag_slug : string) ~(title : string) ~(body : string)
     ~(checklist : string) =
-  (Js.Promise.resolve (create_note_action ~tag_slug ~title ~body ~checklist_raw:checklist)
+  (Js.Promise.resolve
+     (create_note_action ~tag_slug ~title ~body ~checklist_raw:checklist)
     : Utopia.Route.t Js.Promise.t)
 [@@react.server.function]
 
-let event_value event =
-  ((React.Event.Form.target event)##value : string)
-
+let event_value event = ((React.Event.Form.target event)##value : string)
 let event_key (event : React.Event.Keyboard.t) = React.Event.Keyboard.key event
 
 let prevent_key_default (event : React.Event.Keyboard.t) =
@@ -56,9 +53,7 @@ let min_score scores =
   | score :: rest -> Some (List.fold_left min score rest)
 
 let choice_slug (slug, _name, _description) = slug
-
 let choice_name (_slug, name, _description) = name
-
 let choice_description (_slug, _name, description) = description
 
 let exact_choice_for_query tag_choices query =
@@ -67,9 +62,9 @@ let exact_choice_for_query tag_choices query =
   else
     tag_choices
     |> List.find_opt (fun choice ->
-           let name = choice_name choice |> normalized_text in
-           let slug = choice_slug choice |> normalized_text in
-           String.equal query name || String.equal query slug)
+        let name = choice_name choice |> normalized_text in
+        let slug = choice_slug choice |> normalized_text in
+        String.equal query name || String.equal query slug)
 
 let filtered_tag_choices ~query tag_choices =
   let query = normalized_text query in
@@ -77,19 +72,21 @@ let filtered_tag_choices ~query tag_choices =
   else
     tag_choices
     |> List.mapi (fun index choice ->
-           let name = choice_name choice |> normalized_text in
-           let slug = choice_slug choice |> normalized_text in
-           let description = choice_description choice |> normalized_text in
-           let scores =
-             [ score_text ~query ~value:name ~exact:0 ~prefix:10 ~contains:20
-                 ~fuzzy:40;
-               score_text ~query ~value:slug ~exact:2 ~prefix:12 ~contains:22
-                 ~fuzzy:42;
-               score_text ~query ~value:description ~exact:4 ~prefix:14
-                 ~contains:24 ~fuzzy:44 ]
-             |> List.filter_map (fun score -> score)
-           in
-           min_score scores |> Option.map (fun score -> (score, index, choice)))
+        let name = choice_name choice |> normalized_text in
+        let slug = choice_slug choice |> normalized_text in
+        let description = choice_description choice |> normalized_text in
+        let scores =
+          [
+            score_text ~query ~value:name ~exact:0 ~prefix:10 ~contains:20
+              ~fuzzy:40;
+            score_text ~query ~value:slug ~exact:2 ~prefix:12 ~contains:22
+              ~fuzzy:42;
+            score_text ~query ~value:description ~exact:4 ~prefix:14
+              ~contains:24 ~fuzzy:44;
+          ]
+          |> List.filter_map (fun score -> score)
+        in
+        min_score scores |> Option.map (fun score -> (score, index, choice)))
     |> List.filter_map (fun ranked_choice -> ranked_choice)
     |> List.sort compare
     |> List.map (fun (_score, _index, choice) -> choice)
@@ -100,20 +97,26 @@ let choice_by_slug tag_choices slug =
   |> List.find_opt (fun choice -> String.equal (choice_slug choice) slug)
 
 let scroll_container_class =
-  "min-h-screen overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgb(140_118_79_/_35%)_transparent] [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-[rgb(140_118_79_/_28%)] [&::-webkit-scrollbar-thumb]:bg-clip-padding"
+  "min-h-screen overflow-y-auto [scrollbar-width:thin] \
+   [scrollbar-color:rgb(140_118_79_/_35%)_transparent] \
+   [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] \
+   [&::-webkit-scrollbar-track]:bg-transparent \
+   [&::-webkit-scrollbar-thumb]:border-2 \
+   [&::-webkit-scrollbar-thumb]:border-transparent \
+   [&::-webkit-scrollbar-thumb]:bg-[rgb(140_118_79_/_28%)] \
+   [&::-webkit-scrollbar-thumb]:bg-clip-padding"
 
 let markdown_editor_class =
-  "mt-4 block min-h-[280px] w-full resize-y border border-[#e4e2db] bg-[#fcfbf8] px-4 py-4 font-mono text-[14px] leading-7 text-[#232320] outline-none placeholder:text-[#b2b1ac] focus:border-[#c9b99a]"
+  "mt-4 block min-h-[280px] w-full resize-y border border-[#e4e2db] \
+   bg-[#fcfbf8] px-4 py-4 font-mono text-[14px] leading-7 text-[#232320] \
+   outline-none placeholder:text-[#b2b1ac] focus:border-[#c9b99a]"
 
 let markdown_placeholder =
-  "Write markdown here.\n\nUse # headings, lists, links, `inline code`, and fenced code blocks."
+  "Write markdown here.\n\n\
+   Use # headings, lists, links, `inline code`, and fenced code blocks."
 
 module New_note_editor = struct
-  type draft_checklist_item = {
-    id : int;
-    text : string;
-    done_ : bool;
-  }
+  type draft_checklist_item = { id : int; text : string; done_ : bool }
 
   let make_draft_item id = { id; text = ""; done_ = false }
 
@@ -123,12 +126,11 @@ module New_note_editor = struct
     |> List.map (fun item -> { text = item.text; done_ = item.done_ })
     |> encode_checklist
 
-  let[@react.client.component] make ~(tag_choices : (string * string * string) list) () =
+  let[@react.client.component] make
+      ~(tag_choices : (string * string * string) list) () =
     let router = Utopia.useRouter () in
     let initial_choice =
-      match tag_choices with
-      | choice :: _ -> Some choice
-      | [] -> None
+      match tag_choices with choice :: _ -> Some choice | [] -> None
     in
     let title, set_title = React.useState (fun () -> "") in
     let tag_query, set_tag_query =
@@ -138,7 +140,9 @@ module New_note_editor = struct
     let selected_tag_slug, set_selected_tag_slug =
       React.useState (fun () -> initial_choice |> Option.map choice_slug)
     in
-    let is_tag_list_open, set_is_tag_list_open = React.useState (fun () -> false) in
+    let is_tag_list_open, set_is_tag_list_open =
+      React.useState (fun () -> false)
+    in
     let highlighted_tag_index, set_highlighted_tag_index =
       React.useState (fun () -> 0)
     in
@@ -149,7 +153,9 @@ module New_note_editor = struct
     let next_item_id, set_next_item_id = React.useState (fun () -> 1) in
     let is_pending, set_is_pending = React.useState (fun () -> false) in
     let save_error, set_save_error = React.useState (fun () -> "") in
-    let matching_tag_choices = filtered_tag_choices ~query:tag_query tag_choices in
+    let matching_tag_choices =
+      filtered_tag_choices ~query:tag_query tag_choices
+    in
     let highlighted_tag_index =
       if matching_tag_choices = [] then 0
       else min highlighted_tag_index (List.length matching_tag_choices - 1)
@@ -223,17 +229,20 @@ module New_note_editor = struct
     in
     let body_text = body |> collapse_whitespace in
     let save_disabled =
-      is_pending || Option.is_none selected_tag_slug
-      || (String.trim title = "" && body_text = ""
-         && checklist_value checklist_items = "")
+      is_pending
+      || Option.is_none selected_tag_slug
+      || String.trim title = ""
+         && body_text = ""
+         && checklist_value checklist_items = ""
     in
     let tag_help =
-      if tag_choices = [] then
-        "Create a tag from the sidebar first."
+      if tag_choices = [] then "Create a tag from the sidebar first."
       else if String.trim tag_query = "" then
-        "Select an existing tag. Start typing to filter by name, description, or slug."
+        "Select an existing tag. Start typing to filter by name, description, \
+         or slug."
       else if Option.is_none selected_tag_slug then
-        "Select an existing tag from the list. Create a new one from the sidebar first."
+        "Select an existing tag from the list. Create a new one from the \
+         sidebar first."
       else
         match selected_choice with
         | Some choice ->
@@ -246,18 +255,20 @@ module New_note_editor = struct
       if not save_disabled then (
         set_is_pending (fun _ -> true);
         set_save_error (fun _ -> "");
-        let tag_slug = match selected_tag_slug with Some s -> s | None -> "" in
+        let tag_slug =
+          match selected_tag_slug with Some s -> s | None -> ""
+        in
         let request =
           create_note.call ~tag_slug ~title ~body
             ~checklist:(checklist_value checklist_items)
           |> Js.Promise.then_ (fun route ->
-                 set_is_pending (fun _ -> false);
-                 router.navigate route;
-                 Js.Promise.resolve ())
+              set_is_pending (fun _ -> false);
+              router.navigate route;
+              Js.Promise.resolve ())
           |> Js.Promise.catch (fun _error ->
-                 set_is_pending (fun _ -> false);
-                 set_save_error (fun _ -> "Unable to save the note.");
-                 Js.Promise.resolve ())
+              set_is_pending (fun _ -> false);
+              set_save_error (fun _ -> "Unable to save the note.");
+              Js.Promise.resolve ())
         in
         ignore request)
     in
@@ -265,10 +276,14 @@ module New_note_editor = struct
       <div className="border-b border-[#e4e2db] px-6 py-5 sm:px-8">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+            <p
+              className="text-[11px] font-medium uppercase tracking-[0.18em] \
+                         text-[#8a8984]">
               (React.string "New note")
             </p>
-            <h2 className="mt-2 text-[30px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">
+            <h2
+              className="mt-2 text-[30px] font-semibold tracking-[-0.03em] \
+                         text-[#1d1d1f]">
               (React.string "Compose")
             </h2>
           </div>
@@ -281,108 +296,164 @@ module New_note_editor = struct
         </div>
         (if save_error = "" then React.null
          else
-            <p className="mt-3 text-[13px] text-[#b42318]">(React.string save_error)</p>)
+           <p className="mt-3 text-[13px] text-[#b42318]">
+             (React.string save_error)
+           </p>)
       </div>
-
       <div className="px-6 py-6 sm:px-8 sm:py-8">
         <div className="border-b border-[#e4e2db] pb-5">
-          <label className="block text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+          <label
+            className="block text-[11px] font-medium uppercase \
+                       tracking-[0.18em] text-[#8a8984]">
             (React.string "Tag")
           </label>
           <div className="relative mt-3">
-            <input value=tag_query onChange=on_tag_change onFocus=on_tag_focus
+            <input
+              value=tag_query
+              onChange=on_tag_change
+              onFocus=on_tag_focus
               onKeyDown=on_tag_key_down
-              className="block w-full border border-[#d8d7d2] bg-[#fbfaf7] px-3 py-2 text-[15px] text-[#1d1d1f] outline-none placeholder:text-[#b2b1ac] focus:border-[#bdbbb5]"
-              placeholder="Search existing tags" />
+              className="block w-full border border-[#d8d7d2] bg-[#fbfaf7] \
+                         px-3 py-2 text-[15px] text-[#1d1d1f] outline-none \
+                         placeholder:text-[#b2b1ac] focus:border-[#bdbbb5]"
+              placeholder="Search existing tags"
+            />
             (if not is_tag_list_open then React.null
              else if matching_tag_choices = [] then
-               <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 border border-[#d8d7d2] bg-[#fbfaf7] px-3 py-3 text-[13px] text-[#7a7974]">
-                 (React.string "No matching tag. Create it from the sidebar first.")
+               <div
+                 className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 \
+                            border border-[#d8d7d2] bg-[#fbfaf7] px-3 py-3 \
+                            text-[13px] text-[#7a7974]">
+                 (React.string
+                    "No matching tag. Create it from the sidebar first.")
                </div>
              else
-               <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 border border-[#d8d7d2] bg-[#fbfaf7] py-1">
+               <div
+                 className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 \
+                            border border-[#d8d7d2] bg-[#fbfaf7] py-1">
                  (react_array
                     (List.mapi
-                        (fun index choice ->
-                          let description = choice_description choice in
-                          let className =
-                            if index = highlighted_tag_index then
-                              "block w-full bg-[#f1f0ea] px-3 py-2 text-left"
-                            else
-                              "block w-full px-3 py-2 text-left hover:bg-[#f1f0ea]"
-                          in
-                          <button key=(choice_slug choice) type_="button"
-                            onClick=(on_tag_choice_click choice) className=className>
-                            <span className="block text-[14px] font-medium text-[#1d1d1f]">
-                              (React.string (choice_name choice))
-                            </span>
-                            <span className="mt-1 block text-[12px] text-[#7a7974]">
-                              (React.string
-                                 (if String.trim description = "" then choice_slug choice
-                                  else description))
-                            </span>
-                          </button>)
-                        matching_tag_choices))
+                       (fun index choice ->
+                         let description = choice_description choice in
+                         let className =
+                           if index = highlighted_tag_index then
+                             "block w-full bg-[#f1f0ea] px-3 py-2 text-left"
+                           else
+                             "block w-full px-3 py-2 text-left \
+                              hover:bg-[#f1f0ea]"
+                         in
+                         <button
+                           key=(choice_slug choice)
+                           type_="button"
+                           onClick=(on_tag_choice_click choice)
+                           className>
+                           <span
+                             className="block text-[14px] font-medium \
+                                        text-[#1d1d1f]">
+                             (React.string (choice_name choice))
+                           </span>
+                           <span
+                             className="mt-1 block text-[12px] text-[#7a7974]">
+                             (React.string
+                                (if String.trim description = "" then
+                                   choice_slug choice
+                                 else description))
+                           </span>
+                         </button>)
+                       matching_tag_choices))
                </div>)
           </div>
-          <p className="mt-3 text-[12px] text-[#8a8984]">(React.string tag_help)</p>
+          <p className="mt-3 text-[12px] text-[#8a8984]">
+            (React.string tag_help)
+          </p>
         </div>
-
         <div className="mt-6 border-b border-[#e4e2db] pb-5">
-          <label className="block text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+          <label
+            className="block text-[11px] font-medium uppercase \
+                       tracking-[0.18em] text-[#8a8984]">
             (React.string "Title")
           </label>
-          <input name="title" value=title onChange=on_title_change
-            className="mt-3 block w-full border-0 bg-transparent px-0 py-0 text-[34px] font-semibold tracking-[-0.04em] text-[#1d1d1f] outline-none placeholder:text-[#b2b1ac] sm:text-[42px]"
-            placeholder="Untitled Note" />
+          <input
+            name="title"
+            value=title
+            onChange=on_title_change
+            className="mt-3 block w-full border-0 bg-transparent px-0 py-0 \
+                       text-[34px] font-semibold tracking-[-0.04em] \
+                       text-[#1d1d1f] outline-none placeholder:text-[#b2b1ac] \
+                       sm:text-[42px]"
+            placeholder="Untitled Note"
+          />
         </div>
-
         <div className="mt-6 border-b border-[#e4e2db] pb-6">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+          <p
+            className="text-[11px] font-medium uppercase tracking-[0.18em] \
+                       text-[#8a8984]">
             (React.string "Body")
           </p>
-          <textarea value=body onChange=on_body_change
-            className=markdown_editor_class placeholder=markdown_placeholder>
-            (React.null)
+          <textarea
+            value=body
+            onChange=on_body_change
+            className=markdown_editor_class
+            placeholder=markdown_placeholder>
+            React.null
           </textarea>
           <p className="mt-3 text-[12px] text-[#8a8984]">
-            (React.string "Notes are stored as markdown and rendered on the server. Inline code and fenced code blocks use the shared Ochre highlighter.")
+            (React.string
+               "Notes are stored as markdown and rendered on the server. \
+                Inline code and fenced code blocks use the shared ochre \
+                highlighter.")
           </p>
         </div>
-
         <section className="mt-6">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+            <p
+              className="text-[11px] font-medium uppercase tracking-[0.18em] \
+                         text-[#8a8984]">
               (React.string "Checklist")
             </p>
-            <Button.Action onClick=add_checklist_item kind=Button.Default
+            <Button.Action
+              onClick=add_checklist_item
+              kind=Button.Default
               className="px-3 py-1 text-[12px]">
               (React.string "Add Item")
             </Button.Action>
           </div>
-          <div className="mt-4 border-y border-[#ebe9e2] divide-y divide-[#ebe9e2]">
+          <div
+            className="mt-4 border-y border-[#ebe9e2] divide-y divide-[#ebe9e2]">
             (react_array
                (List.map
-                   (fun item ->
-                     let toggle_class =
-                       if item.done_ then
-                         "mt-[6px] h-3 w-3 shrink-0 border border-[#9f9e98] bg-[#9f9e98]"
-                       else "mt-[6px] h-3 w-3 shrink-0 border border-[#c6c5bf]"
-                     in
-                     let input_class =
-                       if item.done_ then
-                         "flex-1 border-0 bg-transparent p-0 text-[15px] leading-7 text-[#8a8984] line-through outline-none"
-                       else
-                         "flex-1 border-0 bg-transparent p-0 text-[15px] leading-7 text-[#232320] outline-none placeholder:text-[#b2b1ac]"
-                     in
-                     <div key=(string_of_int item.id)
-                       className="flex items-start gap-3 py-3">
-                       <button type_="button" onClick=(toggle_checklist_item item.id)
-                         className=toggle_class />
-                       <input value=item.text onChange=(update_checklist_text item.id)
-                         className=input_class placeholder="Checklist item" />
-                     </div>)
-                   checklist_items))
+                  (fun item ->
+                    let toggle_class =
+                      if item.done_ then
+                        "mt-[6px] h-3 w-3 shrink-0 border border-[#9f9e98] \
+                         bg-[#9f9e98]"
+                      else "mt-[6px] h-3 w-3 shrink-0 border border-[#c6c5bf]"
+                    in
+                    let input_class =
+                      if item.done_ then
+                        "flex-1 border-0 bg-transparent p-0 text-[15px] \
+                         leading-7 text-[#8a8984] line-through outline-none"
+                      else
+                        "flex-1 border-0 bg-transparent p-0 text-[15px] \
+                         leading-7 text-[#232320] outline-none \
+                         placeholder:text-[#b2b1ac]"
+                    in
+                    <div
+                      key=(string_of_int item.id)
+                      className="flex items-start gap-3 py-3">
+                      <button
+                        type_="button"
+                        onClick=(toggle_checklist_item item.id)
+                        className=toggle_class
+                      />
+                      <input
+                        value=item.text
+                        onChange=(update_checklist_text item.id)
+                        className=input_class
+                        placeholder="Checklist item"
+                      />
+                    </div>)
+                  checklist_items))
           </div>
         </section>
       </div>
@@ -393,8 +464,6 @@ let[@react.component] make () =
   let tag_choices =
     tag_summaries ()
     |> List.map (fun summary ->
-           (summary.slug, summary.name, description_text summary.description))
+        (summary.slug, summary.name, description_text summary.description))
   in
-  <main className=scroll_container_class>
-    <New_note_editor tag_choices=tag_choices />
-  </main>
+  <main className=scroll_container_class><New_note_editor tag_choices /></main>

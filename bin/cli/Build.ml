@@ -17,9 +17,10 @@ let print_report () =
 let run _args =
   Printf.printf "\n%s\n\n" (Terminal.bold "utopia build");
   Terminal.print_step "Validating project structure";
-  if not (Filesystem.is_directory Artifacts.source_pages_directory) then (
+  if not (Artifacts.has_source_routes_directory ()) then (
     Terminal.print_err
-      "Missing 'pages' directory. Create it and add page files.";
+      "Missing route source directory. Create 'app/' (preferred) or legacy \
+       'pages/'.";
     exit 1);
   Terminal.print_done "Project structure valid";
 

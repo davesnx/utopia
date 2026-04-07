@@ -21,7 +21,11 @@ module Provider = {
           "children": children,
         },
       )
-    | Server => provider(React.Context.makeProps(~value, ~children, ()))
+    | Server =>
+      provider({
+        "value": value,
+        "children": children,
+      })
     };
 };
 

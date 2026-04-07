@@ -1,3 +1,5 @@
+let app_directory = "app"
+let app_api_directory = "app/api"
 let pages_directory = "pages"
 let api_directory = "api"
 
@@ -75,10 +77,14 @@ let strip_directory_prefix ~directory source_file =
   else source_file
 
 let strip_pages_prefix source_file =
-  strip_directory_prefix ~directory:pages_directory source_file
+  source_file
+  |> strip_directory_prefix ~directory:app_directory
+  |> strip_directory_prefix ~directory:pages_directory
 
 let strip_api_prefix source_file =
-  strip_directory_prefix ~directory:api_directory source_file
+  source_file
+  |> strip_directory_prefix ~directory:app_api_directory
+  |> strip_directory_prefix ~directory:api_directory
 
 let native_module_name_of_source source_file =
   generated_module_base (strip_pages_prefix source_file)

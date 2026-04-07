@@ -2,6 +2,117 @@
 
 ## Active slice
 
+- [completed] Revert generated root-route alias so public route API stays on `Routes.route`
+- [completed] Revert root-alias regression expectations in route-generation tests
+- [completed] Update md demo back-link usage to keep `Routes.route`
+
+## Review
+
+- Removed the temporary root alias generation from `bin/compiler/Generated_routes.ml`, so root routes continue exposing `Routes.route` only.
+- Reverted root-specific cram assertions/fixtures in `bin/tests/compiler_generates_app_directory_routes.t` and `bin/tests/compiler_builds_typed_routes_project.t`.
+- Updated `demo/md/app/Button.mlx` back-link usage to `Routes.route`.
+- Reverted glossary wording in `plan/primitives.md` so generated route API docs match the compatibility decision.
+- Verification passed for `opam exec -- dune build bin/compiler/compiler.exe`, `opam exec -- dune runtest bin/tests/compiler_generates_app_directory_routes.t bin/tests/compiler_builds_typed_routes_project.t`, and `make -C demo/md compile`.
+
+## Active slice
+
+- [completed] Restore `demo/blog/` to its pre-markdown-experiment state so existing blog demo remains unchanged
+- [completed] Create a new `demo/md/` project that showcases serving multiple markdown routes under a single "we are working on it" shell
+- [completed] Add lightweight demo automation/docs wiring (`Makefile` targets + `plan/primitives.md` demo glossary entry)
+- [completed] Verify the new demo compiles and capture review notes
+
+## Review
+
+- Restored `demo/blog/` back to the tracked baseline and removed the experimental `app/` markdown-route test changes from that demo.
+- Added a dedicated `demo/md/` workspace with app-directory routes, including a landing shell (`app/layout.mlx`, `app/page.mlx`) and three markdown pages under `app/updates/**/page.md`.
+- The md demo footer now includes a visual subscribe form placeholder, while the landing page links into markdown-served update pages to showcase mixed MLX + markdown routing.
+- Added root helper targets `compile-md` and `run-md` in `Makefile`, and documented the new demo concept in `plan/primitives.md`.
+- Verification passed for `make -C demo/md compile` and `make -C demo/md build` (after `npm install` in `demo/md/`).
+
+## Active slice
+
+- [completed] Diagnose why editor/LSP resolution regressed for `demo/blog/app/**` after app-local module support changes
+- [completed] Update source-ownership dune generation so descendant app source libraries link ancestor app source libraries
+- [completed] Add regression coverage for app-directory source stanzas carrying ancestor-module visibility
+- [completed] Verify blog demo build still succeeds after source-library dependency changes
+
+## Review
+
+- Root cause: runtime mirrors had app-local module visibility, but source-owned page libraries used for Merlin/ocamllsp did not model ancestor-directory dependencies, so editor resolution diverged from runtime semantics.
+- `bin/compiler/Generated_source_dune.ml` now adds ancestor source-page library dependencies (for example `app/about` links to the root `app/` source-page library), restoring directory-scope module visibility in source ownership.
+- Added `bin/tests/compiler_source_app_directory_ancestor_modules.t` to assert generated `_utopia/dune` carries ancestor page-library linkage in app-directory mode.
+- Kept runtime route behavior unchanged and preserved app-local module non-route semantics.
+- Verification passed for `opam exec -- dune build bin/compiler/compiler.exe`, `opam exec -- dune runtest bin/tests/compiler_source_app_directory_ancestor_modules.t`, `opam exec -- dune runtest bin/tests/compiler_generates_app_directory_routes.t`, and `make -C demo/blog build`.
+
+## Active slice
+
+- [completed] Reproduce and isolate why `app/button.mlx` is not visible to `app/layout.mlx` in demo/blog
+- [completed] Update app-directory file collection/route filtering so non-reserved `app/**` code modules are compiled but not treated as routes
+- [completed] Add or extend compiler coverage proving app-local support modules are included in generated dune/module wiring
+- [completed] Verify blog demo build succeeds with `Button` referenced from layout/page
+
+## Review
+
+- `Routes.collect_app_files` now includes non-reserved `app/**` code modules in build inputs while route generation remains constrained to `page.*`/`layout.*` for pages and `route.*`/`_middleware.*` for API.
+- Generated runtime dune wiring now emits an `App_local` alias module (from unique app-local module basenames) and auto-opens it only in mirrored `page`/`layout` files, which makes references like `Button.*` work without creating route entries.
+- Added app-directory regression coverage in `bin/tests/compiler_generates_app_directory_routes.t` to verify app-local modules are compiled into `_utopia/dune` but not emitted as page routes.
+- Updated `demo/blog/app/layout.mlx` to call `Button.Submit` with the required `kind` argument.
+- Verification passed for `opam exec -- dune build bin/compiler/compiler.exe`, `opam exec -- dune runtest bin/tests/compiler_generates_app_directory_routes.t`, `opam exec -- dune runtest bin/tests/compiler_generates_dune_rules.t`, and `make -C demo/blog build`.
+
+## Active slice
+
+- [completed] Reproduce the blog demo failure when `_utopia/dune` is missing during the initial `dune build` bootstrap
+- [completed] Make demo Makefile flows bootstrap a placeholder `_utopia/dune` before invoking dune
+- [completed] Verify blog and notes demo entrypoints still run after bootstrap changes
+
+## Review
+
+- Added a shared bootstrap step in `demo/blog/Makefile` and `demo/notes/Makefile` that creates `_utopia/dune` when absent so Dune can parse `(include _utopia/dune)` on first run.
+- Wired `compile` and `clean` through bootstrap in blog, and `compile`/`dev`/`watch-compile`/`clean` through bootstrap in notes to prevent the same first-run failure across demo flows.
+- Verification passed for `make -C demo/blog compile` and `make -C demo/notes clean`.
+
+## Active slice
+
+- [completed] Clarify `plan/14-app-directory-unification.md` with app-local support-module behavior under `app/`
+- [completed] Sync glossary/spec terminology for app-local modules (`plan/primitives.md`, `plan/spec.md`)
+
+## Review
+
+- Added explicit app-local support-module semantics to `plan/14-app-directory-unification.md`: non-reserved `app/**` modules do not create routes and are available to descendant `page.*`/`layout.*` files in directory scope.
+- Added an `App-local Module` primitive in `plan/primitives.md` with reserved-name exclusions and scope rules.
+- Updated `plan/spec.md` project structure and behavior section to include app-local module visibility (for example `app/button.mlx`).
+
+## Active slice
+
+- [completed] Migrate checked-in demos from legacy `pages/` route roots to canonical `app/` with `page.*` naming
+- [completed] Update demo helper/build scripts and related references to use the new `app/` file layout
+- [completed] Verify demo builds and key compiler tests still pass after demo migration
+
+## Review
+
+- Migrated both checked-in demos to the app-directory layout: blog routes now live under `demo/blog/app/**/page.mlx` and notes routes/layouts now live under `demo/notes/app/**`.
+- Updated demo-local build inputs to scan `app/` instead of `pages/` (`demo/blog/dune`, `demo/notes/dune`, `demo/blog/tailwind.config.js`, `demo/notes/tailwind.config.js`) and removed the now-empty legacy `pages/` folders.
+- Updated route-constructor usage impacted by the basename change (`Routes.Posts_slug_index` -> `Routes.Posts_slug_page`) in `demo/blog/app/posts/[slug]/page.mlx`.
+- Updated demo content/docs text to reflect the canonical app-directory flow (`demo/blog/content/hello-utopia.md`) and synced the checked-in demo path wording in `plan/primitives.md`.
+- Verification passes for `opam exec -- dune exec ../../bin/compiler/compiler.exe -- --mode production > /dev/null && opam exec -- dune build output.css _utopia/server_main.exe` in both `demo/blog` and `demo/notes`, plus root `opam exec -- dune build .`.
+
+- [completed] Implement app-directory dual-read route discovery in the compiler (`app/` canonical with legacy fallback)
+- [completed] Update route validation/generation for `page.*` and `route.*` semantics plus `app/api/**` placement rules
+- [completed] Rewire generated dune/source-support and CLI project checks to recognize `app/` as canonical
+- [completed] Add cram coverage for app routing, invalid placements, duplicate basename conflicts, legacy compatibility, and app-precedence warnings
+- [completed] Sync docs/terminology for touched concepts (`plan/primitives.md`) and record verification results
+
+## Review
+
+- Compiler route discovery now supports the app-directory model (`app/`) while keeping a compatibility fallback to legacy `pages/` + `api/` when `app/` is absent.
+- `app/` routing now enforces basename semantics (`page.*` for pages, `route.*` for API handlers), errors on invalid placements (`page.*` under `app/api/**`, `route.*` outside `app/api/**`), and checks duplicate `page.*` / `route.*` basenames per directory.
+- Generated dune/source wiring now mirrors page/API sources from dynamic roots (`app/` + `app/api/` in app mode, legacy roots otherwise), and CLI structure validation now accepts `app/` (preferred) or legacy `pages/`.
+- Added app-directory cram coverage for route generation, markdown `app/**/page.md`, invalid placement errors, duplicate basename errors, and app-precedence warnings when both app and legacy roots are present.
+- Updated `plan/primitives.md` to document compatibility-window behavior (legacy fallback and app-precedence warning) and CLI/source-root validation semantics.
+- Verification passes for `opam exec -- dune build .` and `opam exec -- dune runtest bin/tests/compiler_*.t bin/tests/cli_build_requires_pages_directory.t`.
+
+## Active slice
+
 - [completed] Draft a new app-directory unification plan under `plan/` with `page.*` and `route.*` conventions
 - [completed] Update `plan/primitives.md` glossary terms from split `pages/` + `api/` roots to canonical `app/`
 - [completed] Update key `plan/spec.md` and `plan/roadmap.md` filesystem references to the unified `app/` model
@@ -1023,3 +1134,69 @@
 - Extended markdown components/elements surfaces with table and footnote hooks, and added a server-side markdown lookup surface via `Utopia.Markdown` (`lib/utopia/Utopia_markdown_api.ml`) backed by runtime matcher-based frontmatter lookup.
 - Updated compiler/server outputs (`bin/compiler/Routes.ml`, `bin/compiler/Generated_routes.ml`, `bin/compiler/Server_main.ml`, `lib/utopia/Utopia_server.ml`) to carry markdown payload registries, metadata convenience fields, and markdown route payload construction.
 - Updated `demo/blog/lib/blog_data.ml` to use the shared `Utopia_markdown.extract_frontmatter` behavior and refreshed markdown/compiler coverage with new cram files (`markdown/tests/frontmatter.t`, `markdown/tests/tables.t`, `markdown/tests/footnotes.t`, `bin/tests/compiler_generates_markdown_payloads.t`, `bin/tests/compiler_warns_invalid_markdown_frontmatter.t`) plus updated server-main expectations.
+
+## Active slice
+
+- [completed] Simplify `demo/md/` shell to a minimal dark monospaced layout with only essential structure and optional footer
+- [completed] Replace the MD landing page with exactly three nav buttons linking to markdown routes (`faq`, `progress`, `manifest`)
+- [completed] Align markdown route files/content to `faq`, `progress`, and `manifest` and remove unused update route variants
+- [completed] Update touched glossary wording in `plan/primitives.md` and verify `demo/md` still builds
+
+## Review
+
+- Replaced `demo/md/app/layout.mlx` with a minimal dark shell that uses a monospaced stack, two-tone light/dark opacity levels (`0.4`, `0.6`, `0.8`), no shadows, and a small optional footer.
+- Rewrote `demo/md/app/page.mlx` into a minimal landing route with exactly three button-like links to `/faq`, `/progress`, and `/manifest`, with accent hover state on `#FFA759` (including `0.5` alpha for border/decoration states).
+- Added markdown routes at `demo/md/app/faq/page.md`, `demo/md/app/progress/page.md`, and `demo/md/app/manifest/page.md`, and removed legacy `demo/md/app/updates/**/page.md` files.
+- Updated the markdown-demo glossary entry in `plan/primitives.md` to match the new route layout and design constraints.
+- Verification passed for `make -C demo/md build`.
+
+## Active slice
+
+- [completed] Make `demo/md` root layout use flex column structure so footer stays pinned to the bottom on short pages
+- [completed] Re-introduce a minimal shared header in `demo/md` layout while preserving the current dark monospaced visual direction
+- [completed] Add a clear back link on markdown routes (`faq`, `progress`, `manifest`) and verify the demo still builds
+
+## Review
+
+- Updated `demo/md/app/layout.mlx` to a `min-h-screen flex flex-col` shell and set `main` to `flex-1`, so footer stays at the bottom when page content is short.
+- Added a shared minimal header in `demo/md/app/layout.mlx` (home link plus small context label), keeping the same dark monospaced style and opacity-only tonal system.
+- Added a back link (`[<- back](/)`) to each markdown route in `demo/md/app/faq/page.md`, `demo/md/app/progress/page.md`, and `demo/md/app/manifest/page.md`; styled in layout-level markdown selectors so it presents as a button-like control.
+- Verification passed for `make -C demo/md build`.
+
+## Active slice
+
+- [completed] Remove the md demo shared header from `demo/md/app/layout.mlx`
+- [completed] Remove the md demo shared footer from `demo/md/app/layout.mlx`
+- [completed] Verify `demo/md` still builds after shell simplification
+
+## Review
+
+- Removed the shared header and shared footer from `demo/md/app/layout.mlx`, leaving only the minimal root wrapper and markdown-styled `main` content.
+- Kept the back links on markdown pages unchanged, so route-level navigation remains available without global chrome.
+- Verification passed for `make -C demo/md build`.
+
+## Active slice
+
+- [completed] Convert remaining visible `demo/md` copy to lowercase
+- [completed] Remove uppercase text-transform classes from the md demo shell/page styles
+- [completed] Verify `demo/md` still builds after lowercase-only text pass
+
+## Review
+
+- Lowercased remaining visible copy across `demo/md/app/page.mlx` and all three markdown routes (`demo/md/app/faq/page.md`, `demo/md/app/progress/page.md`, `demo/md/app/manifest/page.md`).
+- Removed uppercase transform styling from nav buttons and the markdown-page back control; kept the top `markdown` label styling as the one exception.
+- Also normalized markdown frontmatter titles to lowercase for consistency (`faq`, `progress`, `manifest`).
+- Verification passed for `make -C demo/md build`.
+
+## Active slice
+
+- [completed] Update md landing buttons to fill with accent orange on hover with smoother color transition
+- [completed] Remove link text decoration from interactive md demo buttons/back control
+- [completed] Normalize back-link arrow text to explicit ASCII arrow format on markdown pages and verify build
+
+## Review
+
+- Updated md landing nav button styling in `demo/md/app/page.mlx` so hover now fills the full button with `#FFA759`, switches text to dark for contrast, and uses a smooth `duration-200 ease-out` color transition.
+- Updated markdown back-link styling in `demo/md/app/layout.mlx` so the button also fills orange on hover, keeps no underline, and uses the same transition timing.
+- Replaced back-link labels in all markdown pages with explicit ASCII arrow text (`back <-`) in `demo/md/app/faq/page.md`, `demo/md/app/progress/page.md`, and `demo/md/app/manifest/page.md`.
+- Verification passed for `make -C demo/md build`.

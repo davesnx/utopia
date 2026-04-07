@@ -1,5 +1,7 @@
 open Utopia_types
 
+let app_directory = "app"
+let app_api_directory = "app/api"
 let pages_directory = "pages"
 let api_directory = "api"
 
@@ -152,6 +154,9 @@ let relative_directory file =
   let dir = Filename.dirname file in
   if dir = "." then "" else dir
 
+let starts_with_directory_prefix path prefix =
+  String.equal path prefix || String.starts_with ~prefix:(prefix ^ "/") path
+
 let basename_without_extension file =
   file |> Filename.basename |> Filename.remove_extension
 
@@ -174,9 +179,8 @@ let ancestor_directories dir =
     in
     build [ "" ] parts
 
-let route_signature_of_file ~source_file file =
-  let without_extension = Filename.remove_extension file in
-  let normalized_segments = normalize_path_segments without_extension in
+let route_signature_of_path ~source_file path_without_extension =
+  let normalized_segments = normalize_path_segments path_without_extension in
   let parsed_segments_result =
     normalized_segments
     |> List.map parse_param_segment
@@ -193,13 +197,13 @@ let route_signature_of_file ~source_file file =
   | Error message ->
       Error
         (Printf.sprintf "In %s: %s (segment path: %s)" source_file message
-           without_extension)
+           path_without_extension)
   | Ok segments -> (
       match validate_segment_rules segments with
       | Error message ->
           Error
             (Printf.sprintf "In %s: %s (segment path: %s)" source_file message
-               without_extension)
+               path_without_extension)
       | Ok params ->
           Ok
             ({
@@ -210,9 +214,12 @@ let route_signature_of_file ~source_file file =
              }
               : route_signature))
 
-let route_entry_of_file file kind =
-  let source_file = Filename.concat pages_directory file in
-  match route_signature_of_file ~source_file file with
+let route_signature_of_file ~source_file file =
+  route_signature_of_path ~source_file (Filename.remove_extension file)
+
+let route_entry_of_file ~source_root ~route_path file kind =
+  let source_file = Filename.concat source_root file in
+  match route_signature_of_path ~source_file route_path with
   | Error _ as error -> error
   | Ok { route; matcher; conflict_key; params } ->
       Ok
@@ -238,7 +245,7 @@ let route_entry_of_file file kind =
           route_schema_has_hash = false;
         }
 
-let collect_layouts files =
+let collect_layouts ~source_root files =
   let layout_by_dir = Hashtbl.create 32 in
   let errors = ref [] in
   files
@@ -247,15 +254,15 @@ let collect_layouts files =
       match (kind_of_extension extension, is_layout_file file) with
       | Some Code_page, true -> (
           let dir = relative_directory file in
-          let source_file = Filename.concat pages_directory file in
+          let source_file = Filename.concat source_root file in
           let previous = Hashtbl.find_opt layout_by_dir dir in
           match previous with
           | None -> Hashtbl.replace layout_by_dir dir source_file
           | Some existing ->
               errors :=
                 Printf.sprintf
-                  "Layout conflict in pages/%s: both %s and %s define a layout"
-                  dir existing source_file
+                  "Layout conflict in %s/%s: both %s and %s define a layout"
+                  source_root dir existing source_file
                 :: !errors)
       | _ -> ());
   (layout_by_dir, List.rev !errors)
@@ -265,8 +272,8 @@ let layouts_for_file layout_by_dir file =
   ancestor_directories dir
   |> List.filter_map (fun segment -> Hashtbl.find_opt layout_by_dir segment)
 
-let route_entries_of_files files =
-  let layout_by_dir, layout_errors = collect_layouts files in
+let route_entries_of_files_with ~source_root ~route_path_of_file files =
+  let layout_by_dir, layout_errors = collect_layouts ~source_root files in
   files
   |> List.fold_left
        (fun (entries, errors) file ->
@@ -275,7 +282,10 @@ let route_entries_of_files files =
          | None -> (entries, errors)
          | Some Code_page when is_layout_file file -> (entries, errors)
          | Some kind -> (
-             match route_entry_of_file file kind with
+             match
+               route_entry_of_file ~source_root
+                 ~route_path:(route_path_of_file file) file kind
+             with
              | Ok entry ->
                  let entry =
                    { entry with layouts = layouts_for_file layout_by_dir file }
@@ -284,6 +294,129 @@ let route_entries_of_files files =
              | Error message -> (entries, message :: errors)))
        ([], layout_errors)
   |> fun (entries, errors) -> (List.rev entries, List.rev errors)
+
+let route_entries_of_files files =
+  route_entries_of_files_with ~source_root:pages_directory
+    ~route_path_of_file:(fun file -> Filename.remove_extension file)
+    files
+
+type app_file_collection = {
+  page_files : string list;
+  api_files : string list;
+  errors : string list;
+}
+
+let app_page_file_conflicts page_files_by_dir =
+  page_files_by_dir |> Hashtbl.to_seq |> List.of_seq
+  |> List.filter_map (fun (dir, source_files) ->
+      match source_files |> List.sort_uniq String.compare with
+      | [] | [ _ ] -> None
+      | ordered ->
+          Some
+            (Printf.sprintf "Duplicate page files in %s/%s: %s" app_directory
+               dir
+               (String.concat ", " ordered)))
+
+let app_route_file_conflicts route_files_by_dir =
+  route_files_by_dir |> Hashtbl.to_seq |> List.of_seq
+  |> List.filter_map (fun (dir, source_files) ->
+      match source_files |> List.sort_uniq String.compare with
+      | [] | [ _ ] -> None
+      | ordered ->
+          Some
+            (Printf.sprintf "Duplicate route files in %s/%s: %s" app_directory
+               dir
+               (String.concat ", " ordered)))
+
+let collect_app_files files =
+  let pages = ref [] in
+  let api = ref [] in
+  let errors = ref [] in
+  let page_files_by_dir = Hashtbl.create 16 in
+  let route_files_by_dir = Hashtbl.create 16 in
+  let add_page_file dir source_file relative_file =
+    let existing =
+      Hashtbl.find_opt page_files_by_dir dir |> Option.value ~default:[]
+    in
+    Hashtbl.replace page_files_by_dir dir (source_file :: existing);
+    pages := relative_file :: !pages
+  in
+  let add_layout_file relative_file = pages := relative_file :: !pages in
+  let add_route_file dir source_file relative_file =
+    let existing =
+      Hashtbl.find_opt route_files_by_dir dir |> Option.value ~default:[]
+    in
+    Hashtbl.replace route_files_by_dir dir (source_file :: existing);
+    api := relative_file :: !api
+  in
+  files
+  |> List.iter (fun relative_file ->
+      let extension = Filename.extension relative_file in
+      let basename = basename_without_extension relative_file in
+      let dir = relative_directory relative_file in
+      let source_file = Filename.concat app_directory relative_file in
+      let in_api_namespace = starts_with_directory_prefix dir "api" in
+      match (basename, kind_of_extension extension) with
+      | "layout", Some Code_page -> add_layout_file relative_file
+      | "page", Some Code_page | "page", Some Markdown_page ->
+          if in_api_namespace then
+            errors :=
+              Printf.sprintf
+                "Invalid app route declaration: %s is a page file inside %s/**"
+                source_file app_api_directory
+              :: !errors
+          else add_page_file dir source_file relative_file
+      | "route", Some Code_page ->
+          if in_api_namespace then add_route_file dir source_file relative_file
+          else
+            errors :=
+              Printf.sprintf
+                "Invalid app route declaration: %s is a route file outside \
+                 %s/**"
+                source_file app_api_directory
+              :: !errors
+      | "_middleware", Some Code_page when in_api_namespace ->
+          api := relative_file :: !api
+      | "_middleware", Some Code_page -> ()
+      | _, Some Code_page ->
+          if in_api_namespace then api := relative_file :: !api
+          else pages := relative_file :: !pages
+      | _ -> ());
+  let api_files =
+    !api
+    |> List.map (fun relative_file ->
+        let prefix = "api/" in
+        let prefix_len = String.length prefix in
+        if
+          String.length relative_file >= prefix_len
+          && String.sub relative_file 0 prefix_len = prefix
+        then
+          String.sub relative_file prefix_len
+            (String.length relative_file - prefix_len)
+        else relative_file)
+  in
+  {
+    page_files = List.rev !pages;
+    api_files = List.rev api_files;
+    errors =
+      List.rev !errors
+      @ app_page_file_conflicts page_files_by_dir
+      @ app_route_file_conflicts route_files_by_dir;
+  }
+
+let app_route_entries_of_files files =
+  let page_and_layout_files =
+    files
+    |> List.filter (fun file ->
+        let basename = basename_without_extension file in
+        match (basename, kind_of_extension (Filename.extension file)) with
+        | "layout", Some Code_page -> true
+        | "page", Some Code_page | "page", Some Markdown_page -> true
+        | _ -> false)
+  in
+  route_entries_of_files_with ~source_root:app_directory
+    ~route_path_of_file:(fun file -> relative_directory file)
+    page_and_layout_files
 
 let attach_markdown_payloads (entries : route_entry list) =
   let attach_entry (entry : route_entry) =
@@ -337,7 +470,7 @@ let attach_markdown_payloads (entries : route_entry list) =
 let is_api_middleware_file file =
   basename_without_extension file = "_middleware"
 
-let collect_api_middlewares files =
+let collect_api_middlewares ~source_root files =
   let middleware_by_dir = Hashtbl.create 32 in
   let errors = ref [] in
   files
@@ -346,16 +479,16 @@ let collect_api_middlewares files =
       match kind_of_extension extension with
       | Some Code_page when is_api_middleware_file file -> (
           let dir = relative_directory file in
-          let source_file = Filename.concat api_directory file in
+          let source_file = Filename.concat source_root file in
           let previous = Hashtbl.find_opt middleware_by_dir dir in
           match previous with
           | None -> Hashtbl.replace middleware_by_dir dir source_file
           | Some existing ->
               errors :=
                 Printf.sprintf
-                  "Middleware conflict in api/%s: both %s and %s define \
+                  "Middleware conflict in %s/%s: both %s and %s define \
                    _middleware"
-                  dir existing source_file
+                  source_root dir existing source_file
                 :: !errors)
       | _ -> ());
   (middleware_by_dir, List.rev !errors)
@@ -365,9 +498,9 @@ let middlewares_for_file middleware_by_dir file =
   ancestor_directories dir
   |> List.filter_map (fun segment -> Hashtbl.find_opt middleware_by_dir segment)
 
-let api_route_entry_of_file file =
-  let source_file = Filename.concat api_directory file in
-  match route_signature_of_file ~source_file file with
+let api_route_entry_of_file ~source_root ~route_path file =
+  let source_file = Filename.concat source_root file in
+  match route_signature_of_path ~source_file route_path with
   | Error _ as error -> error
   | Ok signature ->
       let route =
@@ -391,8 +524,10 @@ let api_route_entry_of_file file =
           module_name = "Api__" ^ Names.generated_module_base file;
         }
 
-let api_route_entries_of_files files =
-  let middleware_by_dir, middleware_errors = collect_api_middlewares files in
+let api_route_entries_of_files_with ~source_root ~route_path_of_file files =
+  let middleware_by_dir, middleware_errors =
+    collect_api_middlewares ~source_root files
+  in
   files
   |> List.fold_left
        (fun (entries, errors) file ->
@@ -401,7 +536,10 @@ let api_route_entries_of_files files =
          | None | Some Markdown_page -> (entries, errors)
          | Some Code_page when is_api_middleware_file file -> (entries, errors)
          | Some Code_page -> (
-             match api_route_entry_of_file file with
+             match
+               api_route_entry_of_file ~source_root
+                 ~route_path:(route_path_of_file file) file
+             with
              | Error message -> (entries, message :: errors)
              | Ok entry ->
                  let entry =
@@ -413,6 +551,24 @@ let api_route_entries_of_files files =
                  (entry :: entries, errors)))
        ([], middleware_errors)
   |> fun (entries, errors) -> (List.rev entries, List.rev errors)
+
+let api_route_entries_of_files files =
+  api_route_entries_of_files_with ~source_root:api_directory
+    ~route_path_of_file:(fun file -> Filename.remove_extension file)
+    files
+
+let app_api_route_entries_of_files files =
+  let route_and_middleware_files =
+    files
+    |> List.filter (fun file ->
+        let basename = basename_without_extension file in
+        match (basename, kind_of_extension (Filename.extension file)) with
+        | "route", Some Code_page | "_middleware", Some Code_page -> true
+        | _ -> false)
+  in
+  api_route_entries_of_files_with ~source_root:app_api_directory
+    ~route_path_of_file:(fun file -> relative_directory file)
+    route_and_middleware_files
 
 let page_route_in_reserved_api_namespace (entry : route_entry) =
   String.equal entry.route "api"
@@ -468,13 +624,21 @@ let find_api_conflicts (entries : api_route_entry list) =
 let pp_route route = if route = "" then "/" else "/" ^ route
 
 let strip_pages_prefix source_file =
-  let prefix = pages_directory ^ "/" in
-  let prefix_len = String.length prefix in
-  if
-    String.length source_file >= prefix_len
-    && String.sub source_file 0 prefix_len = prefix
-  then String.sub source_file prefix_len (String.length source_file - prefix_len)
-  else source_file
+  let strip_with_prefix prefix source =
+    let with_slash = prefix ^ "/" in
+    let prefix_len = String.length with_slash in
+    if
+      String.length source >= prefix_len
+      && String.sub source 0 prefix_len = with_slash
+    then Some (String.sub source prefix_len (String.length source - prefix_len))
+    else None
+  in
+  match strip_with_prefix app_directory source_file with
+  | Some stripped -> stripped
+  | None -> (
+      match strip_with_prefix pages_directory source_file with
+      | Some stripped -> stripped
+      | None -> source_file)
 
 let layout_route_path source_file =
   let relative = strip_pages_prefix source_file |> Filename.remove_extension in

@@ -1,0 +1,2 @@
+let[@react.component] make ~(children : React.element) () =
+  <Markdown header=(<Button.Back />)>children</Markdown>

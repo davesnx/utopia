@@ -1,0 +1,41 @@
+let markdown_class =
+  "mx-auto w-full max-w-3xl px-6 py-16 sm:px-8 sm:py-20 text-[15px] leading-7 \
+   [&_p:first-of-type]:mt-0 [&_p:first-of-type_a]:inline-flex \
+   [&_p:first-of-type_a]:items-center [&_p:first-of-type_a]:gap-2 \
+   [&_p:first-of-type_a]:border \
+   [&_p:first-of-type_a]:border-[rgb(240_240_236_/_0.4)] \
+   [&_p:first-of-type_a]:px-3 [&_p:first-of-type_a]:py-1.5 \
+   [&_p:first-of-type_a]:text-[11px] [&_p:first-of-type_a]:tracking-[0.18em] \
+   [&_p:first-of-type_a]:no-underline \
+   [&_p:first-of-type_a]:text-[rgb(240_240_236_/_0.8)] \
+   [&_p:first-of-type_a]:transition-colors [&_p:first-of-type_a]:duration-200 \
+   [&_p:first-of-type_a]:ease-out [&_p:first-of-type_a:hover]:bg-[#FFA759] \
+   [&_p:first-of-type_a:hover]:border-[rgb(255_167_89_/_0.5)] \
+   [&_p:first-of-type_a:hover]:text-[#151515] \
+   [&_p:first-of-type_a:hover]:no-underline [&_h1]:mt-10 [&_h1]:text-3xl \
+   [&_h1]:tracking-[-0.02em] [&_h1]:text-[rgb(240_240_236_/_0.8)] [&_h2]:mt-8 \
+   [&_h2]:text-xl [&_h2]:tracking-[-0.01em] \
+   [&_h2]:text-[rgb(240_240_236_/_0.8)] [&_h3]:mt-6 [&_h3]:text-lg \
+   [&_h3]:text-[rgb(240_240_236_/_0.8)] [&_p]:mt-4 \
+   [&_p]:text-[rgb(240_240_236_/_0.6)] [&_ul]:mt-4 [&_ul]:list-disc \
+   [&_ul]:pl-6 [&_ol]:mt-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mt-2 \
+   [&_strong]:font-medium [&_strong]:text-[rgb(240_240_236_/_0.8)] \
+   [&_a]:text-[#FFA759] [&_a]:decoration-[rgb(255_167_89_/_0.5)] [&_hr]:my-8 \
+   [&_hr]:border-[rgb(240_240_236_/_0.4)] \
+   [&_pre.utopia-markdown-code-block]:mt-5 \
+   [&_pre.utopia-markdown-code-block]:overflow-x-auto \
+   [&_pre.utopia-markdown-code-block]:border \
+   [&_pre.utopia-markdown-code-block]:border-[rgb(240_240_236_/_0.4)] \
+   [&_pre.utopia-markdown-code-block]:p-4 \
+   [&_pre.utopia-markdown-code-block_code]:grid \
+   [&_code.utopia-inline-code]:bg-[rgb(240_240_236_/_0.2)] \
+   [&_code.utopia-inline-code]:px-1 [&_code.utopia-inline-code]:py-[0.1rem] \
+   [&_code.utopia-inline-code]:text-[rgb(240_240_236_/_0.8)]"
+
+let[@react.component] make ~children ?(header : React.element = React.null) () =
+  <div
+    className="min-h-screen bg-[#151515] text-[rgb(240_240_236_/_0.8)] \
+               antialiased [color-scheme:dark] \
+               [font-family:'IBM_Plex_Mono','SFMono-Regular',ui-monospace,monospace]">
+    <main className=markdown_class>header children</main>
+  </div>

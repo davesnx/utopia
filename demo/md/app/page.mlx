@@ -1,0 +1,40 @@
+let static = true
+
+let metadata _params =
+  Utopia.Metadata.make ~title:"md demo" ~description:"minimal markdown routes."
+    ()
+
+type destination = { href : string; label : string }
+
+let destinations : destination list =
+  [
+    { href = "/faq"; label = "faq" };
+    { href = "/progress"; label = "progress" };
+    { href = "/manifest"; label = "manifest" };
+  ]
+
+let[@react.component] make () =
+  <section>
+    <p
+      className="text-[12px] uppercase tracking-[0.2em] \
+                 text-[rgb(240_240_236_/_0.4)]">
+      (React.string "markdown")
+    </p>
+    <h1
+      className="mt-2 text-2xl tracking-[-0.02em] \
+                 text-[rgb(240_240_236_/_0.8)] sm:text-3xl">
+      (React.string "minimal demo")
+    </h1>
+    <p className="mt-4 max-w-xl text-[rgb(240_240_236_/_0.6)]">
+      (React.string "three markdown pages. nothing else.")
+    </p>
+    <nav className="mt-8 grid gap-3 sm:max-w-sm">
+      (destinations
+      |> List.map (fun destination ->
+          <Button.Link
+            key=destination.href to_=(Utopia_route.of_href destination.href)>
+            destination.label
+          </Button.Link>)
+      |> Array.of_list |> React.array)
+    </nav>
+  </section>
