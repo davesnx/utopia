@@ -89,6 +89,11 @@ let run ~build_mode =
       let route_entries =
         route_entries |> List.map Diagnostics.detect_static_for_entry
       in
+      let route_entries, markdown_warnings =
+        Routes.attach_markdown_payloads route_entries
+      in
+      markdown_warnings
+      |> List.iter (fun warning -> Printf.eprintf "  Warning: %s\n" warning);
       let conflicts = Diagnostics.find_route_conflicts route_entries in
       let api_conflicts = Routes.find_api_conflicts api_entries in
       let api_param_kind_conflicts =

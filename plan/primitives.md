@@ -4,8 +4,17 @@ Canonical glossary of concepts in utopia. Every term used in specs, plans, or co
 
 ## Core Concepts
 
+### App Directory
+The project-root `app/` directory is the canonical route root. It unifies page routes and API routes under one filesystem tree.
+
+Route intent is inferred by filename:
+- `page.re|.ml|.mlx` (and `page.md` for markdown) defines a page route
+- `route.re|.ml|.mlx` defines an API route
+
+`pages/` and `api/` are legacy roots planned for deprecation after app-directory migration.
+
 ### Page
-A file inside `pages/` that maps to a URL route. Pages are always **server components**. A page's minimal contract is a single `make` function that returns `React.element`. Path is inferred from the filesystem, layout is inferred from the directory ancestry.
+A file named `page.re`, `page.ml`, `page.mlx`, or `page.md` inside `app/` that maps to a URL route. Pages are always **server components**. A page's minimal contract is a single `make` function that returns `React.element`. Path is inferred from the filesystem directory path, layout is inferred from the directory ancestry.
 
 Supported file types: `.re`, `.ml`, `.mlx` (code pages) and `.md` (markdown pages).
 
@@ -14,7 +23,7 @@ A page may export an optional `metadata` function that returns `Utopia_types.met
 Future planned exports: `static` (SSG flag), `head` (custom head elements).
 
 ### Layout
-A file named `layout.re` or `layout.ml` placed in any directory under `pages/`. Layouts wrap all child pages and nested layouts within that directory. Layouts compose top-down: a root `pages/layout.re` wraps `pages/about/layout.re` which wraps `pages/about/team.re`.
+A file named `layout.re`, `layout.ml`, or `layout.mlx` placed in any directory under `app/`. Layouts wrap all child pages and nested layouts within that directory. Layouts compose top-down: a root `app/layout.re` wraps `app/about/layout.re` which wraps `app/about/team/page.re`.
 
 A layout receives `children` (the rendered child page or nested layout) as its primary prop, plus route context (path, params) for navigation-aware rendering.
 
@@ -41,7 +50,7 @@ The generated `Utopia.Routes` builder/parser exposes these schema modules back t
 
 ### Route Segment
 A single component of a route path. Types:
-- **Static**: literal path component (e.g., `about` from `pages/about.re`). Matched case-insensitively at request time.
+- **Static**: literal path component (e.g., `about` from `app/about/page.re`). Matched case-insensitively at request time.
 - **Param (Single)**: dynamic segment matching one path component (e.g., `[id]`)
 - **Param (Catch-all)**: dynamic segment matching one or more components (e.g., `[...slug]`)
 - **Param (Optional catch-all)**: dynamic segment matching zero or more components (e.g., `[[...slug]]`)
@@ -83,9 +92,20 @@ The server-side representation of route segments, used in generated route metada
 A normalized route pattern (with param names stripped) used to detect ambiguous routes. Two pages that produce the same conflict key are a compile-time error.
 
 ### Frontmatter
-YAML metadata block at the top of a markdown page, delimited by `---`. Compiler-level markdown-page frontmatter is still planned; when it lands it will be parsed by the compiler, stripped before rendering, and support fields such as `title`, `description`, `path` (route override), `layout` (explicit layout selection), and `static` (SSG eligibility flag).
+YAML metadata block at the top of a markdown page, delimited by `---`. Frontmatter is generic metadata, not route/layout/SSG control in the current markdown plan scope.
 
-The checked-in `demo/blog/` already uses a local frontmatter parser in `demo/blog/lib/blog_data.ml`. That demo reads `title`, `date`, and `description` from each `demo/blog/content/*.md` file and strips the block before handing the markdown body to `Utopia_markdown`.
+Extraction semantics:
+- candidate block only when file starts with `---` and has a closing `---`
+- parse with `Yaml`
+- only object/map roots are treated as frontmatter
+- parse failure or non-object root triggers warning + fallback to unchanged markdown body
+- duplicate keys are last-key-wins
+
+Special keys:
+- `title` and `description` are convenience keys for `<head>` metadata only when they are top-level string scalars
+- all other keys are preserved as generic frontmatter metadata
+
+The checked-in `demo/blog/` uses the shared `Utopia_markdown.extract_frontmatter` pipeline in `demo/blog/lib/blog_data.ml` for post metadata/body splitting.
 
 ## Components
 
@@ -120,7 +140,7 @@ An esbuild plugin that runs `extract_client_components` before bundling and prep
 ## Build System
 
 ### Compiler (`utopia.compiler`)
-Scans `pages/` and `api/` recursively, parses file names into route segments, detects conflicts, collects layouts/middleware, validates param accesses for pages, and generates:
+Scans `app/` recursively, classifies `page.*` and `route.*` files, parses directory names into route segments, detects conflicts, collects layouts/middleware, validates param accesses for pages, and generates:
 - `_utopia/dune` (dune build rules)
 - `_utopia/Routes.ml` (typed route builders)
 - route metadata loaders (`Routes.get_all`, `Routes.Api.get_all`)
@@ -146,10 +166,10 @@ Generated files include:
 - `server_main.ml` -- per-project server executable (wires pages to server lib)
 
 Generated build mirrors include:
-- root `_utopia/Utopia_page__*.re|.ml|.mlx` page/layout copies for the Melange build
+- root `_utopia/Utopia_page__*.re|.ml|.mlx` app page/layout copies for the Melange build
 - root `_utopia/Utopia_lib__*.re|.ml|.mlx` shared `lib/` copies for the Melange build
-- `_utopia/native/Utopia_page__*` mirrored page/layout copies for the project-scoped native pages library build
-- `_utopia/native/Utopia_api__*` mirrored API handler/middleware copies for the project-scoped native API library build
+- `_utopia/native/Utopia_page__*` mirrored app page/layout copies for the project-scoped native pages library build
+- `_utopia/native/Utopia_api__*` mirrored app API handler/middleware copies for the project-scoped native API library build
 - `_utopia/native/Utopia_lib__*` mirrored shared `lib/` copies for the same native build
 
 The compiler injects a small prelude into these mirrored sources so both build paths have `Melange_json.Primitives` in scope and page/layout mirrors can auto-open generated `Lib` aliases consistently.
@@ -183,10 +203,10 @@ In parallel, the compiler now also generates an optional source-ownership path f
 That single generated `_utopia/dune` file defines:
 - a generated `_utopia/support/` native library that copies the project-local `Utopia`/route/runtime surface from `_utopia/`, includes `FunctionReferences`, and uses a stub `Utopia_call_server.re`
 - a real source-owned `lib/` native library (`source_lib_<project-scope>`) built directly from the user’s `lib/*.ml|*.re|*.mlx` files
-- source-owned page libraries grouped by directory (`source_pages_<project-scope>_...`) for page/layout files whose basenames are valid module names, such as `pages/index.mlx`, `pages/layout.mlx`, `pages/notes/index.mlx`, or `pages/notes/[tag]/index.mlx`
+- source-owned page libraries grouped by directory (`source_pages_<project-scope>_...`) for app page/layout files whose basenames are valid module names, such as `app/page.mlx`, `app/layout.mlx`, `app/notes/page.mlx`, or `app/notes/[tag]/page.mlx`
 - the mirrored runtime/native/melange build stanzas for `_utopia/` itself, wrapped under `(subdir _utopia ...)`
 
-This single-file `_utopia/dune` path exists to give Merlin/ocamllsp real Dune ownership over shared `lib/` source files and page/layout source files whose basenames are valid module names without maintaining a second generated dune file. Dynamic route segments should therefore live in directory names with an `index` page, such as `pages/notes/[tag]/index.mlx` or `pages/posts/[slug]/index.mlx`, rather than in invalid basenames like `pages/notes/[tag].mlx`.
+This single-file `_utopia/dune` path exists to give Merlin/ocamllsp real Dune ownership over shared `lib/` source files and page/layout source files whose basenames are valid module names without maintaining a second generated dune file. Dynamic route segments should therefore live in directory names with a `page` file, such as `app/notes/[tag]/page.mlx` or `app/posts/[slug]/page.mlx`, rather than in invalid basenames like `app/notes/[tag].mlx`.
 
 Generated code now depends directly on the shared public `utopia` library for reusable runtime modules (`Utopia`, `Utopia_call_server`, `Utopia_route`, `Utopia_router`, `Utopia_router_link`, `Utopia_router_route`, `Utopia_route_builder`, `Utopia_server`, `Utopia_types`, and `FunctionReferences`). Project-specific route code is emitted separately as top-level `Routes.ml` inside `_utopia/`.
 
@@ -238,7 +258,7 @@ A linked runtime registry (planned as `utopia_runtime_registry`) that resolves n
 ## API
 
 ### API Route
-A file inside `api/` that maps to an API endpoint. Uses the same file-based routing conventions as pages (including `[param]`, `[...slug]`, `[[...slug]]`, route groups, and parallel slots).
+A file named `route.re`, `route.ml`, or `route.mlx` under `app/api/` that maps to an API endpoint. Uses the same directory-based routing conventions as pages (including `[param]`, `[...slug]`, `[[...slug]]`, route groups, and parallel slots).
 
 The `/api/*` namespace is reserved for API routes. Page routes that normalize to `/api/*` are compile-time errors.
 
@@ -247,7 +267,7 @@ An API route exports a single `handler` function with signature: `Dream.request 
 API handlers should normally return JSON responses using a helper like `Utopia.respond(~status, ~headers, json)`.
 
 ### API Middleware
-A file named `_middleware.ml` (or `.re` / `.mlx`) placed in any directory under `api/`. Applies to all API routes in that directory and below. Composable through physical directory ancestry (same ancestry model as layouts). Contract: `val middleware : Dream.handler -> Dream.handler`.
+A file named `_middleware.ml` (or `.re` / `.mlx`) placed in any directory under `app/api/`. Applies to all API routes in that directory and below. Composable through physical directory ancestry (same ancestry model as layouts). Contract: `val middleware : Dream.handler -> Dream.handler`.
 
 Middleware composition order is outermost directory first.
 
@@ -313,7 +333,7 @@ Prints tool versions (OCaml, dune, melange, reason, utopia), project paths, rout
 The framework's server logic, now owned directly under `lib/utopia/Utopia_server.ml`. Contains: Dream-based HTTP routing, generated route/API registry loading, asset serving, streamed RSC/HTML/action response helpers, cache management, and request handling logic. Does NOT contain page-specific user route code.
 
 ### Server Executable (per-project)
-A generated executable at `_utopia/server_main.ml` that wires compiler-generated route descriptors into the copied `Utopia_server` support module. It links generated project-scoped native page and API libraries (for example `pages_demo_notes` and `api_demo_notes`) so multiple Utopia projects can coexist in the same Dune workspace without library-name collisions. Generated by the compiler for each project.
+A generated executable at `_utopia/server_main.ml` that wires compiler-generated route descriptors into the copied `Utopia_server` support module. It links generated project-scoped native page and API libraries (for example `app_pages_demo_notes` and `app_api_demo_notes`) so multiple Utopia projects can coexist in the same Dune workspace without library-name collisions. Generated by the compiler for each project.
 
 The built executable lives at `_build/default/_utopia/server_main.exe` for a root project, or `_build/default/<project-path>/_utopia/server_main.exe` for a nested project. CLI `dev` and `prod` flows launch this executable directly. At runtime, the shared server startup path retries upward from the requested `PORT` when bind fails with `EADDRINUSE`, which covers direct `server_main.exe` launches and races after the CLI's preflight port probe.
 
@@ -367,13 +387,13 @@ Planned development-only in-browser overlay slice for browser/runtime failures a
 ## Static Site Generation (SSG)
 
 ### Static Page
-A page that opts into build-time rendering. Code pages use `let static = true`; markdown pages use frontmatter `static: true` (planned). Detection is planned to use a comment/string-safe lexical scanner for code pages plus frontmatter parsing for markdown pages. Static pages are rendered at build time by the `--ssg` mode of the generated `server_main.exe`, producing HTML files in `_utopia/static/`.
+A code page that opts into build-time rendering via `let static = true`. Detection uses a comment/string-safe lexical scanner so comments/strings do not produce false positives. Static pages are rendered at build time by the `--ssg` mode of the generated `server_main.exe`, producing HTML files in `_utopia/static/`.
 
 ### Static Export Scanner (Planned)
 A lightweight lexical scanner used by the compiler to detect `let static = true` in code pages while ignoring comments and string/char literals. This avoids false positives from regex-only text matching without requiring a full OCaml parser.
 
 ### static_paths
-An export required on static pages with dynamic segments (e.g., `pages/posts/[slug]/index.mlx`). Returns `(string * string) list list` enumerating all param combinations to render. The compiler validates its presence and the SSG renderer iterates over the returned paths.
+An export required on static pages with dynamic segments (e.g., `app/posts/[slug]/page.mlx`). Returns `(string * string) list list` enumerating all param combinations to render. The compiler validates its presence and the SSG renderer iterates over the returned paths.
 
 ### SSG Mode (`--ssg`)
 The generated `server_main.exe` accepts a `--ssg` CLI flag. When invoked with `--ssg`, instead of starting a web server it renders all static pages to HTML files in `_utopia/static/`, copies stylesheets, and exits. The dune alias `(alias ssg)` invokes this mode.
@@ -384,7 +404,28 @@ A static blog demo showcasing SSG. Renders 4 markdown files from `content/` usin
 ## Markdown
 
 ### Markdown Page
-A `.md` file in `pages/`. Planned frontmatter fields include `title`, `description`, `path`, `layout`, and `static`. Markdown pages are intended to render through the same React/RSC pipeline as code pages rather than a separate HTML-only markdown path.
+A `page.md` file in `app/`. Markdown pages render through the same React/RSC pipeline as code pages rather than a separate HTML-only markdown path.
+
+Frontmatter on markdown pages is generic YAML metadata. The compiler parses and embeds frontmatter data plus stripped markdown body into generated metadata tables, and runtime rendering consumes those embedded payloads instead of re-reading markdown source files.
+
+### Frontmatter Value Tree (`Utopia.Markdown.frontmatter_value`)
+A Utopia-owned value type used to expose parsed YAML frontmatter without leaking parser-library AST types:
+- `Null`
+- `Bool`
+- `Number`
+- `String`
+- `List`
+- `Object`
+
+Frontmatter API root values are object/map only.
+
+### Markdown Frontmatter Registry (`Utopia.Markdown.frontmatter`)
+A server-only lookup API keyed by concrete request path. Shape: `frontmatter(~path) : frontmatter_object option`.
+
+Lookup behavior:
+- accepts concrete request paths (e.g. `/posts/hello`)
+- resolves dynamic markdown routes by matching compiled route patterns internally
+- returns `None` when path is not a markdown route or no valid frontmatter object exists
 
 ### Markdown Runtime Library (`utopia.markdown_runtime`)
 A public native library under `markdown/` that holds Utopia's shared markdown rendering pipeline. It parses CommonMark with `cmarkit`, renders through the React-based markdown element renderer, and exposes string-to-HTML helpers used by both the `utopia.markdown` executable and the server runtime / generated native pages library.
@@ -395,7 +436,7 @@ Fenced code blocks in the shared markdown renderer are highlighted natively with
 ### Custom Components
 The markdown renderer uses a `Components.t` record defining overridable functions for HTML elements: `p`, `a`, `h1`-`h6`, `code`, `pre`, `img`, `ul`, `ol`, `li`, `blockquote`, `hr`, `div`, `math_span`, and inline elements (`strong`, `em`, `del`). Users can customize rendering via `lib/` or markdown settings in `utopia.ml`.
 
-Note: table and footnote rendering are part of the planned markdown pipeline upgrade (`plan/06-markdown-pipeline.md`).
+The markdown pipeline plan extends this surface with granular table hooks (`table`, `thead`, `tbody`, `tr`, `th`, `td`) and granular footnote hooks (`footnotes_section`, `footnotes_list`, `footnotes_item`, `footnote_ref`, `footnote_backref`).
 
 ### Task Lists
 Markdown task list items with checkboxes: `[ ]` (unchecked), `[x]` (checked), `[~]` (cancelled, rendered with strikethrough).
@@ -434,3 +475,8 @@ Work is split into numbered plan documents in `plan/`. Each phase has explicit d
 - `07-configuration` -- `utopia.ml` configuration module
 - `08-ssg` -- Static site generation (implemented)
 - `09-dev-mode` -- Live reload, npm integration, server restart
+- `10-client-error-overlay` -- Browser runtime error diagnostics overlay
+- `11-dev-full-reload-and-browser-overlay` -- Authoritative dev overlay + full reload flow
+- `12-optimization-for-melange-pages` -- Melange reachability/entrypoint optimization
+- `13-not-found-page` -- Explicit not-found page routing model
+- `14-app-directory-unification` -- unify `pages/` + `api/` under `app/` with `page.*`/`route.*`

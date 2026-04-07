@@ -2,6 +2,20 @@
 
 ## Active slice
 
+- [completed] Draft a new app-directory unification plan under `plan/` with `page.*` and `route.*` conventions
+- [completed] Update `plan/primitives.md` glossary terms from split `pages/` + `api/` roots to canonical `app/`
+- [completed] Update key `plan/spec.md` and `plan/roadmap.md` filesystem references to the unified `app/` model
+- [completed] Mark legacy `plan/05-api-routes.md` root-path assumptions as superseded by the new unification plan
+
+## Review
+
+- Added `plan/14-app-directory-unification.md` with locked decisions, migration strategy, compiler/runtime deltas, and test coverage for the unified `app/` routing model.
+- `plan/primitives.md` now defines `App Directory` as a first-class concept and updates `Page`, `Layout`, `API Route`, `API Middleware`, `static_paths`, and `Markdown Page` terminology to `app/` + `page.*`/`route.*`.
+- `plan/spec.md` now documents unified project structure examples under `app/`, updates routing/API examples to directory-based `page.*` and `route.*`, and updates build/validation/testing references from `pages/` to `app/`.
+- `plan/roadmap.md` now includes a dedicated Phase 9 for app-directory unification; `plan/05-api-routes.md` now explicitly points to `plan/14-app-directory-unification.md` for canonical filesystem layout.
+
+## Active slice
+
 - [completed] Reconcile plans 06-12 so dev behavior is authoritative in `plan/11-dev-full-reload-and-browser-overlay.md`
 - [completed] Split `plan/07-configuration.md` into serializable compile-time config plus runtime hook/module registry strategy
 - [completed] Extend markdown and SSG plans so frontmatter includes `static` and static detection uses a comment/string-safe scanner
@@ -993,3 +1007,19 @@
 - `bin/tests/compiler_supports_mlx_extension.t` still exercises an `.mlx` page containing both `[@react.server.function]` and `[@react.client.component]`, but now asserts the safe generated-Dune shape for `.mlx`: `_utopia/` and `_utopia/native/` prefixes remain, no source-relative prefixes are emitted, and no `# 1` directives appear for `.mlx` mirrors.
 - Regenerated `demo/notes/_utopia/dune` now matches that reverted `.mlx` policy, and an isolated `opam exec -- dune build demo/notes/_utopia/server_main.exe @demo/notes/_utopia/melange --build-dir _build_verify_notes_revert` again reports the user's intentional type error on `demo/notes/_utopia/Utopia_page__Notes__Tag.mlx` and `demo/notes/_utopia/native/Utopia_page__Notes__Tag.mlx`.
 - This restores consistency with ocamllsp for dynamic route source files like `[tag].mlx`: the editor still lacks direct config for the raw source filename, but build diagnostics no longer claim the source file is fully configured when Merlin cannot actually typecheck it.
+
+## Active slice
+
+- [completed] Implement the markdown pipeline from `plan/06-markdown-pipeline.md` (frontmatter extraction, compiler embedding, unified React runtime path)
+- [completed] Remove markdown renderer crash paths and add table/footnote rendering with new component hooks
+- [completed] Expose server-side `Utopia.Markdown.frontmatter ~path` lookup backed by compiled markdown payloads
+- [completed] Update `demo/blog/` to consume the shared markdown frontmatter/body approach instead of its demo-local parser behavior
+- [completed] Add/refresh markdown + compiler cram coverage for frontmatter behavior and markdown rendering stability
+
+## Review
+
+- Added a shared YAML frontmatter pipeline (`markdown/frontmatter.ml`) and wired it through `Utopia_markdown`, compiler route collection, generated markdown side-tables, and generated server wiring so markdown routes now render from embedded stripped bodies instead of disk reads.
+- Reworked `markdown/render.ml` to remove reachable crash paths, add semantic table rendering (`table`/`thead`/`tbody`/`tr`/`th`/`td`) with alignment classes, and add semantic footnote rendering with per-reference backlinks plus graceful fallbacks for unsupported nodes.
+- Extended markdown components/elements surfaces with table and footnote hooks, and added a server-side markdown lookup surface via `Utopia.Markdown` (`lib/utopia/Utopia_markdown_api.ml`) backed by runtime matcher-based frontmatter lookup.
+- Updated compiler/server outputs (`bin/compiler/Routes.ml`, `bin/compiler/Generated_routes.ml`, `bin/compiler/Server_main.ml`, `lib/utopia/Utopia_server.ml`) to carry markdown payload registries, metadata convenience fields, and markdown route payload construction.
+- Updated `demo/blog/lib/blog_data.ml` to use the shared `Utopia_markdown.extract_frontmatter` behavior and refreshed markdown/compiler coverage with new cram files (`markdown/tests/frontmatter.t`, `markdown/tests/tables.t`, `markdown/tests/footnotes.t`, `bin/tests/compiler_generates_markdown_payloads.t`, `bin/tests/compiler_warns_invalid_markdown_frontmatter.t`) plus updated server-main expectations.

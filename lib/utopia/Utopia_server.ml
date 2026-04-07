@@ -2,6 +2,8 @@ open Utopia_types
 
 type param_value = One of string | Many of string list
 
+let warn message = prerr_endline ("[utopia.server] " ^ message)
+
 let matched_api_params_field : (string * param_value) list Dream.field =
   Dream.new_field ~name:"utopia_api_params" ()
 
@@ -18,8 +20,16 @@ type generated_route = {
   router_shell : string -> React.element;
   router_tree : unit -> React.element;
   router_subtree : string -> React.element option;
+  markdown : markdown_payload option;
   static : bool;
   static_paths : (unit -> (string * string) list list) option;
+}
+
+and markdown_payload = {
+  markdown_body : string;
+  frontmatter_object : Utopia_markdown.frontmatter_object option;
+  meta_title : string option;
+  meta_description : string option;
 }
 
 type generated_api_route = {
@@ -42,7 +52,7 @@ end
 module Generated_route = struct
   let make ~kind ~route ~matcher ~params ~source_file ~layouts ~render ~metadata
       ~layout_renderers ~router_shell ~router_tree ~router_subtree
-      ?(static = false) ?(static_paths = None) () =
+      ?(markdown = None) ?(static = false) ?(static_paths = None) () =
     {
       route;
       matcher;
@@ -56,6 +66,7 @@ module Generated_route = struct
       router_shell;
       router_tree;
       router_subtree;
+      markdown;
       static;
       static_paths;
     }
@@ -68,17 +79,21 @@ module Generated_route = struct
       ~router_tree ~router_subtree ~static ~static_paths ()
 
   let markdown ~route ~matcher ~params ~source_file ~layouts ~metadata
-      ~layout_renderers ~router_shell ~router_tree ~router_subtree
+      ~layout_renderers ~router_shell ~router_tree ~router_subtree ~markdown
       ?(static = false) () =
     make ~kind:Markdown_page ~route ~matcher ~params ~source_file ~layouts
       ~render:None ~metadata ~layout_renderers ~router_shell ~router_tree
-      ~router_subtree ~static ()
+      ~router_subtree ~markdown:(Some markdown) ~static ()
 end
 
 module Generated_api_route = struct
   let make ~route ~matcher ~params ~middlewares ~source_file ~handler () =
     { route; matcher; params; middlewares; source_file; handler }
 end
+
+let make_markdown_payload ~markdown_body ~frontmatter_object ?meta_title
+    ?meta_description () =
+  { markdown_body; frontmatter_object; meta_title; meta_description }
 
 type route_entry = {
   route : string;
@@ -93,8 +108,16 @@ type route_entry = {
   router_shell : (string -> React.element) option;
   router_tree : (unit -> React.element) option;
   router_subtree : (string -> React.element option) option;
+  markdown : runtime_markdown option;
   static : bool;
   static_paths : (unit -> (string * string) list list) option;
+}
+
+and runtime_markdown = {
+  doc : Cmarkit.Doc.t Lazy.t;
+  frontmatter_object : Utopia_markdown.frontmatter_object option;
+  meta_title : string option;
+  meta_description : string option;
 }
 
 type api_route_entry = {
@@ -105,6 +128,13 @@ type api_route_entry = {
   middlewares : (Dream.handler -> Dream.handler) list;
   handler : Dream.handler;
 }
+
+type markdown_registry_entry = {
+  registry_segments : route_segment list;
+  registry_frontmatter : Utopia_markdown.frontmatter_object option;
+}
+
+let markdown_registry : markdown_registry_entry list ref = ref []
 
 let read_file file =
   In_channel.with_open_bin file (fun channel -> In_channel.input_all channel)
@@ -168,6 +198,18 @@ let route_entry_of_generated_route (generated_route : generated_route) =
         (Printf.sprintf "Invalid generated route '%s': %s" generated_route.route
            message)
   | Ok segments ->
+      let markdown =
+        match generated_route.markdown with
+        | None -> None
+        | Some payload ->
+            Some
+              {
+                doc = lazy (Utopia_markdown.doc_of_string payload.markdown_body);
+                frontmatter_object = payload.frontmatter_object;
+                meta_title = payload.meta_title;
+                meta_description = payload.meta_description;
+              }
+      in
       Ok
         {
           route = generated_route.route;
@@ -182,6 +224,7 @@ let route_entry_of_generated_route (generated_route : generated_route) =
           router_shell = Some generated_route.router_shell;
           router_tree = Some generated_route.router_tree;
           router_subtree = Some generated_route.router_subtree;
+          markdown;
           static = generated_route.static;
           static_paths = generated_route.static_paths;
         }
@@ -768,20 +811,12 @@ let render_code_page_fresh route source_file params layouts =
   html_page ~title:route ~meta:empty_metadata
     ~body:(wrap_with_layouts layouts content)
 
-let render_markdown_html markdown =
-  Utopia_markdown.render_string_to_html markdown
+let render_markdown_body markdown_body =
+  markdown_body |> Utopia_markdown.doc_of_string
+  |> Utopia_markdown.element_of_doc
 
-let render_markdown_body source_file =
-  let markdown = read_file source_file in
-  let body_html = render_markdown_html markdown in
-  element ~props:[ dangerously_inner_html body_html ] "div" []
-
-let render_markdown_page_fresh source_file params layouts =
-  let content =
-    element "main" (render_params params @ [ render_markdown_body source_file ])
-  in
-  html_page ~title:source_file ~meta:empty_metadata
-    ~body:(wrap_with_layouts layouts content)
+let render_runtime_markdown markdown =
+  markdown.doc |> Lazy.force |> Utopia_markdown.element_of_doc
 
 let make_cache_key source_file route params =
   let param_str =
@@ -808,11 +843,6 @@ let render_code_page route source_file params layouts =
   render_cached ~key ~source_file (fun () ->
       render_code_page_fresh route source_file params layouts)
 
-let render_markdown_page source_file params layouts =
-  let key = make_cache_key source_file "" params in
-  render_cached ~key ~source_file (fun () ->
-      render_markdown_page_fresh source_file params layouts)
-
 let apply_layout_renderers layouts layout_renderers body =
   if layout_renderers = [] then wrap_with_layouts layouts body
   else List.fold_right (fun render acc -> render acc) layout_renderers body
@@ -825,7 +855,7 @@ let compiled_page_body params render =
 let fallback_title route_entry =
   match route_entry.kind with
   | Code_page -> if route_entry.route = "" then "/" else route_entry.route
-  | Markdown_page -> route_entry.source_file
+  | Markdown_page -> if route_entry.route = "" then "/" else route_entry.route
 
 let flatten_params params =
   List.map
@@ -836,7 +866,15 @@ let flatten_params params =
 let resolve_metadata route_entry params =
   match route_entry.metadata with
   | Some gen -> gen (flatten_params params)
-  | None -> empty_metadata
+  | None -> (
+      match route_entry.markdown with
+      | Some markdown ->
+          {
+            empty_metadata with
+            title = markdown.meta_title;
+            description = markdown.meta_description;
+          }
+      | None -> empty_metadata)
 
 let resolve_title_from_meta meta route_entry =
   match meta.title with Some t -> t | None -> fallback_title route_entry
@@ -856,21 +894,20 @@ let render_route_element route_entry params =
       render_code_page route_entry.route route_entry.source_file params
         route_entry.layouts
   | Markdown_page, _ ->
-      if route_entry.layout_renderers = [] then
-        render_markdown_page route_entry.source_file params route_entry.layouts
-      else
-        let body =
-          let key = make_cache_key route_entry.source_file "" params in
-          render_cached ~key ~source_file:route_entry.source_file (fun () ->
-              element "main"
-                (render_params params
-                @ [ render_markdown_body route_entry.source_file ]))
-        in
-        let body =
-          apply_layout_renderers route_entry.layouts
-            route_entry.layout_renderers body
-        in
-        html_page ~title ~meta ~body
+      let markdown_body =
+        match route_entry.markdown with
+        | Some markdown -> render_runtime_markdown markdown
+        | None ->
+            warn
+              "missing compiled markdown payload; rendering empty markdown body";
+            React.null
+      in
+      let body = element "main" (render_params params @ [ markdown_body ]) in
+      let body =
+        apply_layout_renderers route_entry.layouts route_entry.layout_renderers
+          body
+      in
+      html_page ~title ~meta ~body
 
 let render_route_document route_entry request_target params =
   match route_entry.router_shell with
@@ -965,6 +1002,33 @@ let find_match (routes : route_entry list) path_segments =
       match match_segments route.segments path_segments [] with
       | None -> None
       | Some params -> Some (route, params))
+
+let rebuild_markdown_registry (routes : route_entry list) =
+  markdown_registry :=
+    routes
+    |> List.filter_map (fun (route : route_entry) ->
+        if route.kind <> Markdown_page then None
+        else
+          Some
+            {
+              registry_segments = route.segments;
+              registry_frontmatter =
+                (match route.markdown with
+                | Some markdown -> markdown.frontmatter_object
+                | None -> None);
+            })
+
+let markdown_frontmatter ~path =
+  let target = path |> strip_query_and_hash |> normalize_target in
+  let segments = target_segments target in
+  let rec loop = function
+    | [] -> None
+    | entry :: rest -> (
+        match match_segments entry.registry_segments segments [] with
+        | Some _ -> entry.registry_frontmatter
+        | None -> loop rest)
+  in
+  loop !markdown_registry
 
 let render_index (routes : route_entry list) =
   let links =
@@ -1319,6 +1383,7 @@ let start_runtime_routes (routes : route_entry list)
   Printexc.record_backtrace true;
   Logs.set_level (Some Info);
   Logs.set_reporter (Logs_fmt.reporter ());
+  rebuild_markdown_registry routes;
   let index_html = render_index routes in
   let enable_logging = Sys.getenv_opt "NO_LOG" = None in
   let handler =

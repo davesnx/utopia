@@ -40,6 +40,7 @@
 
    ;; Library dependencies
    cmarkit
+   yaml
    ; ochre
    tm-grammars
    dream

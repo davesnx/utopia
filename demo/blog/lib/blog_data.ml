@@ -57,46 +57,27 @@ let read_raw_content slug =
         ignore slug;
         ""]
 
-let strip_quotes value =
-  let value_len = String.length value in
-  if value_len >= 2 then
-    let first = value.[0] in
-    let last = value.[value_len - 1] in
-    if (first = '"' && last = '"') || (first = '\'' && last = '\'') then
-      String.sub value 1 (value_len - 2)
-    else value
-  else value
+let frontmatter_string key frontmatter =
+  match List.assoc_opt key frontmatter with
+  | Some (Utopia_markdown.String value) -> Some value
+  | _ -> None
 
-let parse_frontmatter_line (frontmatter : frontmatter) line : frontmatter =
-  match String.index_opt line ':' with
-  | None -> frontmatter
-  | Some index -> (
-      let key = String.sub line 0 index |> String.trim in
-      let value =
-        String.sub line (index + 1) (String.length line - index - 1)
-        |> String.trim |> strip_quotes
-      in
-      match key with
-      | "title" -> { frontmatter with title = Some value }
-      | "date" -> { frontmatter with date = Some value }
-      | "description" -> { frontmatter with description = Some value }
-      | _ -> frontmatter)
-
-let split_frontmatter markdown =
-  match String.split_on_char '\n' markdown with
-  | first :: rest when String.trim first = "---" ->
-      let rec loop acc = function
-        | [] -> (empty_frontmatter, markdown)
-        | line :: tail when String.trim line = "---" ->
-            let frontmatter =
-              List.fold_left parse_frontmatter_line empty_frontmatter
-                (List.rev acc)
-            in
-            (frontmatter, String.concat "\n" tail)
-        | line :: tail -> loop (line :: acc) tail
-      in
-      loop [] rest
-  | _ -> (empty_frontmatter, markdown)
+let split_frontmatter ~source_file markdown =
+  let extraction = Utopia_markdown.extract_frontmatter ~source_file markdown in
+  (match extraction.warning with
+  | Some warning -> prerr_endline ("[demo.blog] " ^ warning)
+  | None -> ());
+  let frontmatter =
+    match extraction.frontmatter with
+    | None -> empty_frontmatter
+    | Some frontmatter ->
+        {
+          title = frontmatter_string "title" frontmatter;
+          date = frontmatter_string "date" frontmatter;
+          description = frontmatter_string "description" frontmatter;
+        }
+  in
+  (frontmatter, extraction.markdown_body)
 
 let require_frontmatter slug field = function
   | Some value -> value
@@ -105,7 +86,10 @@ let require_frontmatter slug field = function
         (Printf.sprintf "Missing `%s` frontmatter in %s.md" field slug)
 
 let read_post slug : post * string =
-  let frontmatter, body = read_raw_content slug |> split_frontmatter in
+  let source_file = Printf.sprintf "%s/%s.md" (content_dir ()) slug in
+  let frontmatter, body =
+    read_raw_content slug |> split_frontmatter ~source_file
+  in
   ( {
       slug;
       title = require_frontmatter slug "title" frontmatter.title;

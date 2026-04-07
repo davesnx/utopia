@@ -525,6 +525,37 @@ let ocaml_expr_of_string_list values =
   |> List.map (fun value -> Printf.sprintf "%S" value)
   |> String.concat "; " |> Printf.sprintf "[%s]"
 
+let ocaml_expr_of_option render = function
+  | None -> "None"
+  | Some value -> "Some (" ^ render value ^ ")"
+
+let rec ocaml_expr_of_frontmatter_value = function
+  | Utopia_markdown.Null -> "Utopia_markdown.Null"
+  | Utopia_markdown.Bool value -> Printf.sprintf "Utopia_markdown.Bool %b" value
+  | Utopia_markdown.Number value ->
+      Printf.sprintf "Utopia_markdown.Number %f" value
+  | Utopia_markdown.String value ->
+      Printf.sprintf "Utopia_markdown.String %S" value
+  | Utopia_markdown.List values ->
+      Printf.sprintf "Utopia_markdown.List [%s]"
+        (values
+        |> List.map ocaml_expr_of_frontmatter_value
+        |> String.concat "; ")
+  | Utopia_markdown.Object values ->
+      Printf.sprintf "Utopia_markdown.Object [%s]"
+        (values
+        |> List.map (fun (key, value) ->
+            Printf.sprintf "(%S, %s)" key
+              (ocaml_expr_of_frontmatter_value value))
+        |> String.concat "; ")
+
+let ocaml_expr_of_frontmatter_object values =
+  values
+  |> List.map (fun (key, value) ->
+      Printf.sprintf "(%S, %s)" key (ocaml_expr_of_frontmatter_value value))
+  |> String.concat "; "
+  |> Printf.sprintf "Utopia_markdown.frontmatter_object_of_list [%s]"
+
 let render_page_meta_entry (entry : Routes.route_entry) =
   Printf.sprintf
     "  ({ route = %S; matcher = %S; conflict_key = %S; params = %s; layouts = \
@@ -547,6 +578,17 @@ let render_api_meta_entry (entry : Routes.api_route_entry) =
     (ocaml_expr_of_params entry.params)
     (ocaml_expr_of_string_list entry.middlewares)
     entry.source_file entry.module_name
+
+let render_markdown_meta_entry (entry : Routes.route_entry) =
+  Printf.sprintf
+    "    ({ route = %S; matcher = %S; source_file = %S; body = %S; frontmatter \
+     = %s; title = %s; description = %s } : entry);"
+    entry.route entry.matcher entry.source_file
+    (match entry.markdown_body with Some body -> body | None -> "")
+    (ocaml_expr_of_option ocaml_expr_of_frontmatter_object
+       entry.markdown_frontmatter)
+    (ocaml_expr_of_option (Printf.sprintf "%S") entry.markdown_title)
+    (ocaml_expr_of_option (Printf.sprintf "%S") entry.markdown_description)
 
 let api_param_entries api_entries =
   let seen = Hashtbl.create 16 in
@@ -621,11 +663,45 @@ let render_page_metadata_loader route_entries =
       "  ]";
     ]
 
+let render_markdown_metadata_loader route_entries =
+  let markdown_entries =
+    route_entries
+    |> List.filter (fun (entry : Routes.route_entry) ->
+        entry.kind = Markdown_page)
+    |> List.sort (fun (left : Routes.route_entry) right ->
+        String.compare left.route right.route)
+  in
+  let lines =
+    markdown_entries
+    |> List.map render_markdown_meta_entry
+    |> String.concat "\n"
+  in
+  String.concat "\n"
+    [
+      "module Markdown = struct";
+      "  type entry = {";
+      "    route : string;";
+      "    matcher : string;";
+      "    source_file : string;";
+      "    body : string;";
+      "    frontmatter : Utopia_markdown.frontmatter_object option;";
+      "    title : string option;";
+      "    description : string option;";
+      "  }";
+      "";
+      "  let get_all () : entry list =";
+      "    [";
+      lines;
+      "    ]";
+      "end";
+    ]
+
 let generate route_entries api_entries =
   [
     build_tree route_entries |> render_tree "";
     render_current_module route_entries;
     render_page_metadata_loader route_entries;
+    render_markdown_metadata_loader route_entries;
     render_api_module api_entries;
   ]
   |> List.filter (fun section -> section <> "")

@@ -24,27 +24,33 @@ my-project/
     counter.re           # [@react.client.component] - interactive widget
     db.ml                # Server-only database access
     auth.ml
-  pages/                 # Page files (routes)
+  app/                   # Unified route root (pages + API)
     layout.re            # Root layout (optional)
-    index.re             # Root page (/)
-    about.re             # /about
+    page.re              # Root page (/)
     about/
+      page.re            # /about
       layout.re          # Layout for /about/* (optional)
-      team.re            # /about/team
-      [id].re            # /about/:id (dynamic)
+      team/
+        page.re          # /about/team
+      [id]/
+        page.re          # /about/:id (dynamic)
     blog/
-      [...slug].re       # /blog/* (catch-all)
-    guide.md             # /guide (markdown page)
+      [...slug]/
+        page.re          # /blog/* (catch-all)
+    guide/
+      page.md            # /guide (markdown page)
+    api/                 # API route handlers
+      _middleware.ml     # Global API middleware
+      health/
+        route.ml         # /api/health
+      users/
+        _middleware.ml   # Middleware for /api/users/*
+        [id]/
+          route.ml       # /api/users/:id
   routes/                # Optional typed query/hash route schemas
     search.re            # schema for /search
     users/
       [id].re            # schema for /users/:id
-  api/                   # API route handlers
-    _middleware.ml        # Global API middleware
-    health.ml            # /api/health
-    users/
-      _middleware.ml      # Middleware for /api/users/*
-      [id].ml            # /api/users/:id
   _utopia/               # Generated (do not edit)
     dune                 # Generated dune graph for melange/native/esbuild/server/ssg
     paths.mjs            # Generated build metadata for esbuild
@@ -115,7 +121,7 @@ Every page is a server component. It renders on the server and can perform async
 To create a fully interactive page, the page's `make` function can eventually contain a client component (a module with `[@react.client.component]`)
 
 ```reason
-/* pages/dashboard.re -- server component */
+/* app/dashboard/page.re -- server component */
 [@react.component]
 let make = () => {
   <Dashboard_client initial_data={fetch_data()} />
@@ -191,15 +197,15 @@ When a server function returns `Utopia.Route.t`, the action payload serializes t
 
 ### Discovery (implemented)
 
-A `layout.re`, `layout.ml` or `layout.mlx` file in any `pages/` subdirectory defines a layout for that directory and all descendants.
+A `layout.re`, `layout.ml` or `layout.mlx` file in any `app/` subdirectory defines a layout for that directory and all descendants.
 
 ### Nesting (implemented)
 
 Layouts compose top-down by directory ancestry:
 
 ```
-pages/layout.re          -> wraps everything
-pages/about/layout.re    -> wraps pages/about/* (nested inside root layout)
+app/layout.re            -> wraps everything
+app/about/layout.re      -> wraps app/about/* (nested inside root layout)
 ```
 
 ### Contract (partial)
@@ -238,13 +244,13 @@ Note: `Page.ml` still contains a programmatic `register`/`page` API. This is leg
 
 | Pattern | Example file | Matches |
 |---------|-------------|---------|
-| Static | `pages/about.re` | `/about` |
-| Index | `pages/about/index.re` | `/about` |
-| Dynamic | `pages/users/[id].re` | `/users/123` |
-| Catch-all | `pages/blog/[...slug].re` | `/blog/a/b/c` (1+ segments) |
-| Optional catch-all | `pages/docs/[[...slug]].re` | `/docs` or `/docs/a/b` (0+ segments) |
-| Route group | `pages/(marketing)/pricing.re` | `/pricing` (group invisible in URL) |
-| Parallel slot | `pages/@sidebar/nav.re` | Ignored for URL path |
+| Static | `app/about/page.re` | `/about` |
+| Index | `app/about/page.re` | `/about` |
+| Dynamic | `app/users/[id]/page.re` | `/users/123` |
+| Catch-all | `app/blog/[...slug]/page.re` | `/blog/a/b/c` (1+ segments) |
+| Optional catch-all | `app/docs/[[...slug]]/page.re` | `/docs` or `/docs/a/b` (0+ segments) |
+| Route group | `app/(marketing)/pricing/page.re` | `/pricing` (group invisible in URL) |
+| Parallel slot | `app/@sidebar/nav/page.re` | Ignored for URL path |
 
 ### Route matching (implemented)
 
@@ -293,7 +299,7 @@ match Utopia.Routes.current route with
 
 ### Route schema modules (implemented)
 
-Projects may optionally define mirrored files under `routes/` to add typed query/hash support for a collected route. A route schema file matches the normalized route path, not necessarily the page source filename casing. For example, `pages/Search.re` maps to `/search`, so its route schema lives at `routes/search.re`.
+Projects may optionally define mirrored files under `routes/` to add typed query/hash support for a collected route. A route schema file matches the normalized route path, not necessarily the page source filename casing. For example, `app/search/page.re` maps to `/search`, so its route schema lives at `routes/search.re`.
 
 Supported optional nested modules inside a route schema file:
 
@@ -329,7 +335,7 @@ Route schema files should use `Utopia_route.Params` for path-param helpers rathe
 
 ### Location
 
-API routes live in the `api/` directory. The compiler scans `api/` using the same recursive traversal and segment parsing as `pages/`.
+API routes live as `route.*` files under `app/api/`. The compiler scans `app/`, then classifies route intent by basename (`page.*` vs `route.*`).
 
 The `/api/*` namespace is reserved for API endpoints. Any page route that normalizes to `/api/*` is a compile-time error.
 
@@ -351,7 +357,7 @@ The handler receives the raw Dream request. HTTP method dispatch is handled by u
 
 ### API middleware
 
-A file named `_middleware.ml` (or `.re` / `.mlx`) in any `api/` subdirectory applies to all routes in that directory and descendants. Middleware composition follows physical directory ancestry, outermost first.
+A file named `_middleware.ml` (or `.re` / `.mlx`) in any `app/api/` subdirectory applies to all routes in that directory and descendants. Middleware composition follows physical directory ancestry, outermost first.
 
 Middleware contract:
 
@@ -479,7 +485,7 @@ Markdown pages support YAML frontmatter delimited by `---`:
 title: My Guide
 description: A comprehensive guide
 path: custom-route
-layout: pages/docs/layout.re
+layout: app/docs/layout.re
 ---
 
 # Content starts here
@@ -521,7 +527,7 @@ Custom components are provided via:
 
 ### `build` flow (implemented)
 
-1. Validate project shape (`pages/` must exist)
+1. Validate project shape (`app/` must exist)
 2. Run `utopia.compiler --mode production` (generate route modules/metadata + dune rules + build metadata)
 3. Run `dune build --root <workspace> --no-print-directory .`
 4. Emit build report (route count, generated files, output dirs)
@@ -676,12 +682,12 @@ Param kind values remain `single`, `catch_all`, `optional_catch_all`.
 - Source code references `params.X` where `X` is not a declared route parameter
 
 **Project structure errors**
-- `pages/` directory does not exist
+- `app/` directory does not exist
 - Page route normalizes under reserved `/api/*` namespace
 
 **API compilation errors**
 - Duplicate API route conflict key
-- Multiple `_middleware` files in the same `api/` directory
+- Multiple `_middleware` files in the same `app/api/` directory
 
 ### Server errors
 
@@ -700,7 +706,7 @@ Param kind values remain `single`, `catch_all`, `optional_catch_all`.
 
 ### CLI errors
 
-- Missing `pages/` directory (build, dev)
+- Missing `app/` directory (build, dev)
 - Compiler failed (build, dev)
 - `dune build` failed (build, dev)
 - Missing build artifacts (prod)
@@ -722,7 +728,7 @@ Param kind values remain `single`, `catch_all`, `optional_catch_all`.
 
 ### Test layers
 
-1. **Cram tests** (`bin/tests/`) -- End-to-end CLI and compiler behavior. Create fixture `pages/` directories, run commands, assert output. (implemented)
+1. **Cram tests** (`bin/tests/`) -- End-to-end CLI and compiler behavior. Create fixture `app/` directories, run commands, assert output. (implemented)
 2. **Cram tests** (`markdown/tests/`) -- Markdown rendering pipeline. (implemented)
 3. **Unit tests** -- Core logic: routing, segment parsing, generated route metadata loading, conflict detection. Using alcotest. (not implemented)
 4. **Integration tests** -- HTTP request/response against a running server. (not implemented)
@@ -733,7 +739,7 @@ Every new feature must include at least one test covering the happy path and one
 
 ### Fixture conventions
 
-Tests create minimal fixture directories (temporary `pages/`, `api/`, etc.) and clean up after themselves. Fixture files should be minimal -- only what's needed to exercise the behavior under test.
+Tests create minimal fixture directories (temporary `app/`, `lib/`, `routes/`, etc.) and clean up after themselves. Fixture files should be minimal -- only what's needed to exercise the behavior under test.
 
 ## Performance
 
@@ -809,7 +815,7 @@ Markdown pages also get per-page `.html` build rules so the markdown pipeline ca
 
 1. Ensure `_utopia/` and `_utopia/native/` exist
 2. Copy static generated-project asset files from `lib/utopia/` into those directories
-3. Scan `pages/`, `api/`, `lib/`, and optional `routes/` schemas; compute route entries, API entries, metadata/static flags, layouts/middleware, and diagnostics
+3. Scan `app/`, `lib/`, and optional `routes/` schemas; compute page/API entries (from `page.*` and `route.*`), metadata/static flags, layouts/middleware, and diagnostics
 4. Build structured dune stanzas with the internal `Dune_sexp` library and write `_utopia/dune`, `_utopia/paths.mjs`, `_utopia/Routes.ml`, and `_utopia/server_main.ml`
 
 The compiler no longer hand-concatenates dune source strings. `bin/compiler/Generated_dune.ml` constructs typed sexps and serializes them into the final file.
@@ -822,7 +828,7 @@ That single `_utopia/dune` file provides:
 - source-owned native page libraries grouped by directory for page/layout files whose basenames are valid module names
 - the mirrored runtime/native/melange build stanzas for `_utopia/` itself, wrapped in `(subdir _utopia ...)`
 
-This improves LSP behavior for shared `.ml` modules such as `demo/notes/lib/notes_data.ml` and for source pages whose basenames are valid modules, including dynamic-directory routes like `demo/notes/pages/notes/[tag]/index.mlx` and `demo/blog/pages/posts/[slug]/index.mlx`. Dynamic route segments should therefore live in directory names with an `index` page rather than in invalid basenames like `pages/notes/[tag].mlx`.
+This improves LSP behavior for shared `.ml` modules such as `demo/notes/lib/notes_data.ml` and for source pages whose basenames are valid modules, including dynamic-directory routes like `demo/notes/app/notes/[tag]/page.mlx` and `demo/blog/app/posts/[slug]/page.mlx`. Dynamic route segments should therefore live in directory names with a `page` file rather than in invalid basenames like `app/notes/[tag].mlx`.
 
 The workspace `mlx` dialect also now uses `(merlin_reader mlx)` in `dune-project`, which requires `lang dune >= 3.16`. That removes one configuration mismatch relative to known-good `mlx` projects such as `html_of_jsx`.
 
@@ -835,7 +841,7 @@ The generated `_utopia/dune` file contains:
 3. A generated `Lib.re` alias file that re-exports shared modules by their original names
 4. Copy rules for optional route-schema modules
 5. A root `melange.emit` stanza that compiles the mirrored user modules plus generated runtime support (`Utopia.re`, `Utopia_call_server.re`, `Utopia_router.re`, `client_entry_melange.re`, etc.)
-6. Markdown build rules that turn `pages/*.md` into `.html` via `utopia.markdown`
+6. Markdown build rules that turn `app/**/page.md` into `.html` via `utopia.markdown`
 7. A `subdir native` block containing native mirrors and private project-scoped pages/API libraries
 8. An `esbuild` alias rule that runs `node _utopia/esbuild.config.mjs` from the project root
 9. A generated `server_main` executable stanza
@@ -854,7 +860,7 @@ The generated `_utopia/dune` file contains:
 - Shared-folder prefixes are emitted per-module: source-relative mirrors use `../../`, generated native support uses `_utopia/native/`
 
 **Native API library**
-- Separate project-scoped native API library for `api/` handlers and middleware modules
+- Separate project-scoped native API library for `app/api/**/route.*` handlers and middleware modules
 - Uses the same native PPX stack and shared `Lib` ergonomics as server-side page modules
 
 ### esbuild integration (partial)
@@ -878,7 +884,7 @@ The compiler creates `_utopia/` if missing, copies static support files into `_u
 ### End-to-end build graph (implemented)
 
 ```
-pages/ + api/ + lib/ + routes/ schemas
+app/ + lib/ + routes/ schemas
         |
         v
 utopia.compiler

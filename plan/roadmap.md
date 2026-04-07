@@ -50,3 +50,10 @@
 1. Update CLI to manage the per-project server executable
 2. Live reload: detect dune rebuild completion, signal browser
 3. Verify esbuild dune rule reruns correctly in watch mode
+
+### Phase 9: App directory unification
+1. Replace separate `pages/` + `api/` roots with unified `app/`
+2. Use filename intent: `page.re|.ml|.mlx` for pages, `route.re|.ml|.mlx` for API handlers
+3. Keep API middleware ancestry in `app/api/**/_middleware.*`
+4. Add migration diagnostics/codemod support for existing `pages/` and `api/` projects
+5. Update compiler/server/docs/tests to treat `app/` as canonical route root

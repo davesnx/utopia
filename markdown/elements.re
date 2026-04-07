@@ -128,3 +128,66 @@ module H6 = {
   let make = (~className=?, ~id=?, ~children, ()) =>
     <h6 ?id ?className> children </h6>;
 };
+
+module Table = {
+  let make = (~className=?, ~children, ()) =>
+    <table ?className> children </table>;
+};
+
+module Thead = {
+  let make = (~className=?, ~children, ()) =>
+    <thead ?className> children </thead>;
+};
+
+module Tbody = {
+  let make = (~className=?, ~children, ()) =>
+    <tbody ?className> children </tbody>;
+};
+
+module Tr = {
+  let make = (~className=?, ~children, ()) =>
+    <tr ?className> children </tr>;
+};
+
+module Th = {
+  let make = (~className=?, ~children, ()) =>
+    <th ?className> children </th>;
+};
+
+module Td = {
+  let make = (~className=?, ~children, ()) =>
+    <td ?className> children </td>;
+};
+
+module Footnotes_section = {
+  let make = (~className=?, ~children, ()) => {
+    let className =
+      switch (className) {
+      | Some(value) => value
+      | None => "footnotes"
+      };
+    <section className> children </section>;
+  };
+};
+
+module Footnotes_list = {
+  let make = (~className=?, ~children, ()) =>
+    <ol ?className> children </ol>;
+};
+
+module Footnotes_item = {
+  let make = (~className=?, ~id, ~children, ()) =>
+    <li id ?className> children </li>;
+};
+
+module Footnote_ref = {
+  let make = (~className=?, ~href, ~id, ~children, ()) =>
+    <sup>
+      <a href id ?className role="doc-noteref"> children </a>
+    </sup>;
+};
+
+module Footnote_backref = {
+  let make = (~className=?, ~href, ~children, ()) =>
+    <a href ?className role="doc-backlink"> children </a>;
+};

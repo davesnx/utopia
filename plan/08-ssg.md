@@ -1,6 +1,6 @@
 # SSG
 
-Add opt-in static site generation for pages that opt into static mode (`let static = true` for code pages, `static: true` frontmatter for markdown pages).
+Add opt-in static site generation for code pages that opt into static mode (`let static = true`).
 
 ---
 
@@ -14,7 +14,6 @@ Pages that opt into static mode are rendered at build time. The resulting HTML i
 
 - `plan/02-compiler-rsc.md` -- compiler generates server_main.ml
 - `plan/03-server-rewrite.md` -- server library with DreamRSC rendering
-- `plan/06-markdown-pipeline.md` -- markdown frontmatter supports `static`
 
 ---
 
@@ -52,7 +51,7 @@ Extend the route manifest format to include a static flag:
 
 Where `<static>` is `true` or `false`.
 
-Also record static origin in generated metadata (`code_export` vs `markdown_frontmatter`) so diagnostics can point to the right source when static configuration is invalid.
+Also record static origin in generated metadata (`code_export`) so diagnostics can point to the source of invalid static configuration.
 
 ---
 
@@ -129,25 +128,6 @@ If `static = true` but no `static_paths` is provided for a dynamic page, the com
 
 ---
 
-## Markdown static pages via frontmatter
-
-Markdown pages participate in SSG via frontmatter:
-
-```markdown
----
-title: My Post
-static: true
----
-```
-
-Rules:
-
-1. Markdown `static: true` is treated the same as code-page `let static = true`
-2. Markdown pages with static dynamic routes still require enumerated paths (future frontmatter extension or companion code export)
-3. Invalid markdown `static` values are compiler errors with source location
-
----
-
 ## Testing
 
 ### Cram tests
@@ -182,11 +162,6 @@ Rules:
 - Run the compiler
 - Assert page is not marked static
 
-**`ssg_markdown_frontmatter_static.t`**
-- Create `pages/about.md` with frontmatter `static: true`
-- Run the compiler + SSG build
-- Assert static metadata and generated HTML output exist
-
 ### Edge cases
 
 - `let static = false` explicitly (should not be treated as static)
@@ -196,8 +171,6 @@ Rules:
 - Static page with layouts (layouts should be rendered into the static HTML)
 - Static page with client components (client JS should be included)
 - Static page with no content (empty `make` function)
-- Static markdown page (markdown pages with frontmatter `static: true`)
-- Markdown frontmatter `static` with invalid values (`"true"`, `yes`, empty)
 - Very large number of static paths (1000+ for a dynamic page)
 - Static page that throws an exception during rendering
 - Re-rendering static pages when source changes (incremental SSG)
@@ -214,7 +187,7 @@ Static pages are rendered once at build time. Serving them is a simple file read
 
 | Action | File |
 |--------|------|
-| Modify | `bin/compiler.ml` (detect static flag, validate static_paths, merge markdown frontmatter static) |
+| Modify | `bin/compiler.ml` (detect static flag and validate static_paths for code pages) |
 | Create | `bin/static_detector.ml` (comment/string-safe lexical scanner for `let static = true`) |
 | Modify | `lib/utopia_server/utopia_server.ml` (serve static pages, SSG mode) |
 | Modify | `lib/utopia_types/utopia_types.ml` (add static field to route types) |
@@ -224,7 +197,6 @@ Static pages are rendered once at build time. Serving them is a simple file read
 | Create | `bin/tests/ssg_dynamic_page_with_paths.t` |
 | Create | `bin/tests/ssg_non_static_page_ignored.t` |
 | Create | `bin/tests/ssg_static_detection_ignores_comments_and_strings.t` |
-| Create | `bin/tests/ssg_markdown_frontmatter_static.t` |
 
 ---
 
@@ -234,7 +206,6 @@ Static pages are rendered once at build time. Serving them is a simple file read
 - Static pages are rendered at build time to HTML files
 - Static HTML is served directly without server-side rendering
 - Dynamic static pages require `static_paths` export
-- Markdown frontmatter `static: true` participates in the same SSG flow
 - Static pages include layouts and client component scripts
 - Fallback to SSR works when static HTML is missing
 - All tests pass

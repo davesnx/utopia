@@ -2,7 +2,7 @@
   "name": "utopia-blog-demo",
   "private": true,
   "scripts": {
-    "build": "dune exec ../../bin/cli/cli.exe -- clean --build-outputs && dune exec ../../bin/compiler/compiler.exe -- --mode production > /dev/null && DUNE_JOBS=${DUNE_JOBS:-8} dune build output.css _utopia/server_main.exe @_utopia/melange && node _utopia/esbuild.config.mjs",
+    "build": "dune exec ../../bin/cli/cli.exe -- clean --build-outputs && dune exec ../../bin/compiler/compiler.exe -- --mode production > /dev/null && DUNE_JOBS=${DUNE_JOBS:-8} dune build output.css _utopia/server_main.exe",
     "ssg": "npm run build && dune build @_utopia/ssg"
   },
   "dependencies": {

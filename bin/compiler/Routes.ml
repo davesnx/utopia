@@ -14,6 +14,10 @@ type route_entry = {
   has_metadata : bool;
   static : bool;
   has_static_paths : bool;
+  markdown_frontmatter : Utopia_markdown.frontmatter_object option;
+  markdown_body : string option;
+  markdown_title : string option;
+  markdown_description : string option;
   route_schema_source : string option;
   route_schema_has_params : bool;
   route_schema_module : string option;
@@ -223,6 +227,10 @@ let route_entry_of_file file kind =
           has_metadata = false;
           static = false;
           has_static_paths = false;
+          markdown_frontmatter = None;
+          markdown_body = None;
+          markdown_title = None;
+          markdown_description = None;
           route_schema_source = None;
           route_schema_has_params = false;
           route_schema_module = None;
@@ -276,6 +284,55 @@ let route_entries_of_files files =
              | Error message -> (entries, message :: errors)))
        ([], layout_errors)
   |> fun (entries, errors) -> (List.rev entries, List.rev errors)
+
+let attach_markdown_payloads (entries : route_entry list) =
+  let attach_entry (entry : route_entry) =
+    match entry.kind with
+    | Code_page -> (entry, None)
+    | Markdown_page -> (
+        try
+          let markdown =
+            In_channel.with_open_bin entry.source_file (fun channel ->
+                In_channel.input_all channel)
+          in
+          let extraction =
+            Utopia_markdown.extract_frontmatter ~source_file:entry.source_file
+              markdown
+          in
+          ( {
+              entry with
+              markdown_frontmatter = extraction.frontmatter;
+              markdown_body = Some extraction.markdown_body;
+              markdown_title = extraction.title;
+              markdown_description = extraction.description;
+            },
+            extraction.warning )
+        with Sys_error message ->
+          ( {
+              entry with
+              markdown_frontmatter = None;
+              markdown_body = Some "";
+              markdown_title = None;
+              markdown_description = None;
+            },
+            Some
+              (Printf.sprintf
+                 "markdown frontmatter warning (%s): could not read markdown \
+                  (%s); falling back to empty markdown body"
+                 entry.source_file message) ))
+  in
+  entries
+  |> List.fold_left
+       (fun (acc_entries, acc_warnings) entry ->
+         let updated, warning = attach_entry entry in
+         let acc_warnings =
+           match warning with
+           | None -> acc_warnings
+           | Some warning -> warning :: acc_warnings
+         in
+         (updated :: acc_entries, acc_warnings))
+       ([], [])
+  |> fun (entries, warnings) -> (List.rev entries, List.rev warnings)
 
 let is_api_middleware_file file =
   basename_without_extension file = "_middleware"

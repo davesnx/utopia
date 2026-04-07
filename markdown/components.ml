@@ -77,6 +77,35 @@ type t = {
     children:React.element ->
     unit ->
     React.element;
+  table : ?className:string -> children:React.element -> unit -> React.element;
+  thead : ?className:string -> children:React.element -> unit -> React.element;
+  tbody : ?className:string -> children:React.element -> unit -> React.element;
+  tr : ?className:string -> children:React.element -> unit -> React.element;
+  th : ?className:string -> children:React.element -> unit -> React.element;
+  td : ?className:string -> children:React.element -> unit -> React.element;
+  footnotes_section :
+    ?className:string -> children:React.element -> unit -> React.element;
+  footnotes_list :
+    ?className:string -> children:React.element -> unit -> React.element;
+  footnotes_item :
+    ?className:string ->
+    id:string ->
+    children:React.element ->
+    unit ->
+    React.element;
+  footnote_ref :
+    ?className:string ->
+    href:string ->
+    id:string ->
+    children:React.element ->
+    unit ->
+    React.element;
+  footnote_backref :
+    ?className:string ->
+    href:string ->
+    children:React.element ->
+    unit ->
+    React.element;
 }
 
 let make ?(p = Elements.P.make) ?(a = Elements.A.make)
@@ -89,7 +118,14 @@ let make ?(p = Elements.P.make) ?(a = Elements.A.make)
     ?(div = Elements.Div.make) ?(img = Elements.Img.make)
     ?(h1 = Elements.H1.make) ?(h2 = Elements.H2.make) ?(h3 = Elements.H3.make)
     ?(h4 = Elements.H4.make) ?(h5 = Elements.H5.make) ?(h6 = Elements.H6.make)
-    () =
+    ?(table = Elements.Table.make) ?(thead = Elements.Thead.make)
+    ?(tbody = Elements.Tbody.make) ?(tr = Elements.Tr.make)
+    ?(th = Elements.Th.make) ?(td = Elements.Td.make)
+    ?(footnotes_section = Elements.Footnotes_section.make)
+    ?(footnotes_list = Elements.Footnotes_list.make)
+    ?(footnotes_item = Elements.Footnotes_item.make)
+    ?(footnote_ref = Elements.Footnote_ref.make)
+    ?(footnote_backref = Elements.Footnote_backref.make) () =
   {
     p;
     a;
@@ -113,4 +149,15 @@ let make ?(p = Elements.P.make) ?(a = Elements.A.make)
     h4;
     h5;
     h6;
+    table;
+    thead;
+    tbody;
+    tr;
+    th;
+    td;
+    footnotes_section;
+    footnotes_list;
+    footnotes_item;
+    footnote_ref;
+    footnote_backref;
   }

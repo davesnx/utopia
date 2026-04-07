@@ -3,6 +3,7 @@
  (public_name utopia.compiler)
  (libraries
   utopia
+  utopia.markdown_runtime
   utopia_path
   dune_sexp
   server-reason-react.react

@@ -19,8 +19,7 @@ compile:
 
 .PHONY: build
 build: compile
-	DUNE_JOBS=$${DUNE_JOBS:-8} $(DUNE) build output.css _utopia/server_main.exe @_utopia/melange
-	$(NODE) _utopia/esbuild.config.mjs
+	DUNE_JOBS=$${DUNE_JOBS:-8} $(DUNE) build output.css _utopia/server_main.exe
 
 .PHONY: run
 run: build

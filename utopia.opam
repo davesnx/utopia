@@ -13,6 +13,7 @@ depends: [
   "reason" {>= "3.17.2"}
   "mlx"
   "cmarkit"
+  "yaml"
   "tm-grammars"
   "dream"
   "server-reason-react"

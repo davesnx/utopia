@@ -2,9 +2,16 @@
  (name utopia_markdown_runtime)
  (public_name utopia.markdown_runtime)
  (wrapped false)
- (modules utopia_markdown markdown_highlight components render elements)
+ (modules
+  utopia_markdown
+  frontmatter
+  markdown_highlight
+  components
+  render
+  elements)
  (libraries
   cmarkit
+  yaml
   ochre
   tm-grammars
   server-reason-react.react

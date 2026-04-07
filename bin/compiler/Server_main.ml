@@ -139,7 +139,13 @@ let render_route_modules route_entries api_entries =
       "  let resolve_layout_infos source_files =";
       "    source_files |> List.filter_map resolve_layout_info";
       "";
-      "  let resolve_page (meta : Utopia_types.page_route_meta) =";
+      "  let resolve_markdown_entry source_file markdown_entries =";
+      "    markdown_entries";
+      "    |> List.find_opt (fun (entry : Routes.Markdown.entry) ->";
+      "           String.equal entry.source_file source_file)";
+      "";
+      "  let resolve_page markdown_entries (meta : \
+       Utopia_types.page_route_meta) =";
       "    let layouts = resolve_layout_infos meta.layouts in";
       "    let metadata = resolve_page_metadata meta.source_file in";
       "    let static_paths =";
@@ -166,27 +172,39 @@ let render_route_modules route_entries api_entries =
       "                 ~router_shell:router.Utopia_route_builder.shell";
       "                 ~router_tree:router.Utopia_route_builder.tree";
       "                 ~router_subtree:router.Utopia_route_builder.subtree";
-      "                 ~static:meta.static ?static_paths ()))";
-      "    | Utopia_types.Markdown_page ->";
-      "        let render = fun () -> Utopia_server.render_markdown_body \
-       meta.source_file in";
-      "        let router =";
-      "          Utopia_route_builder.build_router ~matcher:meta.matcher \
+      "                 ~static:meta.static ~static_paths ()))";
+      "    | Utopia_types.Markdown_page -> (";
+      "        match resolve_markdown_entry meta.source_file markdown_entries \
+       with";
+      "        | Some markdown ->";
+      "            let render = fun () -> Utopia_server.render_markdown_body \
+       markdown.body in";
+      "            let router =";
+      "              Utopia_route_builder.build_router ~matcher:meta.matcher \
        ~make_page:render ~layouts";
-      "        in";
-      "        Some";
-      "          (Utopia_server.Generated_route.markdown ~route:meta.route \
+      "            in";
+      "            Some";
+      "              (Utopia_server.Generated_route.markdown ~route:meta.route \
        ~matcher:meta.matcher";
-      "             ~params:meta.params ~source_file:meta.source_file \
+      "                 ~params:meta.params ~source_file:meta.source_file \
        ~layouts:meta.layouts";
-      "             ~metadata ~layout_renderers:(List.map (fun (l : \
+      "                 ~metadata";
+      "                 ~layout_renderers:(List.map (fun (l : \
        Utopia_route_builder.layout_info) -> l.render) layouts)";
-      "             ~router_shell:router.Utopia_route_builder.shell";
-      "             ~router_tree:router.Utopia_route_builder.tree";
-      "             ~router_subtree:router.Utopia_route_builder.subtree";
-      "             ~static:meta.static ())";
+      "                 ~router_shell:router.Utopia_route_builder.shell";
+      "                 ~router_tree:router.Utopia_route_builder.tree";
+      "                 ~router_subtree:router.Utopia_route_builder.subtree";
+      "                 ~markdown:";
+      "                   (Utopia_server.make_markdown_payload \
+       ~markdown_body:markdown.body";
+      "                      ~frontmatter_object:markdown.frontmatter \
+       ?meta_title:markdown.title";
+      "                      ?meta_description:markdown.description ())";
+      "                 ~static:meta.static ())";
+      "        | None -> None)";
       "";
-      "  let resolve_pages metadata = metadata |> List.filter_map resolve_page";
+      "  let resolve_pages markdown_entries metadata =";
+      "    metadata |> List.filter_map (resolve_page markdown_entries)";
       "";
       Printf.sprintf "  let resolve_api_handler %s =" api_handler_arg;
       render_match_with_default ~subject:api_handler_arg ~default:"None"
@@ -227,8 +245,9 @@ let generate route_entries api_entries =
     [
       route_modules;
       "let page_meta = Routes.get_all ()";
+      "let markdown_meta = Routes.Markdown.get_all ()";
       "let api_meta = Routes.Api.get_all ()";
-      "let pages = Route_modules.resolve_pages page_meta";
+      "let pages = Route_modules.resolve_pages markdown_meta page_meta";
       "let api_routes = Route_modules.resolve_api api_meta";
       "";
       "let () =";

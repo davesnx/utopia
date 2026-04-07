@@ -1,5 +1,7 @@
 # API routes
 
+> Note: filesystem-root assumptions in this phase (`pages/` + `api/`) are superseded by `plan/14-app-directory-unification.md`. Keep this document as historical implementation context for API runtime behavior and metadata generation.
+
 Add file-based API routing and, in the same phase, refactor page route loading away from manifest files to generated module registries.
 
 ---

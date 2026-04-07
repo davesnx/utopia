@@ -20,7 +20,7 @@ let[@react.component] make () =
       (React.string ", a static site generator for OCaml and server-reason-react.")
     </p>
     <p className="mt-7">
-      (React.string "The pages are rendered at build time from MLX components. Blog posts are stored as markdown files and rendered with syntax highlighting powered by Ochre and TextMate grammars.")
+      (React.string "The pages are rendered at build time from MLX components. Blog posts are stored as markdown files, parsed with the shared YAML frontmatter pipeline, and rendered with syntax highlighting powered by Ochre and TextMate grammars.")
     </p>
     <p className="mt-7">
       (React.string "No JavaScript is shipped to the browser. The entire site is static HTML and CSS.")

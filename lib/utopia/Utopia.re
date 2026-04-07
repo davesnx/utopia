@@ -100,6 +100,8 @@ module Router = {
 
 module PassThroughLayout = Utopia_router.PassThroughLayout;
 
+module Markdown = Utopia_markdown_api;
+
 module Metadata = {
   type t = Utopia_types.metadata;
 

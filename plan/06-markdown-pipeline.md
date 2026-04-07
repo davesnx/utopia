@@ -1,12 +1,12 @@
 # Markdown pipeline
 
-Add frontmatter support, fix crashes, unify rendering paths, and integrate markdown into RSC.
+Add full-YAML frontmatter metadata support, remove markdown renderer crashes, unify rendering paths, and integrate markdown into the RSC pipeline.
 
 ---
 
 ## Goal
 
-Markdown pages should be first-class citizens in the RSC pipeline. They participate in layouts, support frontmatter metadata, and render through the same React component tree as code pages. Fix the known crashes (tables, footnotes) and unify the two separate markdown rendering paths.
+Markdown pages should be first-class citizens in the RSC pipeline. They participate in layouts, render through the same React component tree as code pages, and expose frontmatter metadata through a server-side API. The renderer should never crash on table, footnote, or unknown-node input.
 
 ---
 
@@ -16,125 +16,197 @@ Markdown pages should be first-class citizens in the RSC pipeline. They particip
 
 ---
 
-## Add frontmatter parsing
+## Locked decisions
 
-Parse YAML frontmatter at the top of markdown files, delimited by `---`:
+1. Frontmatter is generic metadata, not route/layout/SSG control
+2. YAML parsing uses a real dependency (`Yaml`) with full YAML support
+3. Frontmatter extraction only succeeds when YAML parses and root is an object/map
+4. Parse failures warn and fall back; they do not fail rendering
+5. Compiler parses and embeds frontmatter + stripped markdown body
+6. Runtime markdown rendering does not read source markdown files
+7. Markdown rendering is unified on the React path (`Render.of_doc`)
+8. All reachable markdown renderer crash paths (`assert false`) are removed
+
+---
+
+## Frontmatter semantics
+
+Frontmatter is an optional YAML block at the top of a markdown file:
 
 ```markdown
 ---
 title: My Guide
-description: A comprehensive guide
-path: custom-route
-layout: pages/docs/layout.re
-static: true
+author: Ada
+is_published: true
+tags:
+  - docs
+  - guide
 ---
 
 # Content starts here
 ```
 
-The frontmatter parser:
+Extraction rules:
 
-1. Checks if the file starts with `---\n`
-2. Finds the closing `---\n`
-3. Extracts the YAML between them
-4. Strips the frontmatter before passing content to cmarkit
+1. Candidate frontmatter exists only when file starts with `---\n` and contains a closing `---\n`
+2. Text between the fences is parsed with `Yaml`
+3. If parse succeeds and root is a YAML object/map:
+   - frontmatter data is extracted
+   - fenced block is stripped from markdown body
+4. If parse fails or root is not an object/map:
+   - emit warning on every compile run
+   - keep full original markdown body unchanged (do not strip)
+5. If closing fence is missing:
+   - treat file as normal markdown (no warning)
+6. Duplicate keys follow YAML parser semantics; effective behavior is last-key-wins
 
-Implement a minimal YAML parser (only flat key-value fields are needed, no nested structures). Do not add a full YAML library dependency for these small metadata keys.
+Frontmatter field policy:
 
-Supported fields:
-- `title` -- string, page title for `<head>`
-- `description` -- string, meta description
-- `path` -- string, override the filesystem-inferred route
-- `layout` -- string, explicit layout file path
-- `static` -- boolean (`true`/`false`), marks markdown page as eligible for SSG
+- Any top-level key is allowed
+- No reserved routing keys in this phase (`path`, `layout`, `static` are ordinary metadata keys)
+- `title` and `description` are special-cased only for `<head>` metadata and only when values are top-level string scalars
 
 ---
 
-## Update compiler for frontmatter
+## Frontmatter value model
 
-The compiler reads frontmatter from markdown files to:
+Define a Utopia-owned value tree for frontmatter data:
 
-1. Apply `path` overrides when generating routes
-2. Record `title` and `description` in an extended manifest format
-3. Apply `layout` overrides (replace the directory-ancestry-inferred layouts)
-4. Record `static` and pass it into route metadata/SSG planning
+```ocaml
+type frontmatter_value =
+  | Null
+  | Bool of bool
+  | Number of float
+  | String of string
+  | List of frontmatter_value list
+  | Object of (string * frontmatter_value) list
+```
 
-Add frontmatter parsing to the compiler's page processing pipeline. This runs before route generation so path overrides take effect.
+Public API exposes an object map root (not arbitrary root values):
+
+```ocaml
+module Utopia.Markdown : sig
+  type frontmatter_value = ...
+  type frontmatter_object = (string * frontmatter_value) list
+
+  val frontmatter : path:string -> frontmatter_object option
+end
+```
+
+API behavior:
+
+- Server-only API
+- `path` is a concrete request path (`/posts/hello`, not route pattern)
+- Dynamic markdown routes are matched internally against compiled route patterns
+- Returns `None` when path is not a markdown route or no valid frontmatter exists
+
+---
+
+## Compiler integration
+
+Compiler reads markdown files and embeds markdown payloads into generated artifacts:
+
+1. Parse frontmatter at compile time
+2. Store extracted frontmatter object for markdown routes in a markdown-only generated side-table (not `page_route_meta`)
+3. Store stripped markdown body for each markdown route
+4. Extract `title`/`description` from frontmatter object for metadata convenience
+5. Emit warnings for parse failures/non-object roots, then continue
+
+Implementation notes:
+
+- Parsing internals can use typed error variants:
+  - `Parse_error of { message : string; markdown : string }`
+  - `Io_error of { message : string }`
+- These error variants stay internal (not public API)
+
+---
+
+## Runtime integration and caching
+
+Runtime rendering path for markdown routes:
+
+1. Use compiler-embedded stripped markdown body
+2. Parse markdown doc once per process (`Lazy.t` memoization)
+3. Render via `Render.of_doc` with markdown components
+4. Feed rendered React element into the same layout + DreamRSC path as code pages
+
+Runtime no longer reads markdown files from disk during normal request handling.
 
 ---
 
 ## Fix table rendering
 
-The current renderer has `assert false` for tables. Implement table rendering:
+Current renderer crashes on tables (`assert false`). Implement full table rendering with granular component hooks:
 
-```ocaml
-let render_table ~header ~rows =
-  let render_cell cell =
-    let content = render_inline cell in
-    React.createElement "td" [] [content]
-  in
-  let render_header_cell cell =
-    let content = render_inline cell in
-    React.createElement "th" [] [content]
-  in
-  let thead = React.createElement "thead" []
-    [React.createElement "tr" [] (List.map render_header_cell header)] in
-  let tbody = React.createElement "tbody" []
-    (List.map (fun row ->
-       React.createElement "tr" [] (List.map render_cell row))
-     rows) in
-  React.createElement "table" [] [thead; tbody]
-```
+- `table`
+- `thead`
+- `tbody`
+- `tr`
+- `th`
+- `td`
 
-Handle column alignment (left, center, right) via `style` or `class` attributes.
+Alignment output uses classes:
+
+- `utopia-markdown-align-left`
+- `utopia-markdown-align-center`
+- `utopia-markdown-align-right`
+
+No inline `style="text-align: ..."` output in default renderer.
 
 ---
 
 ## Fix footnote rendering
 
-The current renderer has `assert false` for footnotes. Implement footnote rendering:
+Current renderer crashes on footnotes (`assert false`). Implement semantic footnote rendering:
 
-1. Collect footnotes during rendering (they are inline references)
-2. Generate a `<sup><a href="#fn-N">[N]</a></sup>` at the reference site
-3. Append a `<section class="footnotes">` at the end with the footnote content
-4. Each footnote has an `id="fn-N"` and a back-link
+1. References render as `<sup><a ...>[N]</a></sup>`
+2. Final footnote block renders as `<section class="footnotes"><ol>...</ol></section>`
+3. Footnote items render as `<li id="fn-N">...</li>`
+4. Backlinks are emitted from each footnote item to each reference site
+5. Repeated references use per-reference backlink targets
 
----
+Expose granular component hooks:
 
-## Unify rendering paths
+- `footnotes_section`
+- `footnotes_list`
+- `footnotes_item`
+- `footnote_ref`
+- `footnote_backref`
 
-The server currently has two markdown rendering paths:
-
-1. `utopia.markdown` executable: uses `Render.of_doc` which goes through React components via `server-reason-react`
-2. Server's `render_markdown_page`: uses `Cmarkit_html.of_doc` directly (plain HTML)
-
-Unify on the React path. All markdown rendering should go through `Render.of_doc` so that:
-- Custom components work everywhere
-- Markdown pages participate in the RSC pipeline
-- The output is consistent
+Invalid/partial footnote graphs degrade gracefully (never crash).
 
 ---
 
-## Integrate markdown into RSC pipeline
+## Remove crash paths in renderer
 
-After the server rewrite, markdown pages should render as React elements:
+Remove all reachable `assert false` branches in markdown rendering, not only tables/footnotes.
 
-```ocaml
-let render_markdown_page source_file =
-  let markdown = read_file source_file in
-  let doc = Cmarkit.Doc.of_string ~layout:true ~strict:false markdown in
-  Render.of_doc ~components:default_components doc
-```
+Fallback policy for unknown/unsupported nodes:
 
-The resulting React element is wrapped in layouts and rendered via DreamRSC just like code pages.
+- render nothing for that node
+- emit warning for diagnostics
+- continue rendering remaining document
 
 ---
 
-## Add custom component support via lib/
+## Unify markdown rendering paths
 
-Users place custom component modules in `lib/` and reference them in `utopia.ml` (or a future configuration mechanism). For now, the default components from `markdown/components.ml` are used.
+The server currently has two markdown paths:
 
-The `Components.t` record is already extensible. The integration point is passing user-defined components to `Render.of_doc`.
+1. `utopia.markdown` executable via React (`Render.of_doc`)
+2. Server markdown page rendering via direct HTML path
+
+Unify to one React path:
+
+- all markdown rendering goes through `Render.of_doc`
+- remove markdown-specific HTML-only path in server runtime
+- ensure output consistency between CLI markdown renderer and server markdown page rendering
+
+---
+
+## Custom components
+
+`Components.t` remains extensible and gains the new table/footnote hooks. Default components from `markdown/elements.re` remain the baseline implementation for this phase. Project-level runtime configuration wiring for custom markdown components is deferred.
 
 ---
 
@@ -142,71 +214,78 @@ The `Components.t` record is already extensible. The integration point is passin
 
 ### Cram tests
 
-**`markdown_frontmatter_basic.t`**
-- Markdown with title and description frontmatter
-- Assert frontmatter is stripped from rendered output
-- Assert title is available in metadata
+**`markdown_frontmatter_extracts_yaml_object.t`**
+- Frontmatter includes nested YAML values
+- Assert extracted map is available and frontmatter is stripped from body
 
-**`markdown_frontmatter_path_override.t`**
-- Markdown with `path: custom-path` frontmatter
-- Run the compiler
-- Assert route manifest uses the overridden path instead of the filename
+**`markdown_frontmatter_invalid_yaml_warns_and_falls_back.t`**
+- File starts with fenced block that fails YAML parse
+- Assert compile warning
+- Assert markdown body is not stripped
 
-**`markdown_frontmatter_layout_override.t`**
-- Markdown with `layout: pages/docs/layout.re`
-- Run the compiler
-- Assert route manifest uses the specified layout
+**`markdown_frontmatter_non_object_root_warns_and_falls_back.t`**
+- Frontmatter YAML root is list/scalar
+- Assert compile warning and fallback behavior
 
-**`markdown_frontmatter_static_flag.t`**
-- Markdown with `static: true`
-- Run the compiler
-- Assert route metadata marks the page as static
+**`markdown_frontmatter_duplicate_keys_last_wins.t`**
+- Duplicate key values in YAML
+- Assert exposed value is the last one
 
-**`markdown_frontmatter_missing.t`**
-- Markdown without frontmatter
-- Assert renders normally with no errors
+**`markdown_frontmatter_title_description_metadata.t`**
+- `title` and `description` as strings
+- Assert they are available to metadata/head path
+
+**`markdown_frontmatter_lookup_by_path.t`**
+- Call `Utopia.Markdown.frontmatter ~path` with static markdown route
+- Assert returned object
+
+**`markdown_frontmatter_lookup_dynamic_route_path.t`**
+- Dynamic markdown route with concrete request path lookup
+- Assert internal pattern matching resolves frontmatter
 
 **`markdown_table_rendering.t`**
-- Markdown with a simple table
-- Assert rendered output contains `<table>`, `<thead>`, `<tbody>`, `<th>`, `<td>`
+- Assert `<table>`, `<thead>`, `<tbody>`, `<th>`, `<td>` are rendered
 
-**`markdown_table_with_alignment.t`**
-- Markdown table with left, center, right alignment
-- Assert alignment attributes are present
+**`markdown_table_alignment_classes.t`**
+- Assert `utopia-markdown-align-left|center|right` classes are present
 
 **`markdown_footnote_rendering.t`**
-- Markdown with footnote references and definitions
-- Assert `<sup>` links and footnote section are rendered
+- Assert `<sup>` references, `<section class="footnotes">`, `<ol>`, `<li>` and backlinks are rendered
+
+**`markdown_footnote_repeated_references.t`**
+- Multiple references to same footnote
+- Assert per-reference backlink targets
+
+**`markdown_unknown_nodes_no_crash.t`**
+- Feed unsupported/edge markdown constructs
+- Assert renderer does not crash and still emits output
 
 ### Update existing markdown tests
 
-Promote `markdown/tests/main.t` and `markdown/tests/simple.t` expected output after any changes to the rendering pipeline.
+Promote `markdown/tests/main.t` and `markdown/tests/simple.t` expected output after pipeline unification.
 
 ### Edge cases
 
-- Frontmatter with unknown fields (should be silently ignored)
-- Frontmatter with empty values (`title: `)
-- Frontmatter with no closing `---` (treat entire file as content, no frontmatter)
-- Frontmatter that is only `---\n---\n` (empty frontmatter)
-- Frontmatter with multiline values (should error or handle gracefully)
-- Frontmatter with special characters in values (colons, quotes)
-- Frontmatter `static` values other than `true`/`false` (clear error)
-- Markdown file that starts with `---` but is actually a thematic break
+- Frontmatter with unknown fields
+- Frontmatter with empty string values (`title: ""`)
+- Frontmatter with no closing `---`
+- Frontmatter block `---\n---\n` (empty object)
+- Frontmatter with very large nested YAML payload
+- Frontmatter with special characters and quoted strings
+- Frontmatter list/scalar root (warn + fallback)
 - Table with mismatched column counts
 - Table with empty cells
-- Table nested inside a list (edge case in CommonMark)
+- Table nested inside list items
 - Footnote with multiple paragraphs
 - Footnote referenced but not defined
 - Footnote defined but not referenced
-- Very large markdown file (100KB+)
-- Markdown with custom component overrides
-- Markdown with client components in custom overrides (the interesting RSC case)
+- Very large markdown body (100KB+)
 
 ---
 
 ## Performance
 
-Frontmatter parsing adds minimal overhead (string scanning for `---` delimiters). Table and footnote rendering are proportional to content size. No performance concerns.
+Compile-time frontmatter parsing and embedding removes runtime markdown file I/O for normal request handling. Runtime markdown parse/render work is reduced by memoizing parsed docs per markdown page.
 
 ---
 
@@ -214,31 +293,37 @@ Frontmatter parsing adds minimal overhead (string scanning for `---` delimiters)
 
 | Action | File |
 |--------|------|
-| Modify | `markdown/render.ml` (add table rendering, footnote rendering) |
-| Modify | `markdown/components.ml` (add table/footnote component types) |
-| Modify | `markdown/elements.re` (add table/footnote default elements) |
-| Create | `markdown/frontmatter.ml` (frontmatter parser) |
-| Modify | `markdown/markdown.ml` (use frontmatter parser) |
-| Modify | `bin/compiler.ml` (read frontmatter, apply path/layout/static overrides) |
-| Modify | `lib/utopia_server/utopia_server.ml` (use React rendering for markdown) |
+| Create | `markdown/frontmatter.ml` (Yaml-based extraction + value conversion) |
+| Modify | `markdown/utopia_markdown.ml` (frontmatter + stripped-body pipeline) |
+| Modify | `markdown/render.ml` (table, footnote, crash-safe fallbacks) |
+| Modify | `markdown/components.ml` (granular table/footnote hooks) |
+| Modify | `markdown/elements.re` (default table/footnote component implementations) |
+| Modify | `bin/compiler/Routes.ml` (collect markdown payload metadata) |
+| Modify | `bin/compiler/Generated_routes.ml` (emit markdown frontmatter side-table) |
+| Modify | `bin/compiler/Server_main.ml` (wire embedded markdown payloads/registry) |
+| Modify | `lib/utopia/Utopia_server.ml` (remove markdown HTML-only path; render embedded markdown via React) |
+| Create | `lib/utopia/Utopia_markdown.ml` (server-side `Utopia.Markdown.frontmatter ~path`) |
+| Modify | `lib/utopia/Utopia.re` (expose `Utopia.Markdown`) |
 | Create | `markdown/tests/frontmatter.t` |
 | Create | `markdown/tests/tables.t` |
 | Create | `markdown/tests/footnotes.t` |
-| Modify | `markdown/tests/main.t` (promote if needed) |
-| Modify | `markdown/tests/simple.t` (promote if needed) |
+| Modify | `markdown/tests/main.t` |
+| Modify | `markdown/tests/simple.t` |
 
 ---
 
 ## Acceptance criteria
 
-- Frontmatter is parsed and stripped before rendering
-- `path` overrides change the route in the manifest
-- `layout` overrides change the layout chain
-- `title` and `description` are available as metadata
-- `static` frontmatter toggles markdown-page SSG eligibility
-- Tables render correctly with alignment support
-- Footnotes render with links and back-links
-- No `assert false` crashes remain in the renderer
-- Markdown pages render through the React pipeline (not Cmarkit_html)
-- All markdown cram tests pass
-- The demo markdown page (`lola.md`) renders correctly
+- Frontmatter extraction uses `Yaml` and accepts full YAML only when root is an object/map
+- Invalid/non-object frontmatter emits warning and falls back to unchanged markdown body
+- Frontmatter is generic metadata (no route/layout/static behavior in this phase)
+- `title` and `description` are auto-derived only from top-level string values
+- Compiler embeds stripped markdown body and frontmatter object side-table for markdown routes
+- Runtime markdown rendering does not read markdown files in normal request path
+- `Utopia.Markdown.frontmatter ~path` returns frontmatter object by concrete request path
+- Markdown rendering is unified on React (`Render.of_doc`) across CLI and server paths
+- Tables render with semantic elements and alignment classes
+- Footnotes render with semantic section/list markup and per-reference backlinks
+- No reachable `assert false` crash path remains in markdown renderer
+- Unknown markdown nodes degrade gracefully (render nothing + warn)
+- Markdown cram tests pass
