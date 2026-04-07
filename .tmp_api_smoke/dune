@@ -1,2 +1,0 @@
-(data_only_dirs _utopia)
-(include _utopia/dune)
