@@ -36,11 +36,11 @@ let page_metadata_branch (entry : Routes.route_entry) =
       (Printf.sprintf "  | %S -> Some %s.metadata" entry.source_file
          (Names.compiled_page_module_name_of_source entry.source_file))
 
-let page_static_paths_branch (entry : Routes.route_entry) =
-  if not entry.has_static_paths then None
+let page_paths_branch (entry : Routes.route_entry) =
+  if not entry.has_paths then None
   else
     Some
-      (Printf.sprintf "  | %S -> Some %s.static_paths" entry.source_file
+      (Printf.sprintf "  | %S -> Some %s.paths" entry.source_file
          (Names.compiled_page_module_name_of_source entry.source_file))
 
 let layout_info_branch source_file =
@@ -79,12 +79,10 @@ let render_route_modules route_entries api_entries =
     route_entries |> List.filter_map page_metadata_branch
   in
   let page_metadata_arg = resolver_argument_name page_metadata_branches in
-  let page_static_paths_branches =
-    route_entries |> List.filter_map page_static_paths_branch
+  let page_paths_branches =
+    route_entries |> List.filter_map page_paths_branch
   in
-  let page_static_paths_arg =
-    resolver_argument_name page_static_paths_branches
-  in
+  let page_paths_arg = resolver_argument_name page_paths_branches in
   let layout_sources =
     route_entries
     |> List.concat_map (fun (entry : Routes.route_entry) -> entry.layouts)
@@ -121,10 +119,9 @@ let render_route_modules route_entries api_entries =
       |> List.map (fun line -> "  " ^ line)
       |> String.concat "\n";
       "";
-      Printf.sprintf "  let resolve_page_static_paths %s ="
-        page_static_paths_arg;
-      render_match_with_default ~subject:page_static_paths_arg ~default:"None"
-        page_static_paths_branches
+      Printf.sprintf "  let resolve_page_paths %s =" page_paths_arg;
+      render_match_with_default ~subject:page_paths_arg ~default:"None"
+        page_paths_branches
       |> String.split_on_char '\n'
       |> List.map (fun line -> "  " ^ line)
       |> String.concat "\n";
@@ -148,9 +145,8 @@ let render_route_modules route_entries api_entries =
        Utopia_types.page_route_meta) =";
       "    let layouts = resolve_layout_infos meta.layouts in";
       "    let metadata = resolve_page_metadata meta.source_file in";
-      "    let static_paths =";
-      "      if meta.has_static_paths then resolve_page_static_paths \
-       meta.source_file";
+      "    let paths =";
+      "      if meta.has_paths then resolve_page_paths meta.source_file";
       "      else None";
       "    in";
       "    match meta.kind with";
@@ -172,7 +168,7 @@ let render_route_modules route_entries api_entries =
       "                 ~router_shell:router.Utopia_route_builder.shell";
       "                 ~router_tree:router.Utopia_route_builder.tree";
       "                 ~router_subtree:router.Utopia_route_builder.subtree";
-      "                 ~static:meta.static ~static_paths ()))";
+      "                 ~static:meta.static ~paths ()))";
       "    | Utopia_types.Markdown_page -> (";
       "        match resolve_markdown_entry meta.source_file markdown_entries \
        with";
@@ -251,9 +247,10 @@ let generate route_entries api_entries =
       "let api_routes = Route_modules.resolve_api api_meta";
       "";
       "let () =";
-      "  match Array.to_list Sys.argv with";
-      "  | [ _; \"--ssg\" ] -> Utopia_server.ssg_generated pages";
-      "  | _ ->";
-      "      Utopia_server.start_generated ~pages ~api_routes \
-       ~lookup_server_function:FunctionReferences.get";
+      "  let argv = Array.to_list Sys.argv in";
+      "  if List.mem \"--ssg\" argv then Utopia_server.ssg_generated pages";
+      "  else";
+      "    let dev_mode = List.mem \"--dev\" argv in";
+      "    Utopia_server.start_generated ~pages ~api_routes";
+      "      ~lookup_server_function:FunctionReferences.get ~dev_mode ()";
     ]

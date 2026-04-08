@@ -1,5 +1,3 @@
-let static = true
-
 let metadata _params =
   Utopia.Metadata.make ~title:"Posts" ~description:"All blog posts." ()
 

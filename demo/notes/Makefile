@@ -12,29 +12,37 @@ bootstrap-generated-dune:
 
 .PHONY: compile
 compile: bootstrap-generated-dune
-	$(DUNE) build ../../bin/compiler/compiler.exe ../../bin/cli/cli.exe
+	$(DUNE) build --no-print-directory ../../bin/compiler/compiler.exe ../../bin/cli/cli.exe
 	$(CLI) clean --build-outputs
 	$(COMPILER) --mode production > /dev/null
 
 .PHONY: build
 build: compile
-	DUNE_JOBS=$${DUNE_JOBS:-8} $(DUNE) build output.css _utopia/server_main.exe @_utopia/melange @_utopia/esbuild
+	DUNE_JOBS=$${DUNE_JOBS:-8} $(DUNE) build --no-print-directory output.css _utopia/server_main.exe @_utopia/melange @_utopia/esbuild
 
 .PHONY: run
 run: build
 	$(SERVER)
 
+.PHONY: export
+export: compile
+	DUNE_JOBS=$${DUNE_JOBS:-8} $(DUNE) build --no-print-directory output.css
+	$(CLI) export
+
+.PHONY: generate
+generate: export
+
 .PHONY: dev
 dev: bootstrap-generated-dune
-	$(DUNE) build ../../bin/cli/cli.exe
+	$(DUNE) build --no-print-directory ../../bin/cli/cli.exe
 	$(CLI) dev
 
 .PHONY: watch-compile
 watch-compile: bootstrap-generated-dune
-	$(DUNE) build ../../bin/compiler/compiler.exe
+	$(DUNE) build --no-print-directory ../../bin/compiler/compiler.exe
 	$(COMPILER) --watch
 
 .PHONY: clean
 clean: bootstrap-generated-dune
-	$(DUNE) build ../../bin/cli/cli.exe
+	$(DUNE) build --no-print-directory ../../bin/cli/cli.exe
 	$(CLI) clean --build-outputs

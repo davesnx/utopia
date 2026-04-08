@@ -3,6 +3,7 @@
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ cat > pages/Home.re <<'EOF'
+  > let before = _request => ();
   > [@react.server.function]
   > let nextRoute = (): Js.Promise.t(Utopia.Route.t) =>
   >   Js.Promise.resolve(Routes.About.route);

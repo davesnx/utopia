@@ -135,16 +135,14 @@ let run ~build_mode =
     let has_unknown_param_accesses =
       Diagnostics.report_unknown_param_accesses route_entries
     in
-    let has_missing_static_paths =
-      Diagnostics.report_missing_static_paths route_entries
-    in
+    let has_missing_paths = Diagnostics.report_missing_paths route_entries in
     let has_errors =
       route_parse_errors <> []
       || reserved_api_namespace_errors <> []
       || api_parse_errors <> [] || route_schema_errors <> [] || conflicts <> []
       || api_conflicts <> []
       || api_param_kind_conflicts <> []
-      || has_unknown_param_accesses || has_missing_static_paths
+      || has_unknown_param_accesses || has_missing_paths
     in
     if has_errors then (
       if route_parse_errors <> [] then

@@ -1,6 +1,19 @@
 module Client = Dune_rpc_lwt.V1
 module Protocol = Dune_rpc.V1
 
+type lifecycle_hooks = {
+  build_started : unit -> unit;
+  build_failed : Protocol.Diagnostic.t list -> unit;
+  build_succeeded : unit -> unit;
+}
+
+let noop_hooks =
+  {
+    build_started = (fun () -> ());
+    build_failed = (fun _diagnostics -> ());
+    build_succeeded = (fun () -> ());
+  }
+
 let pp_to_string pp_doc =
   let buffer = Buffer.create 256 in
   let formatter = Format.formatter_of_buffer buffer in
@@ -105,7 +118,32 @@ let print_active_diagnostics () =
         Printf.printf "%s\n%!" (format_diagnostic diagnostic));
     Printf.printf "\n%!")
 
-let run_loop ~build_dir ~verbose =
+let active_diagnostics_snapshot () =
+  Hashtbl.fold (fun _ diagnostic acc -> diagnostic :: acc) active_diagnostics []
+
+type build_phase = Waiting | Building | Failed | Interrupted | Succeeded
+
+let phase_of_progress = function
+  | Protocol.Progress.Waiting -> Waiting
+  | Protocol.Progress.In_progress _ -> Building
+  | Protocol.Progress.Failed -> Failed
+  | Protocol.Progress.Interrupted -> Interrupted
+  | Protocol.Progress.Success -> Succeeded
+
+let emit_lifecycle hooks previous_phase next_phase =
+  match (previous_phase, next_phase) with
+  | Building, Building
+  | Failed, Failed
+  | Succeeded, Succeeded
+  | Interrupted, Interrupted
+  | Waiting, Waiting ->
+      ()
+  | _, Building -> hooks.build_started ()
+  | _, Failed -> hooks.build_failed (active_diagnostics_snapshot ())
+  | _, Succeeded -> hooks.build_succeeded ()
+  | _, (Waiting | Interrupted) -> ()
+
+let run_loop ?(hooks = noop_hooks) ~build_dir ~verbose () =
   let open Lwt.Syntax in
   let init =
     Protocol.Initialize.create ~id:(Protocol.Id.make (Csexp.Atom "utopia-dev"))
@@ -156,11 +194,15 @@ let run_loop ~build_dir ~verbose =
                 waiter
             | Some stream ->
                 let last_status = ref "" in
+                let last_phase = ref Waiting in
                 let rec loop () =
                   let* event = Client.Client.Stream.next stream in
                   match event with
                   | None -> Lwt.return_unit
                   | Some progress ->
+                      let phase = phase_of_progress progress in
+                      emit_lifecycle hooks !last_phase phase;
+                      last_phase := phase;
                       let status = format_progress progress in
                       if status <> !last_status then (
                         last_status := status;

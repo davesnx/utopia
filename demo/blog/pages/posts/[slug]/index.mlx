@@ -1,6 +1,4 @@
-let static = true
-
-let static_paths () =
+let paths () =
   Blog_data.posts |> List.map (fun (p : Blog_data.post) -> [ ("slug", p.slug) ])
 
 let metadata params =

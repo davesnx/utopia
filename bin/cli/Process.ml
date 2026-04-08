@@ -133,5 +133,8 @@ let spawn_silent program args env =
   Unix.close dev_null;
   pid
 
-let kill_if_alive pid =
-  try Unix.kill pid Sys.sigterm with Unix.Unix_error (Unix.ESRCH, _, _) -> ()
+let signal_if_alive pid signal =
+  try Unix.kill pid signal with Unix.Unix_error (Unix.ESRCH, _, _) -> ()
+
+let kill_if_alive pid = signal_if_alive pid Sys.sigterm
+let force_kill_if_alive pid = signal_if_alive pid Sys.sigkill

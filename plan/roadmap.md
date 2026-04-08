@@ -31,7 +31,7 @@
 4. Middleware support (`_middleware.ml`)
 
 ### Phase 5: SSG support
-1. Pages with `let static = true` are rendered at build time
+1. Pages with ``let rendering = `Static`` are rendered at build time
 2. Output is static HTML served without server rendering
 3. Build-time rendering uses the same RSC pipeline
 

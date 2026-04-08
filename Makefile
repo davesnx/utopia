@@ -13,15 +13,15 @@ help: ## Print this help message
 
 .PHONY: build
 build: ## Build the project, including non installable libraries and executables
-	$(DUNE) build .
+	$(DUNE) build --no-print-directory .
 
 .PHONY: build-prod
 build-prod: ## Build for production (--profile=prod)
-	$(DUNE) build .
+	$(DUNE) build --no-print-directory .
 
 .PHONY: dev
 dev: ## Build in watch mode
-	$(DUNE) build -w @all
+	$(DUNE) build --no-print-directory -w @all
 
 .PHONY: clean
 clean: ## Clean artifacts
@@ -29,26 +29,26 @@ clean: ## Clean artifacts
 
 .PHONY: test
 test: ## Run the unit tests
-	$(DUNE) build @runtest
+	$(DUNE) build --no-print-directory @runtest
 
 .PHONY: test-watch
 test-watch: ## Run the unit tests in watch mode
-	$(DUNE) build @runtest -w
+	$(DUNE) build --no-print-directory @runtest -w
 
 .PHONY: test-promote
 test-promote: ## Updates snapshots and promotes it to correct
-	$(DUNE) build @runtest --auto-promote
+	$(DUNE) build --no-print-directory @runtest --auto-promote
 
 .PHONY: deps
 deps: $(opam_file) ## Alias to update the opam file and install the needed deps
 
 .PHONY: format
 format: ## Format the codebase with ocamlformat
-	$(DUNE) build @fmt --auto-promote
+	$(DUNE) build --no-print-directory @fmt --auto-promote
 
 .PHONY: format-check
 format-check: ## Checks if format is correct
-	$(DUNE) build @fmt
+	$(DUNE) build --no-print-directory @fmt
 
 .PHONY: init
 setup-githooks: ## Setup githooks
@@ -60,7 +60,7 @@ create-switch: ## Create opam switch
 
 .PHONY: install
 install:
-	$(DUNE) build @install
+	$(DUNE) build --no-print-directory @install
 	opam install . --deps-only --with-test --with-dev-setup -y
 
 .PHONY: pin
@@ -93,7 +93,7 @@ build-generated: ## Run generated tests
 
 .PHONY: bench
 bench: ## Run routing micro-benchmarks
-	$(DUNE) exec bench/bench_routing.exe
+	$(DUNE) exec --no-print-directory bench/bench_routing.exe
 
 .PHONY: compile-blog
 compile-blog: ## Compile blog demo
@@ -103,9 +103,12 @@ compile-blog: ## Compile blog demo
 run-blog: ## Run blog demo
 	$(MAKE) -C demo/blog run
 
+.PHONY: export-blog
+export-blog: ## Export static blog pages
+	$(MAKE) -C demo/blog export
+
 .PHONY: generate-blog
-generate-blog: ## Generate static blog pages
-	$(MAKE) -C demo/blog generate
+generate-blog: export-blog ## Alias for export-blog
 
 .PHONY: compile-md
 compile-md: ## Compile markdown demo
@@ -114,6 +117,29 @@ compile-md: ## Compile markdown demo
 .PHONY: run-md
 run-md: ## Run markdown demo
 	$(MAKE) -C demo/md run
+
+.PHONY: export-md
+export-md: ## Export static markdown demo pages
+	$(MAKE) -C demo/md export
+
+.PHONY: generate-md
+generate-md: export-md ## Alias for export-md
+
+.PHONY: export-notes
+export-notes: ## Run notes demo export pass
+	$(MAKE) -C demo/notes export
+
+.PHONY: generate-notes
+generate-notes: export-notes ## Alias for export-notes
+
+.PHONY: export-demos
+export-demos: ## Run export for all demos
+	$(MAKE) export-blog
+	$(MAKE) export-md
+	$(MAKE) export-notes
+
+.PHONY: generate-demos
+generate-demos: export-demos ## Alias for export-demos
 
 .PHONY: bench-http
 bench-http: ## Run HTTP benchmarks with wrk (requires wrk)

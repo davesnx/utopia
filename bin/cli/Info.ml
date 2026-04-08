@@ -41,6 +41,7 @@ let run ~version _args =
   Printf.printf "\n  %s\n" (Terminal.bold "Commands");
   [
     ("build", true);
+    ("export", true);
     ("prod", true);
     ("dev", true);
     ("clean", true);

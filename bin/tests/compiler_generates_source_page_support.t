@@ -28,6 +28,7 @@
   > let[@react.component] make () = <div> (React.string "blog") </div>
   > EOF
   $ cat > pages/blog/[slug]/index.mlx <<'EOF'
+  > let before _request = ()
   > let[@react.component] make () = <div> (React.string "slug") </div>
   > EOF
   $ utopia.compiler > /dev/null

@@ -1,4 +1,5 @@
 let default_port = 8080
+let restart_grace_seconds = 2.0
 
 let build_env config port =
   let base = [| "PORT=" ^ string_of_int port; "HOST=" ^ config.Flags.host |] in
@@ -28,6 +29,21 @@ let print_ready host port =
   Printf.printf "\n  %s %s\n\n%!" (Terminal.cyan "Ready at")
     (Terminal.bold (Printf.sprintf "http://%s:%d" host port))
 
+let wait_for_exit_with_timeout pid timeout_seconds =
+  let open Lwt.Syntax in
+  let wait_for_exit =
+    Lwt.catch
+      (fun () ->
+        let* _pid, _status = Lwt_unix.waitpid [] pid in
+        Lwt.return true)
+      (fun _exn -> Lwt.return true)
+  in
+  let timeout =
+    let* () = Lwt_unix.sleep timeout_seconds in
+    Lwt.return false
+  in
+  Lwt.pick [ wait_for_exit; timeout ]
+
 let run args =
   let config = Flags.parse_dev args in
   Printf.printf "\n%s\n\n" (Terminal.bold "utopia dev");
@@ -38,6 +54,8 @@ let run args =
       "Missing route source directory. Create 'app/' (preferred) or legacy \
        'pages/'.";
     exit 1);
+
+  if not (Npm_preflight.ensure ~command_name:"utopia dev" ()) then exit 1;
 
   let compiler = Binaries.resolve_bin "utopia.compiler" in
   let code = Process.run_command compiler [ "--mode"; "development" ] in
@@ -50,7 +68,7 @@ let run args =
   Terminal.print_step "Building project";
   let code =
     Process.run_command dune
-      (Artifacts.dune_build_args [ Artifacts.generated_server_build_target () ])
+      (Artifacts.dune_build_args (Artifacts.generated_build_targets ()))
   in
   if code <> 0 then (
     Terminal.print_err "Initial dune build failed";
@@ -73,7 +91,7 @@ let run args =
     selected_port := select_available_port ~host:config.host !selected_port;
     let server_path = Artifacts.artifact_path generated_server in
     let env = build_env config !selected_port in
-    try Ok (Process.spawn server_path [] env)
+    try Ok (Process.spawn server_path [ "--dev" ] env)
     with Unix.Unix_error (error, _, _) -> Error (Unix.error_message error)
   in
 
@@ -140,7 +158,7 @@ let run args =
                    (Filename.concat
                       (Artifacts.workspace_root_string ())
                       (Fpath.to_string Artifacts.build_directory))
-                 ~verbose:config.verbose)
+                 ~verbose:config.verbose ())
              (fun exn ->
                if config.verbose then
                  Terminal.print_warn
@@ -177,12 +195,23 @@ let run args =
                    Terminal.print_step "Restarting generated dev server";
                    let previous_port = !selected_port in
                    Process.kill_if_alive !server_pid;
+                   let* exited_after_term =
+                     wait_for_exit_with_timeout !server_pid
+                       restart_grace_seconds
+                   in
                    let* () =
-                     Lwt.catch
-                       (fun () ->
-                         let* _pid, _status = Lwt_unix.waitpid [] !server_pid in
-                         Lwt.return_unit)
-                       (fun _exn -> Lwt.return_unit)
+                     if exited_after_term then Lwt.return_unit
+                     else (
+                       Terminal.print_warn
+                         "Generated dev server did not exit in time; forcing \
+                          kill";
+                       Process.force_kill_if_alive !server_pid;
+                       let* _ =
+                         Lwt.catch
+                           (fun () -> Lwt_unix.waitpid [] !server_pid)
+                           (fun _exn -> Lwt.return (-1, Unix.WEXITED 0))
+                       in
+                       Lwt.return_unit)
                    in
                    match spawn_generated_server () with
                    | Ok pid ->
@@ -203,6 +232,12 @@ let run args =
                          (Printf.sprintf
                             "Could not restart generated dev server: %s" message);
                        Lwt.return 1)
+               | Some _, None ->
+                   Terminal.print_err
+                     (Printf.sprintf
+                        "Generated server executable disappeared at %s"
+                        (Artifacts.artifact_display generated_server));
+                   Lwt.return 1
                | _, Some current ->
                    server_mtime := Some current;
                    let* () = Lwt_unix.sleep 0.5 in

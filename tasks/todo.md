@@ -2,6 +2,67 @@
 
 ## Active slice
 
+- [completed] Merge runtime-overlay planning details into `plan/11-dev-full-reload-and-browser-overlay.md`
+- [completed] Keep `plan/08-dev-mode.md` as the separate low-level dev-loop mechanics companion
+- [completed] Replace `plan/10-client-error-overlay.md` with a deprecation pointer to plan 11
+- [completed] Update `plan/primitives.md` phase list to reflect that plan-10 content is merged into plan 11
+
+## Review
+
+- `plan/11-dev-full-reload-and-browser-overlay.md` now directly carries the runtime-overlay plan details that were previously split into plan 10, including explicit runtime payload operation variants and timestamp.
+- `plan/10-client-error-overlay.md` is now a compact deprecation stub that points readers to plan 11 as the single source of truth while preserving historical link stability.
+- `plan/08-dev-mode.md` remains focused on CLI/server mechanics instead of browser overlay UX semantics.
+- `plan/primitives.md` implementation-phase entry for plan 10 now marks it deprecated and merged into plan 11.
+
+## Active slice
+
+- [completed] Rename `plan/09-tba.md` to a concrete rendering-modes plan and document 5 design options including `before`
+- [completed] Remove legacy `let static = true` compatibility in compiler static detection
+- [completed] Migrate demos and SSG tests to explicit ``let rendering = `Static``
+- [completed] Add regression coverage ensuring legacy `let static = true` is ignored
+- [completed] Verify demos and targeted tests still pass after migration
+
+## Review
+
+- Added `plan/09-rendering-modes-and-before-hook.md` and removed `plan/09-tba.md`; the new plan records four alternative designs plus the `before` hook design and selects explicit rendering mode for this slice.
+- Compiler static detection now keys off ``let rendering = `Static`` via `bin/compiler/Analysis.ml`; legacy `let static = true` is intentionally ignored.
+- Updated SSG diagnostics wording and source-origin labeling to reflect rendering-mode terminology.
+- Migrated demo static pages (`demo/blog/**`, `demo/md/app/page.mlx`) and blog documentation snippets to ``let rendering = `Static``.
+- Updated SSG test fixtures and added `bin/tests/ssg_legacy_static_export_ignored.t` to lock non-compat behavior.
+
+## Active slice
+
+- [completed] Add SSG generation targets for all demo Makefiles (`blog`, `md`, `notes`)
+- [completed] Add demo-level SSG smoke checks so generated static output is asserted per demo
+- [completed] Add root Makefile orchestration targets to run SSG and SSG checks across all demos
+- [completed] Run end-to-end demo SSG verification for all demos
+
+## Review
+
+- Added `test-ssg` targets in `demo/blog/Makefile`, `demo/md/Makefile`, and `demo/notes/Makefile` with demo-appropriate expectations.
+- Added SSG orchestration targets in root `Makefile`: `generate-md`, `generate-notes`, `generate-demos`, `test-ssg-blog`, `test-ssg-md`, `test-ssg-notes`, and `test-ssg-demos`.
+- Updated `demo/notes/Makefile` `generate` flow to build only `output.css` + `_utopia/server_main.exe` before `--ssg`, so notes demo SSG smoke checks run reliably even when optional alias targets are empty.
+- Verified with `make test-ssg-demos`: blog renders 7 static pages, md renders 1 static page, notes reports `SSG: no static pages found` and passes the no-static assertion.
+
+## Active slice
+
+- [completed] Introduce a reusable compiler analysis scanner module for static/static_paths detection and future attribute scans
+- [completed] Wire SSG static-file serving with production 500-on-missing and dev-only SSR fallback via generated `--dev` mode
+- [completed] Run SSG as part of `utopia build` output generation
+- [completed] Add/expand SSG cram coverage (render outputs, detection edge-cases, dynamic-path validation, static serving behavior)
+- [completed] Update `plan/11-dev-full-reload-and-browser-overlay.md`, `plan/primitives.md`, and `tasks/lessons.md` for the new decisions
+
+## Review
+
+- Added `bin/compiler/Analysis.ml` as a reusable comment/string/char-safe lexical scanner and switched static/static_paths detection to this shared analysis pass.
+- Added static export origin tracking (`line:column`) on compiler route entries and used it in missing-`static_paths` diagnostics.
+- Updated runtime/static behavior in `lib/utopia/Utopia_server.ml`: static routes now serve `_utopia/static/<route>.html`, return `500` in non-dev when missing, and SSR-fallback only in `--dev` mode.
+- Updated generated server entry + CLI wiring so `utopia dev` launches with `--dev`, and `utopia build` now runs SSG by invoking the generated server with `--ssg` after build.
+- Added new SSG coverage: render output generation, dynamic static path requirements, comment/string detection guardrails, build-triggered SSG, and runtime static-serving/dev-fallback behavior.
+- Verification passed for `opam exec -- dune build bin/compiler/compiler.exe bin/cli/cli.exe` and `opam exec -- dune runtest` on targeted SSG/CLI/server cram tests.
+
+## Active slice
+
 - [completed] Revert generated root-route alias so public route API stays on `Routes.route`
 - [completed] Revert root-alias regression expectations in route-generation tests
 - [completed] Update md demo back-link usage to keep `Routes.route`

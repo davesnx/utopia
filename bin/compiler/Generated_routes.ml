@@ -560,14 +560,14 @@ let render_page_meta_entry (entry : Routes.route_entry) =
   Printf.sprintf
     "  ({ route = %S; matcher = %S; conflict_key = %S; params = %s; layouts = \
      %s; kind = %s; source_file = %S; module_name = %S; has_metadata = %b; \
-     static = %b; has_static_paths = %b } : Utopia_types.page_route_meta);"
+     static = %b; has_paths = %b } : Utopia_types.page_route_meta);"
     entry.route entry.matcher entry.conflict_key
     (ocaml_expr_of_params entry.params)
     (ocaml_expr_of_string_list entry.layouts)
     (ocaml_expr_of_page_kind entry.kind)
     entry.source_file
     (Names.compiled_page_module_name_of_source entry.source_file)
-    entry.has_metadata entry.static entry.has_static_paths
+    entry.has_metadata entry.static entry.has_paths
 
 let render_api_meta_entry (entry : Routes.api_route_entry) =
   Printf.sprintf

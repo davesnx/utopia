@@ -22,7 +22,7 @@ type generated_route = {
   router_subtree : string -> React.element option;
   markdown : markdown_payload option;
   static : bool;
-  static_paths : (unit -> (string * string) list list) option;
+  paths : (unit -> (string * string) list list) option;
 }
 
 and markdown_payload = {
@@ -52,7 +52,7 @@ end
 module Generated_route = struct
   let make ~kind ~route ~matcher ~params ~source_file ~layouts ~render ~metadata
       ~layout_renderers ~router_shell ~router_tree ~router_subtree
-      ?(markdown = None) ?(static = false) ?(static_paths = None) () =
+      ?(markdown = None) ?(static = false) ?(paths = None) () =
     {
       route;
       matcher;
@@ -68,15 +68,15 @@ module Generated_route = struct
       router_subtree;
       markdown;
       static;
-      static_paths;
+      paths;
     }
 
   let code ~route ~matcher ~params ~source_file ~layouts ~render ~metadata
       ~layout_renderers ~router_shell ~router_tree ~router_subtree
-      ?(static = false) ?(static_paths = None) () =
+      ?(static = false) ?(paths = None) () =
     make ~kind:Code_page ~route ~matcher ~params ~source_file ~layouts
       ~render:(Some render) ~metadata ~layout_renderers ~router_shell
-      ~router_tree ~router_subtree ~static ~static_paths ()
+      ~router_tree ~router_subtree ~static ~paths ()
 
   let markdown ~route ~matcher ~params ~source_file ~layouts ~metadata
       ~layout_renderers ~router_shell ~router_tree ~router_subtree ~markdown
@@ -110,7 +110,7 @@ type route_entry = {
   router_subtree : (string -> React.element option) option;
   markdown : runtime_markdown option;
   static : bool;
-  static_paths : (unit -> (string * string) list list) option;
+  paths : (unit -> (string * string) list list) option;
 }
 
 and runtime_markdown = {
@@ -226,7 +226,7 @@ let route_entry_of_generated_route (generated_route : generated_route) =
           router_subtree = Some generated_route.router_subtree;
           markdown;
           static = generated_route.static;
-          static_paths = generated_route.static_paths;
+          paths = generated_route.paths;
         }
 
 let runtime_routes_of_generated_routes (generated_routes : generated_route list)
@@ -396,6 +396,22 @@ let normalize_target target =
   else if String.length without_query > 0 && without_query.[0] = '/' then
     String.sub without_query 1 (String.length without_query - 1)
   else without_query
+
+let ssg_output_dir = "_utopia/static"
+
+let static_output_relative_path target =
+  let normalized = normalize_target target in
+  if contains_path_traversal normalized then None
+  else if normalized = "" then Some (ssg_output_dir ^ "/index.html")
+  else Some (ssg_output_dir ^ "/" ^ normalized ^ ".html")
+
+let read_static_html target =
+  match static_output_relative_path target with
+  | None -> None
+  | Some relative_path -> (
+      match first_existing_asset relative_path with
+      | None -> None
+      | Some path -> Some (read_file path))
 
 let target_segments target =
   if target = "" then []
@@ -1313,7 +1329,7 @@ let accepts_react_component request =
 
 let route_request (routes : route_entry list)
     (api_routes : api_route_entry list) index_html ~lookup_server_function
-    request =
+    ~dev_mode request =
   let target = Dream.target request |> normalize_target in
   if
     starts_with target "target/"
@@ -1339,6 +1355,13 @@ let route_request (routes : route_entry list)
                       params
                   in
                   route_navigation_model route_entry request rendered_element)
+          else if route_entry.static then
+            match read_static_html target with
+            | Some html -> Dream.html html
+            | None ->
+                stream_html
+                  (render_route_document route_entry (Dream.target request)
+                     params)
           else
             stream_html
               (render_route_document route_entry (Dream.target request) params)
@@ -1379,7 +1402,7 @@ let rec run_with_port_fallback ~interface ~port pipeline =
     run_with_port_fallback ~interface ~port:next_port pipeline
 
 let start_runtime_routes (routes : route_entry list)
-    (api_routes : api_route_entry list) ~lookup_server_function =
+    (api_routes : api_route_entry list) ~lookup_server_function ~dev_mode =
   Printexc.record_backtrace true;
   Logs.set_level (Some Info);
   Logs.set_reporter (Logs_fmt.reporter ());
@@ -1387,7 +1410,7 @@ let start_runtime_routes (routes : route_entry list)
   let index_html = render_index routes in
   let enable_logging = Sys.getenv_opt "NO_LOG" = None in
   let handler =
-    route_request routes api_routes index_html ~lookup_server_function
+    route_request routes api_routes index_html ~lookup_server_function ~dev_mode
   in
   let pipeline = if enable_logging then Dream.logger @@ handler else handler in
   run_with_port_fallback ~interface:(host_from_env ()) ~port:(port_from_env ())
@@ -1409,11 +1432,9 @@ let write_file path content =
   output_string channel content;
   close_out channel
 
-let ssg_output_dir = "_utopia/static"
-
 let ssg_output_path route =
   if route = "" then ssg_output_dir ^ "/index.html"
-  else ssg_output_dir ^ "/" ^ route ^ "/index.html"
+  else ssg_output_dir ^ "/" ^ route ^ ".html"
 
 let render_ssg_page route_entry request_target params =
   let flat_params =
@@ -1488,11 +1509,11 @@ let ssg_generated (generated_routes : generated_route list) =
             Printf.printf "  %s -> %s\n%!" ("/" ^ route_entry.route) output;
             incr count)
           else
-            (* Dynamic page with static_paths *)
-            match route_entry.static_paths with
+            (* Dynamic page with paths *)
+            match route_entry.paths with
             | None ->
                 Printf.eprintf
-                  "  warning: %s is static with params but no static_paths\n%!"
+                  "  warning: %s is static with params but no paths\n%!"
                   route_entry.source_file
             | Some get_paths ->
                 let param_sets = get_paths () in
@@ -1521,13 +1542,14 @@ let ssg_generated (generated_routes : generated_route list) =
       Printf.printf "SSG: rendered %d page(s) to %s/\n%!" !count ssg_output_dir
 
 let start_generated ~(pages : generated_route list)
-    ~(api_routes : generated_api_route list) ~lookup_server_function =
+    ~(api_routes : generated_api_route list) ~lookup_server_function
+    ?(dev_mode = false) () =
   match
     ( runtime_routes_of_generated_routes pages,
       runtime_api_routes_of_generated_routes api_routes )
   with
   | Ok routes, Ok api_routes ->
-      start_runtime_routes routes api_routes ~lookup_server_function
+      start_runtime_routes routes api_routes ~lookup_server_function ~dev_mode
   | Error message, _ | _, Error message ->
       Printf.eprintf "Error: %s\n%!" message;
       exit 1

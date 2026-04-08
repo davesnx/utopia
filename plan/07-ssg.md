@@ -1,12 +1,12 @@
 # SSG
 
-Add opt-in static site generation for code pages that opt into static mode (`let static = true`).
+Add opt-in static site generation. Pages are static by default; pages with `let before` are dynamic.
 
 ---
 
 ## Goal
 
-Pages that opt into static mode are rendered at build time. The resulting HTML is served directly without server-side rendering at request time. This is useful for content-heavy pages that don't need per-request data.
+Pages without a `before` hook are rendered at build time. The resulting HTML is served directly without server-side rendering at request time. Pages with `let before` are rendered at request time (SSR).
 
 ---
 
@@ -14,44 +14,41 @@ Pages that opt into static mode are rendered at build time. The resulting HTML i
 
 - `plan/02-compiler-rsc.md` -- compiler generates server_main.ml
 - `plan/03-server-rewrite.md` -- server library with DreamRSC rendering
+- `plan/09-rendering-modes-and-before-hook.md` -- rendering mode derivation contract
 
 ---
 
 ## Detect static pages in the compiler
 
-The compiler already scans page source files for `params.X` accesses. Extend this flow with a lightweight lexical scanner that detects `let static = true` (or `let static=true;`) while ignoring comments and string literals.
+The compiler scans page source files using the `Analysis` module (`bin/compiler/Analysis.ml`), a lightweight lexical scanner that tokenizes code while ignoring comments, string literals, and char literals. A page is static when it does **not** export `let before`.
 
-Do not use regex-only matching. The scanner should satisfy edge cases such as:
+The scanner detects:
+- `let before` as token sequence `["let"; "before"]` -- page is dynamic
+- `let paths` as token sequence `["let"; "paths"]` -- page has build-time path enumeration
+- No `before` -- page is static
 
-- `let static = true` inside `(* ... *)` comments
-- `let static = true` inside `"..."` strings
-- escaped quotes and nested comment blocks
-
-Suggested implementation shape:
-
-```ocaml
-type mode = Code | String | Char | Line_comment | Block_comment of int
-
-let detect_static_export source =
-  let tokens = scan_code_tokens_ignoring_comments_and_strings source in
-  token_sequence_exists tokens ["let"; "static"; "="; "true"]
-```
-
-This keeps implementation small and deterministic without pulling in a full parser.
+Markdown pages are always static (they cannot declare `before`).
 
 ---
 
-## Record static flag in manifest
+## Record static flag in route metadata
 
-Extend the route manifest format to include a static flag:
+The route metadata types carry a `static` boolean and `has_paths` flag:
 
+```ocaml
+type page_route_meta = {
+  ...
+  static : bool;
+  has_paths : bool;
+}
 ```
-<route>\t<kind>\t<source_file>\t<module>\t<matcher>\t<params>\t<layouts>\t<static>
-```
 
-Where `<static>` is `true` or `false`.
+The compiler's `Diagnostics.detect_static_for_entry` reads each page source, runs `Analysis.analyze`, and sets:
+- `static = (before_export_origin = None)` for code pages
+- `static = true` for markdown pages
+- `has_paths = (paths_origin <> None)`
 
-Also record static origin in generated metadata (`code_export`) so diagnostics can point to the source of invalid static configuration.
+These propagate into generated route registries (`_utopia/Routes.ml`).
 
 ---
 
@@ -59,31 +56,9 @@ Also record static origin in generated metadata (`code_export`) so diagnostics c
 
 During `dune build`, static pages are rendered to HTML files. The build pipeline:
 
-1. Compiler marks pages as static in the manifest
-2. The generated `server_main.ml` includes a `--ssg` mode that renders static pages through the same server/RSC HTML rendering path used for normal requests (not `renderToStaticMarkup`):
-
-```ocaml
-let () =
-  match Sys.argv with
-  | [| _; "--ssg" |] ->
-      (* Render all static pages to HTML files using the standard HTML pipeline *)
-      List.iter (fun static_route ->
-        let html = Utopia_server.render_route_html_for_ssg static_route in
-        write_to_file (ssg_output_path static_route.route) html)
-      static_routes
-  | _ ->
-      (* Normal server mode *)
-      start_server ()
-```
-
-3. A dune rule runs the server executable in SSG mode:
-
-```scheme
-(rule
- (alias ssg)
- (deps (alias all))
- (action (run ./_utopia/server_main.exe --ssg)))
-```
+1. Compiler marks pages as static in the generated route registries
+2. The generated `server_main.ml` includes a `--ssg` mode that renders static pages through the same server/RSC HTML rendering path used for normal requests
+3. A dune rule runs the server executable in SSG mode
 
 Using the shared HTML path ensures layout composition, head metadata, and client bootstrap behavior stay consistent between SSR and SSG.
 
@@ -95,36 +70,26 @@ The server checks the static flag when handling requests. For static pages:
 
 1. Check if the pre-rendered HTML file exists in `_utopia/static/`
 2. If yes, serve it directly (no React rendering)
-3. If no, fall back to server-side rendering (graceful degradation in dev mode)
+3. If no, fall back to server-side rendering (graceful degradation)
 
-```ocaml
-let handle_static_page route =
-  let static_path = Printf.sprintf "_utopia/static%s.html" (pp_route route) in
-  if Sys.file_exists static_path then
-    let html = read_file static_path in
-    Dream.html html
-  else
-    (* Fallback to SSR *)
-    handle_page_request ~page ~layouts ~bootstrap_modules request
-```
+In `--dev` mode, the server always falls back to server-side rendering, bypassing pre-rendered static HTML even when available.
 
 ---
 
 ## Static pages with dynamic segments
 
-A page with `let static = true` and dynamic segments (e.g., `pages/blog/[slug].re`) requires an additional export to enumerate the paths:
+A static page with dynamic segments (e.g., `app/posts/[slug]/page.mlx`) requires `let paths` to enumerate the build-time routes:
 
 ```ocaml
-let static = true
-let static_paths () = [
+let paths () = [
   [("slug", "hello-world")];
   [("slug", "second-post")];
 ]
 ```
 
-The SSG renderer calls `static_paths` to get all param combinations and renders each one.
+The SSG renderer calls `paths` to get all param combinations and renders each one.
 
-If `static = true` but no `static_paths` is provided for a dynamic page, the compiler emits an error.
+If a static page (no `before`) has dynamic params but no `paths`, the compiler emits an error suggesting either adding `paths` or adding `let before` to make the page dynamic.
 
 ---
 
@@ -133,53 +98,48 @@ If `static = true` but no `static_paths` is provided for a dynamic page, the com
 ### Cram tests
 
 **`ssg_static_page_detected.t`**
-- Create `pages/about.re` with `let static = true`
-- Run the compiler
-- Assert manifest marks the page as static
+- Pages without `before` are static; pages with `before` are dynamic
+
+**`ssg_before_makes_page_dynamic.t`**
+- `let before` makes a page dynamic (`static = false`)
 
 **`ssg_static_page_rendered.t`**
-- Create a static page
-- Run the full build (including SSG)
-- Assert `_utopia/static/about.html` exists with rendered content
+- Static page produces `_utopia/static/about.html` with rendered content
 
 **`ssg_dynamic_page_requires_paths.t`**
-- Create `pages/blog/[slug].re` with `let static = true` but no `static_paths`
-- Run the compiler
-- Assert error about missing `static_paths`
+- Static page with dynamic params but no `paths` produces compiler error
 
 **`ssg_dynamic_page_with_paths.t`**
-- Create a dynamic static page with `static_paths`
-- Run the full build
-- Assert multiple HTML files are generated
+- Dynamic static page with `paths` generates multiple HTML files
 
 **`ssg_non_static_page_ignored.t`**
-- Create a page without `let static = true`
-- Run the build
-- Assert no static HTML file is generated for it
+- Dynamic page (with `before`) produces no static HTML
 
 **`ssg_static_detection_ignores_comments_and_strings.t`**
-- Create a page where `let static = true` appears only in comments/strings
-- Run the compiler
-- Assert page is not marked static
+- `let before` in comments/strings is ignored (page stays static)
+
+**`ssg_build_runs_ssg.t`**
+- `utopia export` end-to-end creates static HTML
+
+**`ssg_server_static_serving_and_dev_fallback.t`**
+- Server prefers static HTML in production mode
+- Fallback to SSR when static file is deleted
+- Dev mode always server-renders
 
 ### Edge cases
 
-- `let static = false` explicitly (should not be treated as static)
-- `let static = true` in a comment (should not be detected)
-- `let static = true` in a string literal (should not be detected)
-- `let static = true` in a char literal (should not be detected)
-- Static page with layouts (layouts should be rendered into the static HTML)
-- Static page with client components (client JS should be included)
-- Static page with no content (empty `make` function)
-- Very large number of static paths (1000+ for a dynamic page)
+- `let before` in a comment (should not be detected)
+- `let before` in a string literal (should not be detected)
+- Static page with layouts (layouts rendered into static HTML)
+- Static page with client components (client JS included)
 - Static page that throws an exception during rendering
-- Re-rendering static pages when source changes (incremental SSG)
+- Server functions on static pages (POST handling is independent of static flag)
 
 ---
 
 ## Performance
 
-Static pages are rendered once at build time. Serving them is a simple file read -- the fastest possible response path. For sites with many static pages, the SSG step adds build time proportional to the number of pages. Consider parallelizing the rendering if build times become an issue.
+Static pages are rendered once at build time. Serving them is a simple file read -- the fastest possible response path.
 
 ---
 
@@ -187,25 +147,25 @@ Static pages are rendered once at build time. Serving them is a simple file read
 
 | Action | File |
 |--------|------|
-| Modify | `bin/compiler.ml` (detect static flag and validate static_paths for code pages) |
-| Create | `bin/static_detector.ml` (comment/string-safe lexical scanner for `let static = true`) |
-| Modify | `lib/utopia_server/utopia_server.ml` (serve static pages, SSG mode) |
-| Modify | `lib/utopia_types/utopia_types.ml` (add static field to route types) |
-| Create | `bin/tests/ssg_static_page_detected.t` |
-| Create | `bin/tests/ssg_static_page_rendered.t` |
-| Create | `bin/tests/ssg_dynamic_page_requires_paths.t` |
-| Create | `bin/tests/ssg_dynamic_page_with_paths.t` |
-| Create | `bin/tests/ssg_non_static_page_ignored.t` |
-| Create | `bin/tests/ssg_static_detection_ignores_comments_and_strings.t` |
+| Modify | `bin/compiler/Analysis.ml` (lexical scanner with `before`/`paths` detection) |
+| Modify | `bin/compiler/Diagnostics.ml` (derive static from `before`, validate `paths`) |
+| Modify | `bin/compiler/Routes.ml` (static + has_paths fields) |
+| Modify | `bin/compiler/Generated_routes.ml` (emit static metadata) |
+| Modify | `bin/compiler/Server_main.ml` (generate --ssg mode) |
+| Modify | `lib/utopia/Utopia_server.ml` (serve static pages, SSG rendering) |
+| Modify | `lib/utopia/Utopia_types.ml` (static + has_paths fields) |
+| Create | SSG tests (9 cram tests) |
 
 ---
 
 ## Acceptance criteria
 
-- `let static = true` is detected in page source files using a comment/string-safe scanner
+- Pages without `before` are static by default
+- Pages with `before` are dynamic
+- Markdown pages are always static
 - Static pages are rendered at build time to HTML files
 - Static HTML is served directly without server-side rendering
-- Dynamic static pages require `static_paths` export
-- Static pages include layouts and client component scripts
+- Static pages with dynamic segments require `paths` export
 - Fallback to SSR works when static HTML is missing
+- Dev mode always server-renders, bypassing static HTML
 - All tests pass

@@ -13,27 +13,31 @@ STATIC_DIR := _utopia/static
 
 .PHONY: compile
 compile:
-	$(DUNE) build ../../bin/compiler/compiler.exe ../../bin/cli/cli.exe
+	$(DUNE) build --no-print-directory ../../bin/compiler/compiler.exe ../../bin/cli/cli.exe
 	$(CLI) clean --build-outputs
 	$(COMPILER) > /dev/null
 
 .PHONY: build
 build: compile
-	DUNE_JOBS=$${DUNE_JOBS:-8} $(DUNE) build output.css _utopia/server_main.exe
+	DUNE_JOBS=$${DUNE_JOBS:-8} $(DUNE) build --no-print-directory output.css _utopia/server_main.exe
 
 .PHONY: run
 run: build
 	$(SERVER)
 
+.PHONY: export
+export: compile
+	DUNE_JOBS=$${DUNE_JOBS:-8} $(DUNE) build --no-print-directory output.css
+	$(CLI) export
+
 .PHONY: generate
-generate: build
-	$(SERVER) --ssg
+generate: export
 
 .PHONY: serve
-serve: generate
+serve: export
 	$(PYTHON) -m http.server $(PORT) --bind $(HOST) --directory $(STATIC_DIR)
 
 .PHONY: clean
 clean:
-	$(DUNE) build ../../bin/cli/cli.exe
+	$(DUNE) build --no-print-directory ../../bin/cli/cli.exe
 	$(CLI) clean --build-outputs

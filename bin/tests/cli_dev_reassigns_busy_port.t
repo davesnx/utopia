@@ -1,6 +1,9 @@
   $ mkdir pages _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
+  $ cat > package.json <<'EOF'
+  > {"name":"utopia-test","private":true}
+  > EOF
   $ touch _utopia/dune
   $ cat > pages/Home.re <<'EOF'
   > [@react.component]

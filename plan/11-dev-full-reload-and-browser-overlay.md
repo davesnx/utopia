@@ -18,10 +18,12 @@ This task intentionally does **not** implement HMR, React state preservation, `J
 - Missing npm deps are a hard error. Do not auto-run `npm install`.
 - Browser overlay must show compiler/build errors, not only runtime errors.
 - Build warnings should be transmitted but collapsed by default; build errors are expanded.
-- The dev server port must stay stable for the full dev session.
+- The dev server keeps a preferred port, but may reassign to the next available port on startup/restart and must report origin changes clearly.
 - Use a Utopia-owned dev event channel, not `dream-livereload`.
 - Runtime overlay should live in a dedicated client-only root mounted under `document.body` so it still works when the main app hydration path is broken.
-- `plan/11-dev-full-reload-and-browser-overlay.md` is authoritative for dev-loop behavior; `plan/09-dev-mode.md` and `plan/10-client-error-overlay.md` are subordinate implementation slices.
+- `plan/11-dev-full-reload-and-browser-overlay.md` is authoritative for dev-loop behavior.
+- `plan/08-dev-mode.md` remains a compact execution companion for CLI/server dev-loop mechanics.
+- The former runtime-overlay slice in `plan/10-client-error-overlay.md` is merged into this document.
 
 ## Research Notes
 
@@ -59,9 +61,9 @@ Before the initial compiler/build steps in both `build` and `dev`, validate from
 
 Failure mode: exit immediately with a clear error and an `npm install` hint.
 
-### 3. Stable dev port
+### 3. Dev port fallback
 
-Choose the port once at dev startup and keep it pinned across restarts. If the restarted generated server cannot bind the same port later, fail the dev command with a clear error rather than silently hopping origins.
+Use the requested port as a preferred starting point. If startup/restart cannot bind that port, select the next available port and report the new origin clearly in CLI output.
 
 ### 4. Dev event bridge
 
@@ -132,6 +134,7 @@ Capture runtime errors in these places:
 - Build errors: read-only for now.
 - Build warnings: collapsed by default.
 - Hydration/bootstrap errors: dismiss only.
+- Runtime diagnostics can be dismissed without mutating build diagnostic state.
 - Runtime navigation/action retry is optional and not required for this first task.
 - Production builds must not ship or mount the overlay or expose the dev event endpoints.
 
@@ -159,10 +162,11 @@ The browser-facing payload should stay small and explicit. A reasonable first sh
 
 Runtime errors can use a separate payload shape internal to `Utopia_dev`, but should at least capture:
 
-- operation kind
+- operation (`bootstrap` | `hydration` | `navigation` | `server_action` | `global_error`)
 - message
 - optional stack
 - small context payload
+- timestamp
 
 ## Implementation Checklist
 
@@ -172,7 +176,7 @@ Runtime errors can use a separate payload shape internal to `Utopia_dev`, but sh
 - [ ] Add a per-session dev publish token and pass it from the CLI to the generated server environment.
 - [ ] Add dev-only server endpoints for SSE subscription and authenticated CLI event publishing.
 - [ ] Store current dev build state in the generated server process and replay it to new SSE subscribers.
-- [ ] Restart the generated server on every successful rebuild while keeping the selected port pinned.
+- [ ] Restart the generated server on every successful rebuild while preserving explicit port fallback behavior/reporting.
 - [ ] Add a generated browser dev runtime module for SSE, overlay state, and global error listeners.
 - [ ] Mount the overlay in its own client-only root under `document.body`.
 - [ ] Wire bootstrap/hydration failures in `client_entry.re` into the runtime overlay.
@@ -180,7 +184,8 @@ Runtime errors can use a separate payload shape internal to `Utopia_dev`, but sh
 - [ ] Wire server-action failures in `Utopia_call_server.re` into the runtime overlay.
 - [ ] Keep build errors expanded and warnings collapsed by default in the overlay UI.
 - [ ] Add CLI/server/runtime/browser coverage for success reloads, failed builds, and runtime failures.
-- [ ] Update `plan/09-dev-mode.md`, `plan/spec.md`, and `plan/primitives.md` to match the implemented behavior.
+- [ ] Decide dev-mode SSG behavior (`utopia dev` + static pages): whether and when to run SSG, and how that interacts with `--dev` SSR fallback for missing static artifacts.
+- [ ] Update `plan/08-dev-mode.md`, `plan/spec.md`, and `plan/primitives.md` to match the implemented behavior.
 
 ## Candidate File Touches
 
@@ -195,7 +200,7 @@ Runtime errors can use a separate payload shape internal to `Utopia_dev`, but sh
 - `lib/utopia_runtime/files/Utopia_router.re`
 - `lib/utopia_runtime/files/Utopia_call_server.re`
 - `lib/utopia_runtime/files/Utopia_dev.re` (new)
-- `plan/09-dev-mode.md`
+- `plan/08-dev-mode.md`
 - `plan/spec.md`
 - `plan/primitives.md`
 
@@ -205,7 +210,7 @@ Runtime errors can use a separate payload shape internal to `Utopia_dev`, but sh
 
 - [ ] `utopia dev` fails immediately when required npm deps are missing.
 - [ ] `utopia build` builds both the generated server executable and `@_utopia/esbuild`.
-- [ ] `utopia dev` keeps the selected origin stable across successful rebuild restarts.
+- [ ] `utopia dev` uses explicit, predictable port fallback when the requested port is unavailable.
 
 ### Dev event tests
 
@@ -242,5 +247,5 @@ Runtime errors can use a separate payload shape internal to `Utopia_dev`, but sh
 - Failed rebuilds do not reload the page and instead show dune/compiler diagnostics in-browser.
 - Runtime browser failures from hydration, navigation, and server-action paths show in the same overlay surface.
 - `utopia build` and `utopia dev` stop early when required npm deps are missing.
-- The dev origin stays stable for the full session.
+- Dev port behavior is predictable: preferred-port first, explicit fallback if needed.
 - Production builds do not expose the dev event channel or render the overlay.

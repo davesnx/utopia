@@ -3,6 +3,7 @@
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ cat > pages/users/[id].ml <<'EOF'
+  > let before _request = ()
   > let[@react.component] make () =
   >   let route =
   >     Routes.Users.Param_id.make

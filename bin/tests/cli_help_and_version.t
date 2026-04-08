@@ -3,6 +3,7 @@
   
   Commands:
     build      Build production artifacts
+    export     Build and render static output
     dev        Start development workflow
     prod       Run built server in production mode (alias: start)
     clean      Remove generated artifacts
@@ -19,6 +20,7 @@
   
   Commands:
     build      Build production artifacts
+    export     Build and render static output
     dev        Start development workflow
     prod       Run built server in production mode (alias: start)
     clean      Remove generated artifacts

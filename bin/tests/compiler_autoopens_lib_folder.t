@@ -25,4 +25,4 @@ Check lib copy rules do NOT have open! Lib (just line directive):
 Check Lib.re namespace module (appears twice - for melange and native):
   $ test "$(grep -c '(rule (target Lib.re)' _utopia/dune)" -eq 2
   $ grep -F 'source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = false;' _utopia/Routes.ml
-    ({ route = "home"; matcher = "home"; conflict_key = "home"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = false; static = false; has_static_paths = false } : Utopia_types.page_route_meta);
+    ({ route = "home"; matcher = "home"; conflict_key = "home"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = false; static = true; has_paths = false } : Utopia_types.page_route_meta);

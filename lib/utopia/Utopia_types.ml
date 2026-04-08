@@ -13,7 +13,7 @@ type page_route_meta = {
   module_name : string;
   has_metadata : bool;
   static : bool;
-  has_static_paths : bool;
+  has_paths : bool;
 }
 
 type api_route_meta = {

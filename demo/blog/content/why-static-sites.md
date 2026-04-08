@@ -23,11 +23,10 @@ The tradeoff is that you give up per-request dynamism. But for content that
 changes at authoring time rather than request time---blogs, documentation,
 marketing pages---that is not a tradeoff at all.
 
-In Utopia, opting into SSG is a single export:
+In Utopia, pages are static by default. Any page without a `before` hook is
+rendered at build time:
 
 ```ocaml
-let static = true
-
 let[@react.component] make () =
   <article>
     <p> (React.string "This page is rendered at build time.") </p>
@@ -37,9 +36,7 @@ let[@react.component] make () =
 For pages with dynamic segments, you enumerate the paths:
 
 ```ocaml
-let static = true
-
-let static_paths () = [
+let paths () = [
   [("slug", "hello-utopia")];
   [("slug", "why-static-sites")];
 ]

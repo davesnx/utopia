@@ -3,6 +3,7 @@
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
   $ cat > pages/Home.re <<'EOF'
+  > let before = _request => ();
   > [@react.server.function]
   > let greet = (~name: string): Js.Promise.t(string) =>
   >   Js.Promise.resolve("Hello " ++ name);

@@ -164,61 +164,50 @@ let detect_metadata_for_entry (entry : Routes.route_entry) =
       in
       { entry with Routes.has_metadata = has_metadata_export source }
 
-let has_static_export source =
-  source |> String.split_on_char '\n'
-  |> List.exists (fun line ->
-      let trimmed = String.trim line in
-      let is_top_level = String.length line > 0 && line.[0] = 'l' in
-      is_top_level
-      && (starts_with_at trimmed 0 "let static = true"
-         || starts_with_at trimmed 0 "let static=true"))
-
-let has_static_paths_export source =
-  source |> String.split_on_char '\n'
-  |> List.exists (fun line ->
-      let trimmed = String.trim line in
-      let is_top_level = String.length line > 0 && line.[0] = 'l' in
-      is_top_level
-      && (starts_with_at trimmed 0 "let static_paths "
-         || starts_with_at trimmed 0 "let static_paths("
-         || starts_with_at trimmed 0 "let static_paths="))
-
 let detect_static_for_entry (entry : Routes.route_entry) =
   match entry.Routes.kind with
-  | Utopia_types.Markdown_page -> entry
+  | Utopia_types.Markdown_page -> { entry with Routes.static = true }
   | Utopia_types.Code_page ->
       let source =
         In_channel.with_open_bin entry.Routes.source_file (fun channel ->
             In_channel.input_all channel)
       in
+      let analysis = Analysis.analyze source in
       {
         entry with
-        Routes.static = has_static_export source;
-        Routes.has_static_paths = has_static_paths_export source;
+        Routes.static = analysis.before_export_origin = None;
+        Routes.has_paths = analysis.paths_origin <> None;
+        Routes.before_export_origin = analysis.before_export_origin;
+        Routes.paths_export_origin = analysis.paths_origin;
       }
 
-let report_missing_static_paths (entries : Routes.route_entry list) =
+let source_with_origin_label source_file origin =
+  match origin with
+  | None -> source_file
+  | Some origin ->
+      Printf.sprintf "%s:%s" source_file (Analysis.string_of_origin origin)
+
+let report_missing_paths (entries : Routes.route_entry list) =
   let issues =
     entries
     |> List.filter (fun entry ->
         entry.Routes.static && entry.Routes.params <> []
-        && not entry.Routes.has_static_paths)
+        && not entry.Routes.has_paths)
   in
   if issues = [] then false
   else (
     Printf.eprintf
-      "\n  Static pages with dynamic segments require static_paths:\n";
+      "\n  Static pages with dynamic segments require a paths export:\n";
     issues
     |> List.iter (fun (entry : Routes.route_entry) ->
         Printf.eprintf
-          "    - %s is marked static but has params [%s] without a \
-           static_paths export\n"
+          "    - %s is static but has params [%s] without a paths export\n"
           entry.Routes.source_file
           (entry.Routes.params |> List.map fst |> String.concat ", "));
     Printf.eprintf
       "\n\
-      \  Fix: add `let static_paths () = [ [(\"param\", \"value\")] ]` to each \
-       file.\n";
+      \  Fix: add `let paths () = [ [(\"param\", \"value\")] ]` to each file.\n\
+      \  Or add `let before request = ...` to make the page dynamic.\n";
     true)
 
 let unknown_params_for_entry (entry : Routes.route_entry) =

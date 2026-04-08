@@ -438,7 +438,7 @@ Available via `server-reason-react.reactDom` APIs alongside RSC. Server-side ren
 A page opts into static generation by exporting:
 
 ```ocaml
-let static = true
+let rendering = `Static
 ```
 
 Dynamic static pages must also export:
@@ -449,7 +449,7 @@ val static_paths : unit -> (string * string) list list
 
 Static output is produced by running the generated `server_main.exe --ssg` executable or the generated dune alias `@_utopia/ssg`. The SSG pass renders HTML into `_utopia/static/` and copies bootstrap/stylesheet assets when present.
 
-Normal server mode still renders dynamically. `let static = true` does not switch request handling over to serving `_utopia/static/` automatically.
+Normal server mode serves pre-rendered static HTML for static routes when files exist and falls back to SSR when static artifacts are missing.
 
 ### Remote_data (Draft -- not implemented)
 
@@ -530,8 +530,9 @@ Custom components are provided via:
 
 | Command | Alias | Description |
 |---------|-------|-------------|
-| `utopia build` | -- | Validate structure, run compiler, run `dune build`, emit report |
-| `utopia dev` | -- | Bootstrap build, start `dune -w`, start server, stream RPC diagnostics |
+| `utopia build` | -- | Validate structure, run npm preflight + compiler + target build, emit report |
+| `utopia export` | -- | Run production build flow + SSG static generation |
+| `utopia dev` | -- | Bootstrap npm preflight/compiler/target build, start `dune -w`, start server, stream RPC diagnostics |
 | `utopia prod` | `start` | Verify artifacts, start production server |
 | `utopia clean` | -- | Remove `_build/`, `_utopia/`, project `target/.../_utopia`, run `dune clean` |
 | `utopia info` | -- | Print versions, paths, route count, command status |
@@ -539,23 +540,29 @@ Custom components are provided via:
 ### `build` flow (implemented)
 
 1. Validate project shape (`app/` must exist)
-2. Run `utopia.compiler --mode production` (generate route modules/metadata + dune rules + build metadata)
-3. Run `dune build --root <workspace> --no-print-directory .`
-4. Emit build report (route count, generated files, output dirs)
-5. Fail fast on route conflicts, invalid segments, undeclared params, and missing `static_paths`
+2. Run npm preflight (`package.json` required, plus resolvable `react`, `react-dom`, `esbuild`, `server-reason-react-esbuild-plugin`, `server-reason-react-server-dom-esbuild`)
+3. Run `utopia.compiler --mode production` (generate route modules/metadata + dune rules + build metadata)
+4. Run `dune build --root <workspace> --no-print-directory <generated-server-target>`
+5. Emit build report (route count, generated files, output dirs)
+6. Fail fast on route conflicts, invalid segments, undeclared params, and missing `static_paths`
 
-Note: current CLI build does not yet fail fast on missing npm packages or explicitly build the generated `@_utopia/esbuild` alias.
+### `export` flow (implemented)
+
+1. Run the full `build` flow
+2. Run generated server executable in `--ssg` mode to render static pages
+3. Emit export report (route count, generated files, static output dir)
 
 ### `dev` flow (implemented)
 
 1. Validate project shape
-2. Run `utopia.compiler --mode development`
-3. Run an initial `dune build --root <workspace> --no-print-directory .`
-4. Start `dune build -w --root <workspace> --no-print-directory .` unless `--no-watch`
-5. Start the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects, or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects
-6. Connect to dune RPC, subscribe to progress and diagnostics, and stream those events to the terminal
-7. Restart the generated server whenever the built `server_main.exe` mtime changes
-8. Handle SIGINT/SIGTERM for clean teardown
+2. Run npm preflight (same package requirements as `build`)
+3. Run `utopia.compiler --mode development`
+4. Run an initial `dune build --root <workspace> --no-print-directory <generated-server-target>`
+5. Start `dune build -w --root <workspace> --no-print-directory .` unless `--no-watch`
+6. Start the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects, or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects
+7. Connect to dune RPC, subscribe to progress and diagnostics, and stream those events to the terminal
+8. Restart the generated server whenever the built `server_main.exe` mtime changes (SIGTERM -> timeout wait -> SIGKILL if needed)
+9. Handle SIGINT/SIGTERM for clean teardown
 
 Current dev mode does not yet implement browser reload, SSE dev events, or the in-browser build/runtime overlay described in `tasks/dev-full-reload-and-browser-overlay.md`.
 
@@ -570,7 +577,7 @@ Current dev mode does not yet implement browser reload, SSE dev events, or the i
 5. Print build status transitions (`waiting`, `in progress`, `failed`, `done`) and dump the active diagnostics on failed builds
 6. Treat RPC connection/subscription failures as warnings rather than fatal errors
 
-If the requested port is already in use, `utopia dev` currently selects the next available port before each server start/restart instead of pinning the original origin for the full session.
+If the requested port is already in use, `utopia dev` selects the next available port before each server start/restart and logs the selected origin.
 
 ### `clean` flags (implemented)
 
@@ -684,7 +691,7 @@ Param kind values remain `single`, `catch_all`, `optional_catch_all`.
 - Two or more pages produce the same conflict key. Reports competing files, suggests canonical file, recommends naming convention.
 
 **Static generation errors**
-- A dynamic page exports `let static = true` but does not also export `static_paths`
+- A dynamic page exports ``let rendering = `Static`` but does not also export `static_paths`
 
 **Layout errors**
 - Two layout files in the same directory
@@ -880,7 +887,7 @@ esbuild is integrated as a generated dune alias rather than a long-running sidec
 
 The generated config imports `_utopia/paths.mjs`, derives all source/output paths from `projectPath`, sets `process.env.NODE_ENV`, enables minification when `buildMode = "production"`, and uses `server-reason-react-esbuild-plugin` to generate `bootstrap.js` from Melange's extracted client-component markers.
 
-Current caveat: the generated alias exists and works, but `utopia build` / `utopia dev` do not yet explicitly request `@_utopia/esbuild`.
+Current caveat: the generated alias exists and works, but `utopia build` / `utopia dev` still do not explicitly request `@_utopia/esbuild`.
 
 ### Client entry (implemented)
 

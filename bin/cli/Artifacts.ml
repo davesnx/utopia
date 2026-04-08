@@ -30,6 +30,10 @@ let workspace_root_string () =
   project_paths () |> fun project ->
   project.workspace_root |> Utopia_path.to_string
 
+let project_root_string () =
+  project_paths () |> fun project ->
+  project.project_root |> Utopia_path.to_string
+
 let dune_root_args () =
   [ "--root"; workspace_root_string (); "--no-print-directory" ]
 
@@ -44,6 +48,8 @@ let generated_server_build_target () =
   let project = project_paths () in
   Fpath.(Utopia_path.project_utopia_dir project / "server_main.exe")
   |> Fpath.to_string
+
+let generated_build_targets () = [ generated_server_build_target () ]
 
 let artifact_path artifact =
   artifact |> Utopia_path.file_path |> Utopia_path.to_string

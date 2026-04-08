@@ -1,6 +1,9 @@
   $ mkdir -p demo/notes/pages demo/notes/lib
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(dirs :standard demo)\n" > dune
+  $ cat > demo/notes/package.json <<'EOF'
+  > {"name":"utopia-test","private":true}
+  > EOF
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > demo/notes/dune
   $ cat > demo/notes/lib/Greeting.re <<'EOF'
   > let label = "nested lib ready";

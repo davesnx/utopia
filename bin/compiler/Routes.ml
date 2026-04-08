@@ -15,7 +15,9 @@ type route_entry = {
   source_file : string;
   has_metadata : bool;
   static : bool;
-  has_static_paths : bool;
+  has_paths : bool;
+  before_export_origin : Analysis.origin option;
+  paths_export_origin : Analysis.origin option;
   markdown_frontmatter : Utopia_markdown.frontmatter_object option;
   markdown_body : string option;
   markdown_title : string option;
@@ -233,7 +235,9 @@ let route_entry_of_file ~source_root ~route_path file kind =
           source_file;
           has_metadata = false;
           static = false;
-          has_static_paths = false;
+          has_paths = false;
+          before_export_origin = None;
+          paths_export_origin = None;
           markdown_frontmatter = None;
           markdown_body = None;
           markdown_title = None;

@@ -1,5 +1,7 @@
 open Notes_data
 
+let before _request = ()
+
 let metadata _params =
   Utopia.Metadata.make ~title:"All Notes"
     ~description:"Browse every note across all tags." ()

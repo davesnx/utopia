@@ -14,6 +14,12 @@ let commands ~version =
       run = Build.run;
     };
     {
+      name = "export";
+      aliases = [];
+      description = "Build and render static output";
+      run = Export.run;
+    };
+    {
       name = "dev";
       aliases = [];
       description = "Start development workflow";

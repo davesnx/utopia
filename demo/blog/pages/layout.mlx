@@ -7,13 +7,14 @@ let[@react.component] make ~(children : React.element) () =
     <div className="flex flex-col md:flex-row">
       <nav className="md:mr-14 w-full md:w-16">
         <ul
-          className="lowercase text-right md:sticky md:top-14 mb-6 md:mb-0 \
-                     flex gap-2 justify-end md:block">
+          className="text-right md:sticky md:top-14 mb-6 md:mb-0 flex gap-2 \
+                     md:justify-end justify-start md:block">
           <li
             className="text-slate-500 hover:text-slate-700 transition-colors \
                        -mx-2">
             <Utopia.Router.Link
-              to_=Routes.Posts.route className="inline-block w-full px-2">
+              to_=Routes.Posts.route
+              className="inline-block w-full px-2 text-[13px]">
               (React.string "POSTS")
             </Utopia.Router.Link>
           </li>
@@ -21,7 +22,8 @@ let[@react.component] make ~(children : React.element) () =
             className="text-slate-500 hover:text-slate-700 transition-colors \
                        -mx-2">
             <Utopia.Router.Link
-              to_=Routes.About.route className="inline-block w-full px-2">
+              to_=Routes.About.route
+              className="inline-block w-full px-2 text-[13px]">
               (React.string "ABOUT")
             </Utopia.Router.Link>
           </li>

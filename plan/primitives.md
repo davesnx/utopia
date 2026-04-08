@@ -20,7 +20,7 @@ Supported file types: `.re`, `.ml`, `.mlx` (code pages) and `.md` (markdown page
 
 A page may export an optional `metadata` function that returns `Utopia_types.metadata` (record with `title : string option` and `description : string option`). The function receives `(string * string) list` params and can compute metadata dynamically. Static pages ignore the params with `_params`. The compiler detects the export and the server uses it to render `<title>` and `<meta name="description">` in `<head>`. If a page also exports bare `let title` or `let description` alongside `metadata`, the compiler emits a warning.
 
-Future planned exports: `static` (SSG flag), `head` (custom head elements).
+Additional planned exports: `head` (custom head elements).
 
 ### Layout
 A file named `layout.re`, `layout.ml`, or `layout.mlx` placed in any directory under `app/`. Layouts wrap all child pages and nested layouts within that directory. Layouts compose top-down: a root `app/layout.re` wraps `app/about/layout.re` which wraps `app/about/team/page.re`.
@@ -235,13 +235,13 @@ The compiler creates `_utopia/` if missing, then removes and regenerates all art
 The workspace `dune-project` now declares `(lang dune 3.16)` so the `mlx` dialect can use `(merlin_reader mlx)`. That hook is required for Merlin/ocamllsp to read `.mlx` sources as the `mlx` dialect rather than plain OCaml syntax.
 
 ### Dune RPC
-The dune watch-mode RPC socket used by `utopia dev` for terminal build progress and diagnostic streaming. `bin/cli/Build_rpc.ml` waits for the socket under `_build`, subscribes to dune's `progress` and `diagnostic` streams, keeps the active diagnostics in memory, and prints them on build failures. RPC connectivity is helpful but non-fatal: `utopia dev` continues running even if the RPC socket cannot be reached.
+The dune watch-mode RPC socket used by `utopia dev` for terminal build progress and diagnostic streaming. `bin/cli/Build_rpc.ml` waits for the socket under `_build`, subscribes to dune's `progress` and `diagnostic` streams, keeps the active diagnostics in memory, prints them on build failures, and emits lifecycle hooks (`build_started`, `build_failed`, `build_succeeded`) for the dev-event bridge path. RPC connectivity is helpful but non-fatal: `utopia dev` continues running even if the RPC socket cannot be reached.
 
 ### Checked-in Demo Workspace
 The notes demo also centralizes its repeated action-button styling in `demo/notes/lib/button.mlx`, which exposes shared `Action`, `Submit`, and `Link` components with an explicit `kind` variant (`Default` or `Accent`) while still emitting plain Tailwind utility classes.
 The repository's primary checked-in example project lives at `demo/notes/`. Its route/layout files live under `demo/notes/app/` as `.mlx` sources, while shared data helpers stay under `demo/notes/lib/`. The notes demo's visual components are page-local and inline inside the route files that render them rather than collected in a shared `notes_ui` module. The demo now models a minimal Utopia Notes shell with one persistent sidebar, a dynamic `/notes/[tag]` tag route plus `/notes/new`, and a SQLite-backed `tags` + `notes` store. Tags persist a route slug, a separate display name, and an optional description. New tags are created from a small sidebar popup, while the note composer selects existing tags only through a custom autocomplete/fuzzy combobox instead of freeform tag creation. Created tags appear in the sidebar even before they contain notes, created notes persist into the selected tag route, and checklist items remain toggleable after creation from those tag-route note views through generated server actions plus router revalidation. The demo keeps its button, scrollbar, selection, and rich-text presentation in Tailwind utility strings directly in the layout/page code, so `demo/notes/styles.css` is now just the Tailwind entrypoint that builds `demo/notes/output.css`. Tag creation, note creation, and checklist toggling all use the generated server action path and return typed `Utopia.Route.t` values directly to the client, so requests flow through the compiler/ppx-registered server-function registry and the generated Dream POST handling without reconstructing raw route strings on the client. `demo/notes/package.json` now regenerates `_utopia/` with the current compiler before building the demo's native and Melange artifacts while capping Dune jobs for this workspace to avoid pathological auto-detected oversubscription. Root helper commands such as `make run-demo`, `make compile-demo`, `make build-generated`, and `bench/bench_http.sh` should target this workspace and launch the generated `server_main.exe` runtime rather than the standalone `utopia.server` source fallback.
 
-Local notes demo automation now also lives in `demo/notes/Makefile`; `compile`, `build`, `run`, `dev`, and `watch-compile` are the canonical entrypoints, and the root helper targets plus `bench/bench_http.sh` delegate to that Makefile instead of npm scripts.
+Local notes demo automation now also lives in `demo/notes/Makefile`; `compile`, `build`, `run`, `dev`, `watch-compile`, and `export` are the canonical entrypoints, and the root helper targets plus `bench/bench_http.sh` delegate to that Makefile instead of npm scripts.
 
 ## Configuration
 
@@ -303,8 +303,18 @@ The primary rendering model. Server components are the default. They render on t
 ### SSR (Server-Side Rendering)
 Available alongside RSC via `server-reason-react.reactDom` APIs. Pages are rendered to HTML on every request.
 
+### Rendering Mode
+Derived from page exports, not declared explicitly. A page without `let before` is static (build-time rendering). A page with `let before` is dynamic (request-time rendering). Markdown pages are always static. See `plan/09-rendering-modes-and-before-hook.md`.
+
+### Before Hook
+A page-level export that opts a page into dynamic (request-time) rendering. Detection of `let before` in `Analysis.ml` (`before_export_origin`) determines whether a page is static or dynamic. Runtime wiring (passing request context to the hook and threading its return value to `make`) is a follow-up. Any page that does request-time work (database queries, user-specific data, etc.) should export `let before`.
+
+```ocaml
+let before _request = ()
+```
+
 ### SSG (Static Site Generation)
-Opt-in per page via a module-level declaration (e.g., `let static = true`). Static output is generated by running the generated server in `--ssg` mode, which writes HTML into `_utopia/static/`. Normal server mode still renders dynamically; the static flag does not automatically switch runtime request handling over to static-file serving.
+Pages without `let before` are static by default. Static output is generated by running the generated server in `--ssg` mode (or `utopia export`), which writes HTML into `_utopia/static/` (`/about` -> `_utopia/static/about.html`, `/` -> `_utopia/static/index.html`). Runtime request handling prefers pre-rendered static HTML when available and falls back to SSR when static artifacts are missing. In dev mode (`--dev`), the server always falls back to SSR, bypassing pre-rendered static HTML.
 
 ### Remote_data (Draft)
 An aspirational module similar to SWR or react-query for managing remote data fetching in client components. Provides loading/error/success states and caching. **Not yet designed or implemented** -- included as a placeholder for future work.
@@ -312,10 +322,16 @@ An aspirational module similar to SWR or react-query for managing remote data fe
 ## CLI
 
 ### `utopia build`
-Validates project structure (`app/` preferred, legacy `pages/` still accepted during compatibility), runs the compiler in `production` mode, then runs `dune build`. Emits a build report with route count and generated artifact paths.
+Validates project structure (`app/` preferred, legacy `pages/` still accepted during compatibility), runs npm preflight (requires `package.json` + resolvable `react`, `react-dom`, `esbuild`, `server-reason-react-esbuild-plugin`, `server-reason-react-server-dom-esbuild`), runs the compiler in `production` mode, then runs `dune build` for the generated server executable. Emits a build report with route count and generated artifact paths.
+
+### `utopia export`
+Builds production artifacts and then runs static generation. Flow: project validation, npm preflight, `utopia.compiler --mode production`, `dune build` for the generated server executable, then generated `server_main.exe --ssg` to write `_utopia/static/*`.
 
 ### `utopia dev`
-Development workflow: validates route source roots (`app/` preferred, legacy `pages/` still accepted during compatibility), runs the compiler in `development` mode + initial build, starts `dune build -w` (watch mode with RPC), launches the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects (or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects), and streams structured build progress/diagnostics via dune RPC. The current implementation may probe upward for a free port; the planned dev-overlay milestone pins a single dev origin for the full session.
+Development workflow: validates route source roots (`app/` preferred, legacy `pages/` still accepted during compatibility), runs npm preflight (same package requirements as `utopia build`), runs the compiler in `development` mode + initial generated-server build, starts `dune build -w` (watch mode with RPC), launches the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects (or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects), and streams structured build progress/diagnostics via dune RPC.
+
+### Npm preflight
+A shared CLI gate used by `utopia build` and `utopia dev` before compiler/build startup. It fails fast when `package.json` is missing or required npm packages are not resolvable, prints `npm install` remediation, and never auto-installs dependencies.
 
 ### `utopia prod` (alias: `start`)
 Verifies build artifacts exist, then starts the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects (or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects). Respects `PORT` and `HOST` environment variables, and probes upward from the requested `PORT` when that port is already occupied so startup can continue on the next free port.
@@ -329,7 +345,7 @@ By default, removes `_build/`, `_utopia/`, the project's Melange target output u
 Prints tool versions (OCaml, dune, melange, reason, utopia), project paths, route count, and command implementation status.
 
 ### Environment Variables
-- `PORT` -- Server listen port (default: 8080). Read by server and CLI. Current runtime behavior treats it as the preferred starting port and may retry upward on conflicts; planned dev-overlay behavior pins one dev port for the full `utopia dev` session.
+- `PORT` -- Server listen port (default: 8080). Read by server and CLI. Runtime and `utopia dev` treat it as a preferred starting port and may retry upward on conflicts.
 - `HOST` -- Server listen host (default: 127.0.0.1 dev, 0.0.0.0 prod). Read by both the CLI and the server.
 - `NO_LOG` -- When set, disables Dream request logging. `dev` sets this by default unless `--verbose`.
 
@@ -376,7 +392,7 @@ When the root path `/` is requested and no index page is registered, the server 
 Planned dev-mode browser behavior. Authoritative design is in `plan/11-dev-full-reload-and-browser-overlay.md`: full reload only (no HMR/state preservation/per-module swap), plus in-browser build/runtime diagnostics via a unified overlay. Current `utopia dev` restarts the generated server and streams dune RPC diagnostics to the terminal only; browser feedback wiring is still planned.
 
 ### Server Restart
-In dev mode, the CLI restarts the generated per-project server executable after successful rebuilds. The current implementation may re-probe ports; planned dev-overlay behavior keeps the origin pinned and fails fast if the pinned port cannot be rebound.
+In dev mode, the CLI restarts the generated per-project server executable after successful rebuilds (mtime change): send SIGTERM, wait with timeout, send SIGKILL if needed, then spawn replacement. Port selection uses preferred-port fallback semantics and may move to the next available port.
 
 ### Dev Event Channel
 Planned development-only server channel for browser build-state observation. The intended design is an SSE subscription endpoint (`GET /_utopia/dev-events`) plus a CLI-authenticated publish endpoint (`POST /_utopia/dev-events`) guarded by a per-session token.
@@ -393,22 +409,22 @@ Planned development-only in-browser overlay slice for browser/runtime failures a
 ## Static Site Generation (SSG)
 
 ### Static Page
-A code page that opts into build-time rendering via `let static = true`. Detection uses a comment/string-safe lexical scanner so comments/strings do not produce false positives. Static pages are rendered at build time by the `--ssg` mode of the generated `server_main.exe`, producing HTML files in `_utopia/static/`.
+A page that is rendered at build time. Code pages are static when they do **not** export `let before`. Markdown pages are always static. Detection uses the `Analysis` comment/string-safe lexical scanner. Static pages are rendered by the `--ssg` mode of the generated `server_main.exe`, producing HTML files in `_utopia/static/`.
 
-### Static Export Scanner (Planned)
-A lightweight lexical scanner used by the compiler to detect `let static = true` in code pages while ignoring comments and string/char literals. This avoids false positives from regex-only text matching without requiring a full OCaml parser.
+### Compiler Analysis Scanner (`Analysis`)
+A lightweight lexical scanner used by the compiler to tokenize code while ignoring comments and string/char literals. It powers `let before` export detection (determines dynamic vs static), `let paths` export detection, and reusable attribute scans such as `[@react.client.component]` discovery for Melange optimization planning.
 
-### static_paths
+### paths
 An export required on static pages with dynamic segments (e.g., `app/posts/[slug]/page.mlx`). Returns `(string * string) list list` enumerating all param combinations to render. The compiler validates its presence and the SSG renderer iterates over the returned paths.
 
 ### SSG Mode (`--ssg`)
 The generated `server_main.exe` accepts a `--ssg` CLI flag. When invoked with `--ssg`, instead of starting a web server it renders all static pages to HTML files in `_utopia/static/`, copies stylesheets, and exits. The dune alias `(alias ssg)` invokes this mode.
 
 ### Blog Demo (`demo/blog/`)
-A static blog demo showcasing SSG. Renders 4 markdown files from `content/` using `Utopia_markdown.element_of_doc` with custom Tailwind-styled `Components`. Pages export `let static = true` and `static_paths`. Design inspired by shud.in: sidebar navigation, dot-leader blog list, clean typography. Local demo automation lives in `demo/blog/Makefile`; `build`, `run`, `generate`, and `serve` are the canonical entrypoints instead of `package.json` scripts. `generate` runs the built generated server with `--ssg` from inside `demo/blog/`, so the static output lands in `demo/blog/_utopia/static/`. `serve` first regenerates that directory and then serves it as plain static files via `python3 -m http.server`, honoring `HOST` and `PORT`.
+A static blog demo showcasing SSG. Renders 4 markdown files from `content/` using `Utopia_markdown.element_of_doc` with custom Tailwind-styled `Components`. Pages are static by default and the dynamic-segment page exports `paths`. Design inspired by shud.in: sidebar navigation, dot-leader blog list, clean typography. Local demo automation lives in `demo/blog/Makefile`; `build`, `run`, `export`, and `serve` are the canonical entrypoints instead of `package.json` scripts. `export` invokes `utopia export` (after building `output.css`) so static output lands in `demo/blog/_utopia/static/`. `serve` first regenerates that directory and then serves it as plain static files via `python3 -m http.server`, honoring `HOST` and `PORT`.
 
 ### Markdown Demo (`demo/md/`)
-A focused markdown-routing demo with a minimal dark monospaced shell (`app/layout.mlx`) and a minimal index route (`app/page.mlx`) that only links to three markdown pages: `app/faq/page.md`, `app/progress/page.md`, and `app/manifest/page.md`. The palette uses dark/light tones with opacity variance plus a single accent color (`#FFA759`). Local automation lives in `demo/md/Makefile`; `compile`, `build`, and `run` are the canonical entrypoints.
+A focused markdown-routing demo with a minimal dark monospaced shell (`app/layout.mlx`) and a minimal index route (`app/page.mlx`) that only links to three markdown pages: `app/faq/page.md`, `app/progress/page.md`, and `app/manifest/page.md`. The palette uses dark/light tones with opacity variance plus a single accent color (`#FFA759`). Local automation lives in `demo/md/Makefile`; `compile`, `build`, `run`, `export`, and `serve` are the canonical entrypoints.
 
 ## Markdown
 
@@ -481,11 +497,12 @@ Work is split into numbered plan documents in `plan/`. Each phase has explicit d
 - `04-client-components` -- Client component boundary + esbuild pipeline
 - `05-api-routes` -- API route scanning, handlers, middleware
 - `06-markdown-pipeline` -- Frontmatter, tables, footnotes, RSC integration
-- `07-configuration` -- `utopia.ml` configuration module
-- `08-ssg` -- Static site generation (implemented)
-- `09-dev-mode` -- Live reload, npm integration, server restart
-- `10-client-error-overlay` -- Browser runtime error diagnostics overlay
+- `07-ssg` -- Static site generation
+- `08-dev-mode` -- Live reload, npm integration, server restart
+- `09-rendering-modes-and-before-hook` -- Explicit rendering mode + request-time before hook model
+- `10-client-error-overlay` -- Deprecated; runtime overlay slice merged into `11-dev-full-reload-and-browser-overlay`
 - `11-dev-full-reload-and-browser-overlay` -- Authoritative dev overlay + full reload flow
 - `12-optimization-for-melange-pages` -- Melange reachability/entrypoint optimization
 - `13-not-found-page` -- Explicit not-found page routing model
 - `14-app-directory-unification` -- unify `pages/` + `api/` under `app/` with `page.*`/`route.*`
+- `15-configuration` -- `utopia.ml` configuration module

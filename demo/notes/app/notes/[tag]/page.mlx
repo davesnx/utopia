@@ -1,5 +1,7 @@
 open Notes_data
 
+let before _request = ()
+
 let metadata params =
   let tag_slug = List.assoc_opt "tag" params |> Option.value ~default:"" in
   match tag_summary_opt tag_slug with
