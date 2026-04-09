@@ -1,5 +1,5 @@
 type origin = { line : int; column : int }
-type token = { text : string; origin : origin }
+type token = { text : string; origin : origin; byte_offset : int }
 type block_flavor = Ocaml_block | Slash_block
 type mode = Code | String | Line_comment | Block_comment of block_flavor * int
 
@@ -46,9 +46,14 @@ let scan_code_tokens source =
   let mode = ref Code in
   let escape_next = ref false in
   let tokens = ref [] in
-  let add_token text token_line token_column =
+  let add_token text token_line token_column token_byte_offset =
     tokens :=
-      { text; origin = { line = token_line; column = token_column } } :: !tokens
+      {
+        text;
+        origin = { line = token_line; column = token_column };
+        byte_offset = token_byte_offset;
+      }
+      :: !tokens
   in
   let advance_char ch =
     if ch = '\n' then (
@@ -88,14 +93,14 @@ let scan_code_tokens source =
               if is_identifier_start source.[!index] then (
                 let token_line = !line in
                 let token_column = !column in
-                let start = !index in
+                let token_byte = !index in
                 advance_one ();
                 while !index < len && is_identifier_char source.[!index] do
                   advance_one ()
                 done;
                 add_token
-                  (String.sub source start (!index - start))
-                  token_line token_column)
+                  (String.sub source token_byte (!index - token_byte))
+                  token_line token_column token_byte)
               else if
                 source.[!index] = ' '
                 || source.[!index] = '\t'
@@ -105,8 +110,9 @@ let scan_code_tokens source =
               else
                 let token_line = !line in
                 let token_column = !column in
+                let token_byte = !index in
                 let token_text = String.make 1 source.[!index] in
-                add_token token_text token_line token_column;
+                add_token token_text token_line token_column token_byte;
                 advance_one ())
     | String ->
         if !escape_next then (

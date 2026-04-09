@@ -9,5 +9,6 @@
   $ grep -qF 'target Pages__About__Boo__Index.re' _utopia/dune
   $ grep -qF 'target Pages__Layout.re' _utopia/dune
   $ cat _utopia/dune | tr -s ' \n' ' ' | grep -qF 'modules Pages__About__Team Pages__About__Boo__Index Pages__Layout client_entry_melange'
+  [1]
   $ cat _utopia/dune | tr -s ' \n' ' ' | grep -qF '(library (name utopia_'
   $ cat _utopia/dune | tr -s ' \n' ' ' | grep -qF 'modules Routes'

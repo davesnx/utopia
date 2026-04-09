@@ -182,6 +182,26 @@ let write_file_rule ~target ~content =
   let open Dune_sexp in
   rule ~target ~action:(form "write-file" [ atom "%{target}"; atom content ]) ()
 
+let extraction_copy_rule ~deps ~target ~prelude_lines =
+  let open Dune_sexp in
+  let prelude_actions =
+    prelude_lines |> List.map (fun line -> form "echo" [ atom (line ^ "\n") ])
+  in
+  rule
+    ~deps:[ atom deps ]
+    ~target
+    ~action:
+      (form "with-stdout-to"
+         [
+           atom "%{target}";
+           form "progn"
+             (prelude_actions
+             @ [
+                 run "%{bin:utopia.compiler}" [ "--extract-client"; "%{deps}" ];
+               ]);
+         ])
+    ()
+
 let copy_dependency_rule ~deps ~target =
   rule
     ~deps:[ Dune_sexp.atom deps ]
@@ -240,7 +260,9 @@ let source_project_root () =
   if project_path = "" then "%{workspace_root}"
   else Printf.sprintf "%%{workspace_root}/%s" project_path
 
-let generate ~source_root ~api_root files api_files route_entries _api_entries =
+let generate ?(dev_mode = false) ~source_root ~api_root
+    ~is_client_component_page ~is_melange_lib_module files api_files
+    route_entries _api_entries =
   let open Dune_sexp in
   let pages_library_name = Project.generated_pages_library_name () in
   let api_library_name = Project.generated_api_library_name () in
@@ -271,8 +293,13 @@ let generate ~source_root ~api_root files api_files route_entries _api_entries =
     | "page" | "layout" -> true
     | _ -> false
   in
-  let melange_copy_rules =
+  let melange_code_files =
     code_files
+    |> List.filter (fun (file : Build_inputs.compiled_code_file) ->
+        is_client_component_page file.relative_file)
+  in
+  let melange_copy_rules =
+    melange_code_files
     |> List.map (fun (file : Build_inputs.compiled_code_file) ->
         let deps = root_page_dependency ~source_root file.relative_file in
         let modules_to_open =
@@ -284,11 +311,9 @@ let generate ~source_root ~api_root files api_files route_entries _api_entries =
           |> List.map (fun module_name ->
               open_statement file.extension module_name)
         in
-        copy_rule ~deps
+        extraction_copy_rule ~deps
           ~target:(Printf.sprintf "%s%s" file.base_name file.extension)
-          ~prelude_lines
-          ~line_directive_path:
-            (if emits_line_directive file.extension then Some deps else None))
+          ~prelude_lines)
   in
   let native_copy_rules =
     code_files
@@ -329,6 +354,15 @@ let generate ~source_root ~api_root files api_files route_entries _api_entries =
       ~deps:(Utopia_runtime.target_name Utopia_runtime.client_entry_source_file)
       ~target:client_entry_target
   in
+  let dev_overlay_rule =
+    if dev_mode then
+      Some
+        (copy_dependency_rule
+           ~deps:
+             (Utopia_runtime.target_name Utopia_runtime.dev_overlay_source_file)
+           ~target:Utopia_runtime.dev_overlay_melange_target_name)
+    else None
+  in
   let react_server_dom_runtime_rule =
     copy_dependency_rule
       ~deps:
@@ -353,6 +387,8 @@ let generate ~source_root ~api_root files api_files route_entries _api_entries =
     if not has_shared_lib then []
     else
       shared_lib_files
+      |> List.filter (fun (file : Build_inputs.shared_lib_file) ->
+          is_melange_lib_module (Build_inputs.shared_lib_module_name file))
       |> List.map (fun (file : Build_inputs.shared_lib_file) ->
           let deps = root_shared_lib_dependency file.source_file in
           copy_rule ~deps
@@ -376,8 +412,13 @@ let generate ~source_root ~api_root files api_files route_entries _api_entries =
   let melange_shared_lib_namespace_rule =
     if not has_shared_lib then []
     else
-      let aliases =
+      let reachable_lib_files =
         shared_lib_files
+        |> List.filter (fun (file : Build_inputs.shared_lib_file) ->
+            is_melange_lib_module (Build_inputs.shared_lib_module_name file))
+      in
+      let aliases =
+        reachable_lib_files
         |> List.map (fun (file : Build_inputs.shared_lib_file) ->
             Printf.sprintf "module %s = %s" file.module_name
               (Build_inputs.shared_lib_module_name file))
@@ -437,32 +478,35 @@ let generate ~source_root ~api_root files api_files route_entries _api_entries =
   in
   let melange_rule =
     let page_modules =
-      code_files
+      melange_code_files
       |> List.map (fun (file : Build_inputs.compiled_code_file) ->
           file.base_name)
     in
     let source_relative_page_modules =
-      code_files
+      melange_code_files
       |> List.filter (fun (file : Build_inputs.compiled_code_file) ->
           uses_source_relative_shared_folder_prefix file.extension)
       |> List.map (fun (file : Build_inputs.compiled_code_file) ->
           file.base_name)
     in
-    let lib_modules =
-      if has_shared_lib then
-        shared_lib_files
-        |> List.map (fun (file : Build_inputs.shared_lib_file) ->
-            Build_inputs.shared_lib_module_name file)
-      else []
-    in
-    let source_relative_lib_modules =
+    let melange_shared_lib_files =
       if has_shared_lib then
         shared_lib_files
         |> List.filter (fun (file : Build_inputs.shared_lib_file) ->
-            uses_source_relative_shared_folder_prefix file.extension)
-        |> List.map (fun (file : Build_inputs.shared_lib_file) ->
-            Build_inputs.shared_lib_module_name file)
+            is_melange_lib_module (Build_inputs.shared_lib_module_name file))
       else []
+    in
+    let lib_modules =
+      melange_shared_lib_files
+      |> List.map (fun (file : Build_inputs.shared_lib_file) ->
+          Build_inputs.shared_lib_module_name file)
+    in
+    let source_relative_lib_modules =
+      melange_shared_lib_files
+      |> List.filter (fun (file : Build_inputs.shared_lib_file) ->
+          uses_source_relative_shared_folder_prefix file.extension)
+      |> List.map (fun (file : Build_inputs.shared_lib_file) ->
+          Build_inputs.shared_lib_module_name file)
     in
     let mirrored_modules =
       source_relative_lib_modules @ source_relative_page_modules
@@ -472,7 +516,11 @@ let generate ~source_root ~api_root files api_files route_entries _api_entries =
         (if has_shared_lib then [ generated_library_module ] else [])
         @ if has_app_local_aliases then [ generated_app_local_module ] else []
       in
-      prelude_modules @ lib_modules @ page_modules
+      let dev_modules =
+        if dev_mode then [ Utopia_runtime.dev_overlay_melange_module_name ]
+        else []
+      in
+      prelude_modules @ lib_modules @ page_modules @ dev_modules
       @ [ Utopia_runtime.client_entry_melange_module_name ]
     in
     let compile_flags = open_flags [ "Melange_json.Primitives" ] in
@@ -662,6 +710,7 @@ let generate ~source_root ~api_root files api_files route_entries _api_entries =
                react_server_dom_runtime_rule;
                generated_utopia_library_rule;
              ];
+             (match dev_overlay_rule with Some r -> [ r ] | None -> []);
              melange_shared_lib_copy_rules;
              melange_route_schema_copy_rules;
              melange_shared_lib_namespace_rule;

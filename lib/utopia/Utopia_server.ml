@@ -468,11 +468,21 @@ let dangerously_inner_html html =
     end)
 
 let bootstrap_module_paths = [ "/dist/client_entry_melange.js" ]
+let dev_overlay_module_path = "/dist/Utopia_dev_overlay.js"
 let stylesheet_paths = [ "/output.css" ]
 
-let available_bootstrap_module_paths () =
-  bootstrap_module_paths
-  |> List.filter (fun path -> first_existing_asset path <> None)
+let available_bootstrap_module_paths ~dev_mode () =
+  let dev_modules =
+    if dev_mode then
+      [ dev_overlay_module_path ]
+      |> List.filter (fun path -> first_existing_asset path <> None)
+    else []
+  in
+  let base_modules =
+    bootstrap_module_paths
+    |> List.filter (fun path -> first_existing_asset path <> None)
+  in
+  dev_modules @ base_modules
 
 let available_stylesheet_paths () =
   stylesheet_paths
@@ -738,6 +748,8 @@ let render_verification_meta verification =
       in
       meta_tag name content)
 
+let server_dev_mode = ref false
+
 let html_page ~title ~meta ~body =
   let stylesheet_links =
     available_stylesheet_paths ()
@@ -745,6 +757,15 @@ let html_page ~title ~meta ~body =
         element
           ~props:[ string_prop "rel" "stylesheet"; string_prop "href" path ]
           "link" [])
+  in
+  let dev_mode_script =
+    if !server_dev_mode then
+      [
+        element
+          ~props:[ dangerously_inner_html {|window.__UTOPIA_DEV_MODE__=true|} ]
+          "script" [];
+      ]
+    else []
   in
   let head =
     element "head"
@@ -761,6 +782,7 @@ let html_page ~title ~meta ~body =
            "meta" [];
          element "title" [ text title ];
        ]
+      @ dev_mode_script
       @ render_description_meta meta.description
       @ render_keywords_meta meta.keywords
       @ render_authors_meta meta.authors
@@ -1080,7 +1102,7 @@ let render_index (routes : route_entry list) =
     ~body:
       (element "main" [ element "h1" [ text "Routes" ]; element "ul" links ])
 
-let stream_html element =
+let stream_html ~dev_mode element =
   let element = normalize_model_element element in
   Dream.stream
     ~headers:[ ("Content-Type", "text/html; charset=utf-8") ]
@@ -1088,7 +1110,7 @@ let stream_html element =
       let open Lwt.Syntax in
       let* html, subscribe =
         ReactServerDOM.render_html
-          ~bootstrapModules:(available_bootstrap_module_paths ())
+          ~bootstrapModules:(available_bootstrap_module_paths ~dev_mode ())
           element
       in
       let* () = Dream.write response_stream html in
@@ -1327,11 +1349,296 @@ let accepts_react_component request =
       loop 0
   | None -> false
 
+(* === Dev event channel === *)
+
+type dev_severity = Dev_error | Dev_warning | Dev_note
+
+type dev_diagnostic = {
+  dev_severity : dev_severity;
+  dev_message : string;
+  dev_location : string option;
+  dev_targets : string list;
+}
+
+type dev_build_status = Dev_building | Dev_failed | Dev_healthy
+
+type dev_build_state = {
+  build_id : int;
+  status : dev_build_status;
+  rebuilding : bool;
+  errors : dev_diagnostic list;
+  warnings : dev_diagnostic list;
+}
+
+let initial_dev_build_state =
+  {
+    build_id = 0;
+    status = Dev_healthy;
+    rebuilding = false;
+    errors = [];
+    warnings = [];
+  }
+
+let dev_build_state_ref = ref initial_dev_build_state
+
+let dev_event_condition : dev_build_state Lwt_condition.t =
+  Lwt_condition.create ()
+
+let dev_publish_token () = Sys.getenv_opt "UTOPIA_DEV_TOKEN"
+
+let json_escape_dev s =
+  let buf = Buffer.create (String.length s) in
+  String.iter
+    (fun c ->
+      match c with
+      | '"' -> Buffer.add_string buf {|\"|}
+      | '\\' -> Buffer.add_string buf {|\\|}
+      | '\n' -> Buffer.add_string buf {|\n|}
+      | '\r' -> Buffer.add_string buf {|\r|}
+      | '\t' -> Buffer.add_string buf {|\t|}
+      | c -> Buffer.add_char buf c)
+    s;
+  Buffer.contents buf
+
+let format_dev_severity = function
+  | Dev_error -> "error"
+  | Dev_warning -> "warning"
+  | Dev_note -> "note"
+
+let format_dev_status = function
+  | Dev_building -> "building"
+  | Dev_failed -> "failed"
+  | Dev_healthy -> "healthy"
+
+let format_dev_diagnostic d =
+  let loc =
+    match d.dev_location with
+    | Some l -> Printf.sprintf {|,"location":"%s"|} (json_escape_dev l)
+    | None -> ""
+  in
+  let targets =
+    d.dev_targets
+    |> List.map (fun t -> Printf.sprintf {|"%s"|} (json_escape_dev t))
+    |> String.concat ","
+  in
+  Printf.sprintf {|{"severity":"%s","message":"%s"%s,"targets":[%s]}|}
+    (format_dev_severity d.dev_severity)
+    (json_escape_dev d.dev_message)
+    loc targets
+
+let format_dev_build_state_json state =
+  let errors =
+    state.errors |> List.map format_dev_diagnostic |> String.concat ","
+  in
+  let warnings =
+    state.warnings |> List.map format_dev_diagnostic |> String.concat ","
+  in
+  Printf.sprintf
+    {|{"kind":"build_state","build_id":%d,"status":"%s","rebuilding":%s,"errors":[%s],"warnings":[%s]}|}
+    state.build_id
+    (format_dev_status state.status)
+    (if state.rebuilding then "true" else "false")
+    errors warnings
+
+let format_sse_event state =
+  Printf.sprintf "data: %s\n\n" (format_dev_build_state_json state)
+
+let handle_dev_events_sse _request =
+  Dream.stream
+    ~headers:
+      [
+        ("Content-Type", "text/event-stream");
+        ("Cache-Control", "no-cache");
+        ("X-Accel-Buffering", "no");
+      ]
+    (fun stream ->
+      let open Lwt.Syntax in
+      let* () = Dream.write stream (format_sse_event !dev_build_state_ref) in
+      let* () = Dream.flush stream in
+      let rec event_loop () =
+        let* state = Lwt_condition.wait dev_event_condition in
+        let* () = Dream.write stream (format_sse_event state) in
+        let* () = Dream.flush stream in
+        event_loop ()
+      in
+      let rec heartbeat_loop () =
+        let* () = Lwt_unix.sleep 30.0 in
+        Lwt.catch
+          (fun () ->
+            let* () = Dream.write stream ": heartbeat\n\n" in
+            let* () = Dream.flush stream in
+            heartbeat_loop ())
+          (fun _exn -> Lwt.return_unit)
+      in
+      Lwt.catch
+        (fun () -> Lwt.pick [ event_loop (); heartbeat_loop () ])
+        (fun _exn -> Lwt.return_unit))
+
+let parse_dev_severity_json = function
+  | "error" -> Dev_error
+  | "warning" -> Dev_warning
+  | _ -> Dev_note
+
+let parse_dev_build_status_json = function
+  | "building" -> Dev_building
+  | "failed" -> Dev_failed
+  | _ -> Dev_healthy
+
+(* Minimal JSON field extractors for the well-known dev event shape *)
+let extract_json_string body field =
+  let pattern = Printf.sprintf {|"%s":"|} field in
+  let plen = String.length pattern in
+  let blen = String.length body in
+  let rec search i =
+    if i + plen > blen then None
+    else if String.sub body i plen = pattern then
+      let start = i + plen in
+      let rec find_end j =
+        if j >= blen then j
+        else if body.[j] = '"' && (j = start || body.[j - 1] <> '\\') then j
+        else find_end (j + 1)
+      in
+      let e = find_end start in
+      Some (String.sub body start (e - start))
+    else search (i + 1)
+  in
+  search 0
+
+let extract_json_int body field =
+  let pattern = Printf.sprintf {|"%s":|} field in
+  let plen = String.length pattern in
+  let blen = String.length body in
+  let rec search i =
+    if i + plen > blen then None
+    else if String.sub body i plen = pattern then
+      let start = i + plen in
+      let rec digits j =
+        if j >= blen then j
+        else match body.[j] with '0' .. '9' -> digits (j + 1) | _ -> j
+      in
+      let e = digits start in
+      try Some (int_of_string (String.sub body start (e - start)))
+      with Failure _ -> None
+    else search (i + 1)
+  in
+  search 0
+
+let extract_json_bool body field =
+  let pattern = Printf.sprintf {|"%s":|} field in
+  let plen = String.length pattern in
+  let blen = String.length body in
+  let rec search i =
+    if i + plen > blen then Some false
+    else if String.sub body i plen = pattern then
+      let start = i + plen in
+      if start + 4 <= blen && String.sub body start 4 = "true" then Some true
+      else Some false
+    else search (i + 1)
+  in
+  search 0
+
+let extract_diagnostics_array body array_field =
+  let pattern = Printf.sprintf {|"%s":[|} array_field in
+  let plen = String.length pattern in
+  let blen = String.length body in
+  let rec search i =
+    if i + plen > blen then []
+    else if String.sub body i plen = pattern then (
+      let start = i + plen in
+      let rec find_end j depth =
+        if j >= blen then j
+        else
+          match body.[j] with
+          | '[' -> find_end (j + 1) (depth + 1)
+          | ']' -> if depth = 0 then j else find_end (j + 1) (depth - 1)
+          | _ -> find_end (j + 1) depth
+      in
+      let e = find_end start 0 in
+      let arr_str = String.sub body start (e - start) in
+      if String.length (String.trim arr_str) = 0 then []
+      else
+        (* Split on top-level commas between objects *)
+        let buf = Buffer.create 256 in
+        let objects = ref [] in
+        let depth = ref 0 in
+        String.iter
+          (fun c ->
+            match c with
+            | '{' ->
+                incr depth;
+                Buffer.add_char buf c
+            | '}' ->
+                decr depth;
+                Buffer.add_char buf c;
+                if !depth = 0 then (
+                  objects := Buffer.contents buf :: !objects;
+                  Buffer.clear buf)
+            | ',' when !depth = 0 -> ()
+            | c -> Buffer.add_char buf c)
+          arr_str;
+        List.rev_map
+          (fun obj ->
+            {
+              dev_severity =
+                parse_dev_severity_json
+                  (Option.value
+                     (extract_json_string obj "severity")
+                     ~default:"note");
+              dev_message =
+                Option.value (extract_json_string obj "message") ~default:"";
+              dev_location = extract_json_string obj "location";
+              dev_targets = [];
+            })
+          !objects)
+    else search (i + 1)
+  in
+  search 0
+
+let parse_dev_build_state_json body =
+  let build_id = Option.value (extract_json_int body "build_id") ~default:0 in
+  let status =
+    parse_dev_build_status_json
+      (Option.value (extract_json_string body "status") ~default:"healthy")
+  in
+  let rebuilding =
+    Option.value (extract_json_bool body "rebuilding") ~default:false
+  in
+  let errors = extract_diagnostics_array body "errors" in
+  let warnings = extract_diagnostics_array body "warnings" in
+  { build_id; status; rebuilding; errors; warnings }
+
+let handle_dev_events_publish request =
+  let open Lwt.Syntax in
+  let expected_token = dev_publish_token () in
+  let auth_header = Dream.header request "Authorization" in
+  let authorized =
+    match (expected_token, auth_header) with
+    | Some expected, Some provided ->
+        String.equal provided ("Bearer " ^ expected)
+    | None, _ -> false
+    | _, None -> false
+  in
+  if not authorized then Dream.respond ~status:`Unauthorized ""
+  else
+    let* body = Dream.body request in
+    let state = parse_dev_build_state_json body in
+    dev_build_state_ref := state;
+    Lwt_condition.broadcast dev_event_condition state;
+    Dream.respond ~status:`OK ""
+
+(* === End dev event channel === *)
+
 let route_request (routes : route_entry list)
     (api_routes : api_route_entry list) index_html ~lookup_server_function
     ~dev_mode request =
   let target = Dream.target request |> normalize_target in
-  if
+  (* Dev event endpoints — only in dev mode *)
+  if dev_mode && target = "_utopia/dev-events" then
+    match Dream.method_ request with
+    | `GET -> handle_dev_events_sse request
+    | `POST -> handle_dev_events_publish request
+    | _ -> Dream.respond ~status:`Method_Not_Allowed ""
+  else if
     starts_with target "target/"
     || starts_with target "dist/"
     || List.mem target (available_direct_asset_paths ())
@@ -1355,21 +1662,21 @@ let route_request (routes : route_entry list)
                       params
                   in
                   route_navigation_model route_entry request rendered_element)
-          else if route_entry.static then
+          else if (not dev_mode) && route_entry.static then
             match read_static_html target with
             | Some html -> Dream.html html
             | None ->
-                stream_html
+                stream_html ~dev_mode
                   (render_route_document route_entry (Dream.target request)
                      params)
           else
-            stream_html
+            stream_html ~dev_mode
               (render_route_document route_entry (Dream.target request) params)
       | None when segments = [] ->
           if accepts_react_component request then
             stream_model ~location:(Dream.target request)
               (React.Model.Element (normalize_model_element index_html))
-          else stream_html index_html
+          else stream_html ~dev_mode index_html
       | None -> Dream.respond ~status:`Not_Found "Route not found"
 
 let max_port = 65535
@@ -1403,6 +1710,7 @@ let rec run_with_port_fallback ~interface ~port pipeline =
 
 let start_runtime_routes (routes : route_entry list)
     (api_routes : api_route_entry list) ~lookup_server_function ~dev_mode =
+  server_dev_mode := dev_mode;
   Printexc.record_backtrace true;
   Logs.set_level (Some Info);
   Logs.set_reporter (Logs_fmt.reporter ());
@@ -1448,7 +1756,7 @@ let render_ssg_page route_entry request_target params =
   Lwt_main.run
     (let* html, subscribe =
        ReactServerDOM.render_html
-         ~bootstrapModules:(available_bootstrap_module_paths ())
+         ~bootstrapModules:(available_bootstrap_module_paths ~dev_mode:false ())
          element
      in
      let buffer = Buffer.create (String.length html + 1024) in
@@ -1476,7 +1784,104 @@ let ssg_asset_paths () =
     | path :: rest when List.mem path seen -> dedupe seen rest
     | path :: rest -> dedupe (path :: seen) rest
   in
-  dedupe [] (available_stylesheet_paths () @ available_bootstrap_module_paths ())
+  dedupe []
+    (available_stylesheet_paths ()
+    @ available_bootstrap_module_paths ~dev_mode:false ())
+
+type ssg_task = {
+  route_entry : route_entry;
+  request_target : string;
+  params : (string * string) list;
+  output_path : string;
+  display : string;
+}
+
+let substitute_route_params segments params =
+  segments
+  |> List.map (fun seg ->
+      match seg with
+      | Static s -> s
+      | Param (name, _) -> (
+          match List.assoc_opt name params with Some v -> v | None -> name))
+  |> String.concat "/"
+
+let collect_ssg_tasks static_routes =
+  static_routes
+  |> List.concat_map (fun (route_entry : route_entry) ->
+      if route_entry.params = [] then
+        let output = ssg_output_path route_entry.route in
+        let request_target =
+          if route_entry.route = "" then "/" else "/" ^ route_entry.route
+        in
+        [
+          {
+            route_entry;
+            request_target;
+            params = [];
+            output_path = output;
+            display = Printf.sprintf "%s -> %s" ("/" ^ route_entry.route) output;
+          };
+        ]
+      else
+        match route_entry.paths with
+        | None ->
+            Printf.eprintf
+              "  warning: %s is static with params but no paths\n%!"
+              route_entry.source_file;
+            []
+        | Some get_paths ->
+            get_paths ()
+            |> List.map (fun params ->
+                let route_str =
+                  substitute_route_params route_entry.segments params
+                in
+                let output = ssg_output_path route_str in
+                {
+                  route_entry;
+                  request_target = "/" ^ route_str;
+                  params;
+                  output_path = output;
+                  display = Printf.sprintf "/%s -> %s" route_str output;
+                }))
+
+let render_ssg_task task =
+  let html = render_ssg_page task.route_entry task.request_target task.params in
+  write_file task.output_path html
+
+let ssg_max_workers = 8
+
+let run_ssg_tasks_parallel tasks =
+  let task_array = Array.of_list tasks in
+  let total = Array.length task_array in
+  let num_workers = min ssg_max_workers (max 1 total) in
+  if num_workers <= 1 then Array.iter render_ssg_task task_array
+  else
+    let chunk_size = (total + num_workers - 1) / num_workers in
+    let render_chunk start =
+      let stop = min (start + chunk_size) total in
+      for j = start to stop - 1 do
+        render_ssg_task task_array.(j)
+      done
+    in
+    let child_pids =
+      Array.init (num_workers - 1) (fun i ->
+          let pid = Unix.fork () in
+          if pid = 0 then (
+            render_chunk ((i + 1) * chunk_size);
+            exit 0)
+          else pid)
+    in
+    render_chunk 0;
+    Array.iter
+      (fun pid ->
+        match Unix.waitpid [] pid with
+        | _, Unix.WEXITED 0 -> ()
+        | _, Unix.WEXITED code ->
+            Printf.eprintf "SSG worker exited with code %d\n%!" code
+        | _, Unix.WSIGNALED signal ->
+            Printf.eprintf "SSG worker killed by signal %d\n%!" signal
+        | _, Unix.WSTOPPED _ -> ())
+      child_pids
 
 let ssg_generated (generated_routes : generated_route list) =
   match runtime_routes_of_generated_routes generated_routes with
@@ -1494,52 +1899,14 @@ let ssg_generated (generated_routes : generated_route list) =
         (List.length static_routes);
       ensure_directory ssg_output_dir;
       ssg_asset_paths () |> List.iter copy_ssg_asset;
-      let count = ref 0 in
-      static_routes
-      |> List.iter (fun (route_entry : route_entry) ->
-          if route_entry.params = [] then (
-            (* Static page without params *)
-            let output = ssg_output_path route_entry.route in
-            ensure_directory (Filename.dirname output);
-            let request_target =
-              if route_entry.route = "" then "/" else "/" ^ route_entry.route
-            in
-            let html = render_ssg_page route_entry request_target [] in
-            write_file output html;
-            Printf.printf "  %s -> %s\n%!" ("/" ^ route_entry.route) output;
-            incr count)
-          else
-            (* Dynamic page with paths *)
-            match route_entry.paths with
-            | None ->
-                Printf.eprintf
-                  "  warning: %s is static with params but no paths\n%!"
-                  route_entry.source_file
-            | Some get_paths ->
-                let param_sets = get_paths () in
-                param_sets
-                |> List.iter (fun params ->
-                    (* Build the route string with params substituted *)
-                    let route_str =
-                      route_entry.segments
-                      |> List.map (fun seg ->
-                          match seg with
-                          | Static s -> s
-                          | Param (name, _) -> (
-                              match List.assoc_opt name params with
-                              | Some v -> v
-                              | None -> name))
-                      |> String.concat "/"
-                    in
-                    let output = ssg_output_path route_str in
-                    ensure_directory (Filename.dirname output);
-                    let html =
-                      render_ssg_page route_entry ("/" ^ route_str) params
-                    in
-                    write_file output html;
-                    Printf.printf "  /%s -> %s\n%!" route_str output;
-                    incr count));
-      Printf.printf "SSG: rendered %d page(s) to %s/\n%!" !count ssg_output_dir
+      let tasks = collect_ssg_tasks static_routes in
+      (* Pre-create all output directories to avoid race conditions *)
+      tasks
+      |> List.iter (fun t -> ensure_directory (Filename.dirname t.output_path));
+      run_ssg_tasks_parallel tasks;
+      tasks |> List.iter (fun t -> Printf.printf "  %s\n%!" t.display);
+      Printf.printf "SSG: rendered %d page(s) to %s/\n%!" (List.length tasks)
+        ssg_output_dir
 
 let start_generated ~(pages : generated_route list)
     ~(api_routes : generated_api_route list) ~lookup_server_function

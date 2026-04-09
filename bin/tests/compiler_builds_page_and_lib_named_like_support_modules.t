@@ -13,4 +13,3 @@
   $ grep -qF 'target Lib__Lib.re' _utopia/dune
   $ grep -qF 'target Lib.re' _utopia/dune
   $ cat _build/default/_utopia/Lib.re
-  module Lib = Lib__Lib

@@ -1,8 +1,91 @@
 let default_port = 8080
 let restart_grace_seconds = 2.0
 
-let build_env config port =
-  let base = [| "PORT=" ^ string_of_int port; "HOST=" ^ config.Flags.host |] in
+let generate_dev_token () =
+  let buf = Buffer.create 64 in
+  Random.self_init ();
+  for _ = 1 to 32 do
+    Buffer.add_string buf (Printf.sprintf "%02x" (Random.int 256))
+  done;
+  Buffer.contents buf
+
+let json_escape s =
+  let buf = Buffer.create (String.length s) in
+  String.iter
+    (fun c ->
+      match c with
+      | '"' -> Buffer.add_string buf {|\"|}
+      | '\\' -> Buffer.add_string buf {|\\|}
+      | '\n' -> Buffer.add_string buf {|\n|}
+      | '\r' -> Buffer.add_string buf {|\r|}
+      | '\t' -> Buffer.add_string buf {|\t|}
+      | c -> Buffer.add_char buf c)
+    s;
+  Buffer.contents buf
+
+let format_diagnostic_json (d : Build_rpc.structured_diagnostic) =
+  let loc =
+    match d.location with
+    | Some l -> Printf.sprintf {|,"location":"%s"|} (json_escape l)
+    | None -> ""
+  in
+  let targets =
+    d.targets
+    |> List.map (fun t -> Printf.sprintf {|"%s"|} (json_escape t))
+    |> String.concat ","
+  in
+  Printf.sprintf {|{"severity":"%s","message":"%s"%s,"targets":[%s]}|}
+    (json_escape d.severity) (json_escape d.message) loc targets
+
+let format_build_event ~build_id ~status ~rebuilding ?(errors = [])
+    ?(warnings = []) () =
+  let errors_json =
+    errors |> List.map format_diagnostic_json |> String.concat ","
+  in
+  let warnings_json =
+    warnings |> List.map format_diagnostic_json |> String.concat ","
+  in
+  Printf.sprintf
+    {|{"kind":"build_state","build_id":%d,"status":"%s","rebuilding":%s,"errors":[%s],"warnings":[%s]}|}
+    build_id status
+    (if rebuilding then "true" else "false")
+    errors_json warnings_json
+
+let post_dev_event ~host ~port ~token body =
+  let open Lwt.Syntax in
+  Lwt.catch
+    (fun () ->
+      let addr = Unix.ADDR_INET (Unix.inet_addr_of_string host, port) in
+      let fd = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+      Lwt.finalize
+        (fun () ->
+          let* () = Lwt_unix.connect fd addr in
+          let request =
+            Printf.sprintf
+              "POST /_utopia/dev-events HTTP/1.1\r\n\
+               Host: %s:%d\r\n\
+               Authorization: Bearer %s\r\n\
+               Content-Type: application/json\r\n\
+               Content-Length: %d\r\n\
+               Connection: close\r\n\
+               \r\n\
+               %s"
+              host port token (String.length body) body
+          in
+          let bytes = Bytes.of_string request in
+          let* _n = Lwt_unix.write fd bytes 0 (Bytes.length bytes) in
+          Lwt.return_unit)
+        (fun () -> Lwt_unix.close fd))
+    (fun _exn -> Lwt.return_unit)
+
+let build_env ~dev_token config port =
+  let base =
+    [|
+      "PORT=" ^ string_of_int port;
+      "HOST=" ^ config.Flags.host;
+      "UTOPIA_DEV_TOKEN=" ^ dev_token;
+    |]
+  in
   let extras = if config.Flags.verbose then [||] else [| "NO_LOG=1" |] in
   Process.child_env ~extra:(Array.concat [ base; extras ]) ()
 
@@ -66,13 +149,22 @@ let run args =
 
   let dune = Binaries.resolve_bin "dune" in
   Terminal.print_step "Building project";
+  (* Build server executable — required *)
   let code =
     Process.run_command dune
-      (Artifacts.dune_build_args (Artifacts.generated_build_targets ()))
+      (Artifacts.dune_build_args [ Artifacts.generated_server_build_target () ])
   in
   if code <> 0 then (
     Terminal.print_err "Initial dune build failed";
     exit code);
+  (* Build client bundle — non-fatal in dev, watch mode will retry *)
+  let esbuild_code =
+    Process.run_command dune
+      (Artifacts.dune_build_args
+         [ Artifacts.generated_esbuild_build_target () ])
+  in
+  if esbuild_code <> 0 then
+    Terminal.print_warn "Client bundle build failed (will retry in watch mode)";
   Terminal.print_done "Project built";
 
   let generated_server = Artifacts.generated_server_exe_ref () in
@@ -84,13 +176,14 @@ let run args =
          (Artifacts.artifact_display generated_server));
     exit 1);
 
+  let dev_token = generate_dev_token () in
   let selected_port = ref (parse_requested_port config.port) in
   selected_port := select_available_port ~host:config.host !selected_port;
-  let watch_env = build_env config !selected_port in
+  let watch_env = build_env ~dev_token config !selected_port in
   let spawn_generated_server () =
     selected_port := select_available_port ~host:config.host !selected_port;
     let server_path = Artifacts.artifact_path generated_server in
-    let env = build_env config !selected_port in
+    let env = build_env ~dev_token config !selected_port in
     try Ok (Process.spawn server_path [ "--dev" ] env)
     with Unix.Unix_error (error, _, _) -> Error (Unix.error_message error)
   in
@@ -150,10 +243,60 @@ let run args =
     else
       Lwt_main.run
         (let open Lwt.Syntax in
+         let build_id = ref 0 in
+         let dev_hooks : Build_rpc.lifecycle_hooks =
+           {
+             build_started =
+               (fun () ->
+                 incr build_id;
+                 let body =
+                   format_build_event ~build_id:!build_id ~status:"building"
+                     ~rebuilding:true ()
+                 in
+                 Lwt.async (fun () ->
+                     post_dev_event ~host:config.host ~port:!selected_port
+                       ~token:dev_token body));
+             build_failed =
+               (fun diagnostics ->
+                 let structured =
+                   List.map Build_rpc.structured_of_diagnostic diagnostics
+                 in
+                 let errors =
+                   List.filter
+                     (fun (d : Build_rpc.structured_diagnostic) ->
+                       d.severity = "error")
+                     structured
+                 in
+                 let warnings =
+                   List.filter
+                     (fun (d : Build_rpc.structured_diagnostic) ->
+                       d.severity = "warning")
+                     structured
+                 in
+                 let body =
+                   format_build_event ~build_id:!build_id ~status:"failed"
+                     ~rebuilding:false ~errors ~warnings ()
+                 in
+                 Lwt.async (fun () ->
+                     post_dev_event ~host:config.host ~port:!selected_port
+                       ~token:dev_token body));
+             build_succeeded =
+               (fun () ->
+                 (* Server restart handles reload via SSE disconnect/reconnect.
+                    Post a healthy state so the browser knows the build succeeded. *)
+                 let body =
+                   format_build_event ~build_id:!build_id ~status:"healthy"
+                     ~rebuilding:false ()
+                 in
+                 Lwt.async (fun () ->
+                     post_dev_event ~host:config.host ~port:!selected_port
+                       ~token:dev_token body));
+           }
+         in
          let rpc_task =
            Lwt.catch
              (fun () ->
-               Build_rpc.run_loop
+               Build_rpc.run_loop ~hooks:dev_hooks
                  ~build_dir:
                    (Filename.concat
                       (Artifacts.workspace_root_string ())

@@ -49,6 +49,11 @@ let generated_server_build_target () =
   Fpath.(Utopia_path.project_utopia_dir project / "server_main.exe")
   |> Fpath.to_string
 
+let generated_esbuild_build_target () =
+  let project = project_paths () in
+  "@"
+  ^ Fpath.to_string Fpath.(Utopia_path.project_utopia_dir project / "esbuild")
+
 let generated_build_targets () = [ generated_server_build_target () ]
 
 let artifact_path artifact =

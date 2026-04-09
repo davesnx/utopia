@@ -67,6 +67,39 @@ let format_diagnostic diagnostic =
   Printf.sprintf "    %s%s: %s%s" location severity (String.trim message)
     target_suffix
 
+type structured_diagnostic = {
+  severity : string;
+  message : string;
+  location : string option;
+  targets : string list;
+}
+
+let structured_of_diagnostic diagnostic =
+  let severity =
+    match Protocol.Diagnostic.severity diagnostic with
+    | Some Protocol.Diagnostic.Error -> "error"
+    | Some Protocol.Diagnostic.Warning -> "warning"
+    | None -> "note"
+  in
+  let location =
+    match Protocol.Diagnostic.loc diagnostic with
+    | Some loc -> Some (format_loc loc)
+    | None -> None
+  in
+  let message =
+    Protocol.Diagnostic.message diagnostic |> pp_to_string |> String.trim
+  in
+  let targets =
+    Protocol.Diagnostic.targets diagnostic
+    |> List.filter_map (fun target ->
+        match target with
+        | Protocol.Target.Path path -> Some path
+        | Protocol.Target.Alias alias ->
+            Some (Printf.sprintf "(alias %s)" alias)
+        | _ -> None)
+  in
+  { severity; message; location; targets }
+
 let format_progress = function
   | Protocol.Progress.Waiting -> Terminal.dim "waiting"
   | Protocol.Progress.In_progress { complete; remaining; failed } ->

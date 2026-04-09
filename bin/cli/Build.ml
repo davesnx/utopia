@@ -36,6 +36,7 @@ let run _args =
 
   Terminal.print_step "Building server and client outputs";
   let dune = Binaries.resolve_bin "dune" in
+  (* Build server executable — required *)
   let code =
     Process.run_command dune
       (Artifacts.dune_build_args (Artifacts.generated_build_targets ()))
@@ -43,6 +44,15 @@ let run _args =
   if code <> 0 then (
     Terminal.print_err "dune build failed";
     exit code);
+  (* Build client bundle *)
+  let esbuild_code =
+    Process.run_command dune
+      (Artifacts.dune_build_args
+         [ Artifacts.generated_esbuild_build_target () ])
+  in
+  if esbuild_code <> 0 then
+    Terminal.print_warn
+      "Client bundle build failed (check npm packages and esbuild setup)";
 
   Terminal.print_done "Build complete";
 

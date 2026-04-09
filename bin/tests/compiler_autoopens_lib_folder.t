@@ -22,6 +22,7 @@ Check page copy rules have open! Lib prelude:
   $ grep -qF '(echo "open! Lib;\n")' _utopia/dune
 Check lib copy rules do NOT have open! Lib (just line directive):
   $ grep -qF '(rule (deps ../lib/Utils.re) (target Lib__Utils.re)' _utopia/dune
+  [1]
 Check Lib.re namespace module (appears twice - for melange and native):
   $ test "$(grep -c '(rule (target Lib.re)' _utopia/dune)" -eq 2
   $ grep -F 'source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = false;' _utopia/Routes.ml

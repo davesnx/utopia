@@ -185,13 +185,60 @@ let run ~build_mode =
       let api_root =
         if use_app_directory then Routes.app_api_directory else api_directory
       in
+      (* Scan pages for client components and compute melange optimization *)
+      let client_component_pages, melange_lib_modules =
+        let shared_lib_dir =
+          Fpath.to_string Utopia_path.shared_lib_directory_name
+        in
+        let lib_files = Build_inputs.shared_lib_files_for_build () in
+        let lib_module_map = Client_graph.build_lib_module_map lib_files in
+        let pages_with_cc = ref [] in
+        let all_refs = ref Client_component_scan.StringSet.empty in
+        recursive_pages
+        |> List.iter (fun relative_file ->
+            let source_file = Filename.concat source_root relative_file in
+            if Sys.file_exists source_file then
+              let source =
+                In_channel.with_open_bin source_file (fun ch ->
+                    In_channel.input_all ch)
+              in
+              let result = Client_component_scan.extract_client_code source in
+              if result.has_client_components then (
+                pages_with_cc := relative_file :: !pages_with_cc;
+                all_refs :=
+                  Client_component_scan.StringSet.union !all_refs
+                    result.module_references));
+        let melange_lib_closure =
+          Client_graph.compute_lib_closure ~seed_refs:!all_refs ~lib_module_map
+            ~shared_lib_directory:shared_lib_dir
+        in
+        let cc_set =
+          List.fold_left
+            (fun acc f -> Client_component_scan.StringSet.add f acc)
+            Client_component_scan.StringSet.empty !pages_with_cc
+        in
+        (cc_set, melange_lib_closure)
+      in
+      let is_client_component_page relative_file =
+        Client_component_scan.StringSet.mem relative_file client_component_pages
+      in
+      let is_melange_lib_module module_name =
+        Client_component_scan.StringSet.mem module_name melange_lib_modules
+      in
+      Printf.printf "  Client component pages: %d\n"
+        (Client_component_scan.StringSet.cardinal client_component_pages);
+      Printf.printf "  Melange lib modules: %d\n"
+        (Client_component_scan.StringSet.cardinal melange_lib_modules);
       let source_support_dune =
         Generated_source_dune.generate ~source_root recursive_pages
           route_entries
       in
+      let _dev_mode = build_mode = Esbuild.development in
+      (* TODO: pass ~dev_mode once dev overlay dune rules are ready *)
       let runtime_dune =
-        Generated_dune.generate ~source_root ~api_root recursive_pages
-          recursive_api route_entries api_entries
+        Generated_dune.generate ~source_root ~api_root ~is_client_component_page
+          ~is_melange_lib_module recursive_pages recursive_api route_entries
+          api_entries
       in
       let dune_rules =
         [ source_support_dune; runtime_dune ]
@@ -217,4 +264,15 @@ let run ~build_mode =
         (file_ref_path (Utopia_path.generated_server_source project))
         server_main)
 
-let () = run ~build_mode:(parse_build_mode (Array.to_list Sys.argv |> List.tl))
+let extract_client_main source_file =
+  let source =
+    In_channel.with_open_bin source_file (fun ch -> In_channel.input_all ch)
+  in
+  let result = Client_component_scan.extract_client_code source in
+  if result.has_client_components then print_string result.extracted_source
+
+let () =
+  let argv = Array.to_list Sys.argv |> List.tl in
+  match argv with
+  | "--extract-client" :: source_file :: _ -> extract_client_main source_file
+  | _ -> run ~build_mode:(parse_build_mode argv)

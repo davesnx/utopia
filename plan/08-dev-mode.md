@@ -51,15 +51,36 @@ Use ~500ms polling for executable mtime checks.
 
 ---
 
-## Build/watch integration baseline
+## Build/watch integration (implemented)
 
-`utopia dev` owns dune watch + RPC wiring and emits structured lifecycle hooks consumed by plan 11's dev-event bridge:
+`utopia dev` owns dune watch + RPC wiring and emits structured lifecycle hooks consumed by the dev-event bridge:
 
-- `build_started`
-- `build_failed` (diagnostics attached)
-- `build_succeeded`
+- `build_started` -- posts `{"status":"building"}` to `/_utopia/dev-events`
+- `build_failed` -- posts `{"status":"failed"}` with structured diagnostics (severity, message, location, targets)
+- `build_succeeded` -- posts `{"status":"healthy"}`; server restart handles browser reload via SSE disconnect/reconnect
 
-Reload and browser-overlay semantics are defined by plan 11, not this file.
+The CLI generates a per-session dev publish token (`UTOPIA_DEV_TOKEN`), passes it to the generated server as an environment variable, and uses it for authenticated HTTP POST to the dev-events endpoint.
+
+Build events are sent via a lightweight raw `Lwt_unix` socket POST to `http://<host>:<port>/_utopia/dev-events`.
+
+---
+
+## Dev event channel (implemented)
+
+The generated server exposes two dev-only endpoints when started with `--dev`:
+
+- `GET /_utopia/dev-events` -- SSE subscription. New subscribers immediately receive the current build state. Events are broadcast via `Lwt_condition`. A 30-second heartbeat keeps connections alive.
+- `POST /_utopia/dev-events` -- CLI-authenticated publish. Requires `Authorization: Bearer <token>` header.
+
+Both endpoints are gated on `~dev_mode` in the request handler and are absent in production.
+
+---
+
+## Browser overlay (implemented)
+
+The dev overlay is a Melange module (`Utopia_dev_overlay.re`) compiled by esbuild as a separate entry point in development builds only. It self-initializes via `window.__UTOPIA_DEV_MODE__` (injected by the server in a `<script>` tag).
+
+Error capture points: `client_entry.re` (hydration), `Utopia_router.re` (navigation), `Utopia_call_server.re` (server actions), plus `window.onerror`/`window.onunhandledrejection`. All use the global `window.__utopia_dev_report_error` callback.
 
 ---
 

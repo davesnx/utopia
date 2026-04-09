@@ -243,6 +243,25 @@ let make = (~initialPath: string, ~children: React.element) => {
     | None => false
     };
 
+  let%browser_only reportNavigationError = (targetPath, message) => {
+    ignore(
+      [%mel.raw
+        {|
+      (function() {
+        if (typeof window !== 'undefined' && window.__utopia_dev_report_error) {
+          window.__utopia_dev_report_error({
+            operation: 'navigation',
+            message: message,
+            stack: null,
+            context: 'to: ' + targetPath
+          });
+        }
+      })()
+    |}
+      ],
+    );
+  };
+
   let%browser_only fetchNavigation = (~currentPath: option(string), nextPath) => {
     let headers =
       switch (currentPath) {
@@ -372,6 +391,11 @@ let make = (~initialPath: string, ~children: React.element) => {
                setPath(_ => nextRequestPath);
                Js.Promise.resolve();
              }
+           })
+        |> Js.Promise.catch(err => {
+             let msg = [%mel.raw {| String(err && err.message ? err.message : err) |}];
+             reportNavigationError(nextRequestPath, msg);
+             Js.Promise.resolve();
            });
       ();
     };

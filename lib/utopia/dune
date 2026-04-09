@@ -4,7 +4,8 @@
  (files
   (client_entry.re as utopia/client_entry.re)
   (esbuild.config.mjs as utopia/esbuild.config.mjs)
-  (ReactServerDOMEsbuild.re as utopia/ReactServerDOMEsbuild.re)))
+  (ReactServerDOMEsbuild.re as utopia/ReactServerDOMEsbuild.re)
+  (Utopia_dev_overlay.re as utopia/Utopia_dev_overlay.re)))
 
 (library
  (name utopia)

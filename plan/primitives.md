@@ -185,11 +185,23 @@ A generated Reason file compiled via Melange that serves as the browser-side RSC
 ### Call Server Runtime (`_utopia/Utopia_call_server.re`)
 A generated runtime support module that owns the browser-side server-action transport used by both the initial client entry and client-side RSC navigation. Keeping `callServer` separate from `Utopia_router` prevents the initial client entry from importing the full router runtime just to invoke server actions.
 
-### Client Component Bridge Module (Planned)
-A generated module under `_utopia/client_components/` that re-exports one discovered `[@react.client.component]` definition with a stable module identity for Melange/esbuild extraction. Bridges are used as client build entrypoints so server-only page modules do not become default Melange entrypoints.
+### Client Component Extraction (`--extract-client`)
+The compiler subcommand that extracts client-side code from a page source file. For pages containing `[@react.client.component]` modules, the extraction:
+1. Identifies top-level items (let bindings, modules, types, opens, includes)
+2. Finds which modules contain `[@react.client.component]`
+3. Computes the intra-file dependency closure: identifiers used by client modules that resolve to other top-level bindings (transitively)
+4. Outputs only the closure items and all opens/includes, excluding server-only code
 
-### Client Reachability Closure (Planned)
-The transitive local-module dependency set reachable from discovered client component entrypoints. Planned Melange optimization compiles only this closure (plus required runtime scaffolding) instead of compiling all page/layout mirrors.
+The compiler generates dune rules that invoke `utopia.compiler --extract-client <source>` for each page with client components. Dune watches the source file and re-extracts on change. Pages without client components are excluded from the melange build entirely.
+
+### Client Reachability Closure
+The set of lib modules transitively reachable from client component code. The compiler scans extracted client code for module references (capitalized identifiers in longidents like `Utils.foo`, plus opened/included modules). It then recursively scans referenced lib modules for their own module references. Only reachable lib modules are included in the `melange.emit` stanza. Unreachable lib modules (used only by server code) are excluded from melange compilation.
+
+### Client Component Scan (`Client_component_scan`)
+Compiler module that performs intra-file analysis for melange optimization. Tokenizes source files, parses top-level item boundaries, identifies client component modules, collects identifier references, and computes the transitive closure of needed items. Handles the `[@react.client.component]` attribute in both Reason (`.re`) and OCaml/mlx (`.ml`, `.mlx`) syntax.
+
+### Client Graph (`Client_graph`)
+Compiler module that performs inter-file dependency analysis for melange optimization. Given a set of module references from client component code, resolves them against known lib module names and computes the transitive closure by scanning referenced lib modules for their own dependencies.
 
 ### esbuild Config (`_utopia/esbuild.config.mjs`)
 A static, runnable JavaScript file that imports `server-reason-react-esbuild-plugin`, configures entry points (the client entry), target directory (Melange output), and output directory. Executed by Node as a dune rule. The config is a static runtime file copied from `lib/utopia/esbuild.config.mjs` — not generated. It imports build metadata from a sibling `_utopia/paths.mjs` module, sets `process.env.NODE_ENV` internally for Node tooling, enables production minification when `buildMode = "production"`, and derives all build paths at runtime. This means the esbuild config is real, directly runnable JavaScript with full editor support, linting, and syntax highlighting.
@@ -388,23 +400,26 @@ In the current implementation, initial HTML, GET RSC payloads, and POST server-f
 ### Dev Route Index
 When the root path `/` is requested and no index page is registered, the server renders an auto-generated listing of all routes with links. This is a development convenience feature.
 
-### Live Reload
-Planned dev-mode browser behavior. Authoritative design is in `plan/11-dev-full-reload-and-browser-overlay.md`: full reload only (no HMR/state preservation/per-module swap), plus in-browser build/runtime diagnostics via a unified overlay. Current `utopia dev` restarts the generated server and streams dune RPC diagnostics to the terminal only; browser feedback wiring is still planned.
+### Live Reload (implemented)
+Dev-mode browser behavior. Full reload only (no HMR/state preservation/per-module swap). On successful rebuild, the CLI restarts the generated server; the browser detects SSE disconnect/reconnect and triggers `location.reload()` when the server comes back healthy. Failed builds show dune diagnostics in an in-browser overlay without reloading. Authoritative design is in `plan/11-dev-full-reload-and-browser-overlay.md`.
 
 ### Server Restart
 In dev mode, the CLI restarts the generated per-project server executable after successful rebuilds (mtime change): send SIGTERM, wait with timeout, send SIGKILL if needed, then spawn replacement. Port selection uses preferred-port fallback semantics and may move to the next available port.
 
-### Dev Event Channel
-Planned development-only server channel for browser build-state observation. The intended design is an SSE subscription endpoint (`GET /_utopia/dev-events`) plus a CLI-authenticated publish endpoint (`POST /_utopia/dev-events`) guarded by a per-session token.
+### Dev Event Channel (implemented)
+Development-only server channel for browser build-state observation. An SSE subscription endpoint (`GET /_utopia/dev-events`) broadcasts build state to all connected browsers via `Lwt_condition`. A CLI-authenticated publish endpoint (`POST /_utopia/dev-events`) accepts build lifecycle events guarded by a per-session token. Both endpoints are gated on `--dev` mode. State includes: build_id, status (building/failed/healthy), rebuilding flag, errors array, warnings array. New SSE subscribers immediately receive the current state. 30-second heartbeat keeps connections alive.
 
-### Dev Publish Token
-Planned per-session secret token for authenticating CLI-originated dev-event publishes. Not implemented yet.
+### Dev Publish Token (implemented)
+Per-session random hex token (32 chars) generated by the CLI at dev session start, passed to the generated server via `UTOPIA_DEV_TOKEN` environment variable, and required as `Authorization: Bearer <token>` on `POST /_utopia/dev-events`. Build events are sent from the CLI via raw `Lwt_unix` socket POST.
 
-### Build Diagnostic Overlay
-Planned development-only in-browser overlay for dune/compiler build failures. Not implemented yet.
+### Build Diagnostic Overlay (implemented)
+Development-only in-browser overlay for dune/compiler build failures. Rendered by `Utopia_dev_overlay.re` into a dedicated DOM root (`#utopia-dev-overlay`) under `document.body`. Build errors are expanded by default; warnings are collapsed in a `<details>` element. The overlay is read-only (no dismiss for build errors). The module is compiled by Melange and bundled by esbuild as a separate entry point, included in `~bootstrapModules` only in dev mode.
 
-### Runtime Error Overlay
-Planned development-only in-browser overlay slice for browser/runtime failures after the page has loaded, including hydration/bootstrap failures, client navigation failures, server-action failures, uncaught `window.onerror` exceptions, and `unhandledrejection` events. Not implemented yet.
+### Runtime Error Overlay (implemented)
+Development-only in-browser overlay slice for browser/runtime failures after page load. Captures errors from: hydration/bootstrap (`client_entry.re`), client navigation (`Utopia_router.re`), server-action encode/fetch/decode (`Utopia_call_server.re`), `window.onerror`, and `window.onunhandledrejection`. All capture points call `window.__utopia_dev_report_error` (a global callback registered by the overlay). Runtime errors are dismissable. The overlay is independent of React (uses raw DOM) so it works when the main app hydration path is broken.
+
+### Utopia_dev_overlay.re (implemented)
+Browser dev runtime module. Self-initializes when loaded as an ES module script in dev mode (checks `window.__UTOPIA_DEV_MODE__`). Owns: EventSource SSE connection, build/runtime error state, overlay DOM rendering, global error handlers, and reconnect/reload logic. Not included in production builds.
 
 ## Static Site Generation (SSG)
 
@@ -412,13 +427,13 @@ Planned development-only in-browser overlay slice for browser/runtime failures a
 A page that is rendered at build time. Code pages are static when they do **not** export `let before`. Markdown pages are always static. Detection uses the `Analysis` comment/string-safe lexical scanner. Static pages are rendered by the `--ssg` mode of the generated `server_main.exe`, producing HTML files in `_utopia/static/`.
 
 ### Compiler Analysis Scanner (`Analysis`)
-A lightweight lexical scanner used by the compiler to tokenize code while ignoring comments and string/char literals. It powers `let before` export detection (determines dynamic vs static), `let paths` export detection, and reusable attribute scans such as `[@react.client.component]` discovery for Melange optimization planning.
+A lightweight lexical scanner used by the compiler to tokenize code while ignoring comments and string/char literals. Tokens carry text, line/column origin, and byte offset for precise source extraction. It powers `let before` export detection (determines dynamic vs static), `let paths` export detection, `[@react.client.component]` discovery, and the client component extraction pass for melange optimization.
 
 ### paths
 An export required on static pages with dynamic segments (e.g., `app/posts/[slug]/page.mlx`). Returns `(string * string) list list` enumerating all param combinations to render. The compiler validates its presence and the SSG renderer iterates over the returned paths.
 
 ### SSG Mode (`--ssg`)
-The generated `server_main.exe` accepts a `--ssg` CLI flag. When invoked with `--ssg`, instead of starting a web server it renders all static pages to HTML files in `_utopia/static/`, copies stylesheets, and exits. The dune alias `(alias ssg)` invokes this mode.
+The generated `server_main.exe` accepts a `--ssg` CLI flag. When invoked with `--ssg`, instead of starting a web server it renders all static pages to HTML files in `_utopia/static/`, copies stylesheets, and exits. The dune alias `(alias ssg)` invokes this mode. Rendering is parallelized using `Unix.fork()` across up to 8 worker processes: work is split into chunks, directories are pre-created in the parent process to avoid race conditions, and each child renders and writes its chunk independently.
 
 ### Blog Demo (`demo/blog/`)
 A static blog demo showcasing SSG. Renders 4 markdown files from `content/` using `Utopia_markdown.element_of_doc` with custom Tailwind-styled `Components`. Pages are static by default and the dynamic-segment page exports `paths`. Design inspired by shud.in: sidebar navigation, dot-leader blog list, clean typography. Local demo automation lives in `demo/blog/Makefile`; `build`, `run`, `export`, and `serve` are the canonical entrypoints instead of `package.json` scripts. `export` invokes `utopia export` (after building `output.css`) so static output lands in `demo/blog/_utopia/static/`. `serve` first regenerates that directory and then serves it as plain static files via `python3 -m http.server`, honoring `HOST` and `PORT`.

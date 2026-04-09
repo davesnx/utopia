@@ -22,17 +22,25 @@
   > EOF
   $ utopia.compiler > /dev/null
   $ dune build _utopia/server_main.exe > /dev/null
+Prod mode still serves stale static HTML (pre-rendered file unchanged):
   $ PORT=8120 HOST=127.0.0.1 NO_LOG=1 _build/default/_utopia/server_main.exe > server.log 2>&1 &
   $ server_pid=$!
   $ curl -s --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8120/about | rg -m1 -o 'initial static html'
   initial static html
-  $ rm _utopia/static/about.html
+  $ kill $server_pid
+  $ wait $server_pid || true
+  Terminated
+Dev mode bypasses static HTML and always server-renders (static file still present):
+  $ PORT=8120 HOST=127.0.0.1 NO_LOG=1 _build/default/_utopia/server_main.exe --dev > server.log 2>&1 &
+  $ server_pid=$!
   $ curl -s --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8120/about | rg -m1 -o 'updated server render'
   updated server render
   $ kill $server_pid
   $ wait $server_pid || true
   Terminated
-  $ PORT=8120 HOST=127.0.0.1 NO_LOG=1 _build/default/_utopia/server_main.exe --dev > server.log 2>&1 &
+Prod mode falls back to SSR when static HTML is missing:
+  $ rm _utopia/static/about.html
+  $ PORT=8120 HOST=127.0.0.1 NO_LOG=1 _build/default/_utopia/server_main.exe > server.log 2>&1 &
   $ server_pid=$!
   $ curl -s --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8120/about | rg -m1 -o 'updated server render'
   updated server render

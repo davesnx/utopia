@@ -557,14 +557,14 @@ Custom components are provided via:
 1. Validate project shape
 2. Run npm preflight (same package requirements as `build`)
 3. Run `utopia.compiler --mode development`
-4. Run an initial `dune build --root <workspace> --no-print-directory <generated-server-target>`
+4. Run an initial `dune build --root <workspace> --no-print-directory <generated-server-target> @_utopia/esbuild`
 5. Start `dune build -w --root <workspace> --no-print-directory .` unless `--no-watch`
-6. Start the generated per-project server executable at `_build/default/_utopia/server_main.exe` for root projects, or `_build/default/<project-path>/_utopia/server_main.exe` for nested projects
-7. Connect to dune RPC, subscribe to progress and diagnostics, and stream those events to the terminal
-8. Restart the generated server whenever the built `server_main.exe` mtime changes (SIGTERM -> timeout wait -> SIGKILL if needed)
+6. Start the generated per-project server executable with `--dev` flag and `UTOPIA_DEV_TOKEN` env var
+7. Connect to dune RPC, subscribe to progress and diagnostics, stream terminal output, and POST build lifecycle events (started/failed/succeeded) to `/_utopia/dev-events` on the generated server
+8. Restart the generated server whenever the built `server_main.exe` mtime changes (SIGTERM -> timeout wait -> SIGKILL if needed). SSE disconnect/reconnect triggers full page reload in the browser.
 9. Handle SIGINT/SIGTERM for clean teardown
 
-Current dev mode does not yet implement browser reload, SSE dev events, or the in-browser build/runtime overlay described in `tasks/dev-full-reload-and-browser-overlay.md`.
+Dev mode implements full-page reload on successful rebuilds, in-browser build/runtime diagnostics overlay via SSE (`/_utopia/dev-events`), and runtime error capture from hydration, navigation, and server-action paths. See `plan/11-dev-full-reload-and-browser-overlay.md` for details.
 
 ### Dune RPC In `dev` (implemented)
 
@@ -887,7 +887,7 @@ esbuild is integrated as a generated dune alias rather than a long-running sidec
 
 The generated config imports `_utopia/paths.mjs`, derives all source/output paths from `projectPath`, sets `process.env.NODE_ENV`, enables minification when `buildMode = "production"`, and uses `server-reason-react-esbuild-plugin` to generate `bootstrap.js` from Melange's extracted client-component markers.
 
-Current caveat: the generated alias exists and works, but `utopia build` / `utopia dev` still do not explicitly request `@_utopia/esbuild`.
+Both `utopia build` and `utopia dev` explicitly request `@_utopia/esbuild` alongside the server executable build target. In development mode, esbuild produces a second entry point (`Utopia_dev_overlay.js`) for the browser dev overlay.
 
 ### Client entry (implemented)
 
