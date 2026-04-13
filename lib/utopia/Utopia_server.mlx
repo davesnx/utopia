@@ -169,19 +169,25 @@ let make_markdown_payload ~markdown_body ~frontmatter_object ?meta_title
     ?meta_description () =
   { markdown_body; frontmatter_object; meta_title; meta_description }
 
-let lookup_generated_registry entries source_file = List.assoc_opt source_file entries
+let lookup_generated_registry entries source_file =
+  List.assoc_opt source_file entries
 
-let resolve_generated_layout_infos (registry : generated_registry) source_files =
+let resolve_generated_layout_infos (registry : generated_registry) source_files
+    =
   source_files
   |> List.filter_map (lookup_generated_registry registry.layout_infos)
 
 let generated_layout_renderers layouts =
-  List.map (fun (layout : Utopia_route_builder.layout_info) -> layout.render) layouts
+  List.map
+    (fun (layout : Utopia_route_builder.layout_info) -> layout.render)
+    layouts
 
 let resolve_generated_code_page (registry : generated_registry)
     (meta : page_route_meta) =
   let layouts = resolve_generated_layout_infos registry meta.layouts in
-  let metadata = lookup_generated_registry registry.page_metadata meta.source_file in
+  let metadata =
+    lookup_generated_registry registry.page_metadata meta.source_file
+  in
   let paths =
     if meta.has_paths then
       lookup_generated_registry registry.page_paths meta.source_file
@@ -191,8 +197,8 @@ let resolve_generated_code_page (registry : generated_registry)
   | None -> None
   | Some render ->
       let router =
-        Utopia_route_builder.build_router ~matcher:meta.matcher ~make_page:render
-          ~layouts
+        Utopia_route_builder.build_router ~matcher:meta.matcher
+          ~make_page:render ~layouts
       in
       Some
         (Generated_route.code ~route:meta.route ~matcher:meta.matcher
@@ -201,23 +207,28 @@ let resolve_generated_code_page (registry : generated_registry)
            ~layout_renderers:(generated_layout_renderers layouts)
            ~router_shell:router.Utopia_route_builder.shell
            ~router_tree:router.Utopia_route_builder.tree
-           ~router_subtree:router.Utopia_route_builder.subtree ~static:meta.static
-           ~paths ())
+           ~router_subtree:router.Utopia_route_builder.subtree
+           ~static:meta.static ~paths ())
 
 let resolve_generated_markdown_page (registry : generated_registry)
     ~(body : string) ~(frontmatter : Utopia_markdown.frontmatter_object option)
     ~(title : string option) ~(description : string option)
     (meta : page_route_meta) =
   let layouts = resolve_generated_layout_infos registry meta.layouts in
-  let metadata = lookup_generated_registry registry.page_metadata meta.source_file in
-  let render () = body |> Utopia_markdown.doc_of_string |> Utopia_markdown.element_of_doc in
+  let metadata =
+    lookup_generated_registry registry.page_metadata meta.source_file
+  in
+  let render () =
+    body |> Utopia_markdown.doc_of_string |> Utopia_markdown.element_of_doc
+  in
   let router =
     Utopia_route_builder.build_router ~matcher:meta.matcher ~make_page:render
       ~layouts
   in
   Generated_route.markdown ~route:meta.route ~matcher:meta.matcher
     ~params:meta.params ~source_file:meta.source_file ~layouts:meta.layouts
-    ~metadata ~layout_renderers:(generated_layout_renderers layouts)
+    ~metadata
+    ~layout_renderers:(generated_layout_renderers layouts)
     ~router_shell:router.Utopia_route_builder.shell
     ~router_tree:router.Utopia_route_builder.tree
     ~router_subtree:router.Utopia_route_builder.subtree
@@ -232,40 +243,43 @@ let generated_pages (module Routes : Generated_routes_server)
   let resolve_markdown_entry source_file =
     markdown_entries
     |> List.find_opt (fun (entry : Routes.Markdown.entry) ->
-           String.equal entry.source_file source_file)
+        String.equal entry.source_file source_file)
   in
   Routes.get_all ()
   |> List.filter_map (fun (meta : page_route_meta) ->
-         match meta.kind with
-         | Code_page -> resolve_generated_code_page registry meta
-         | Markdown_page ->
-             resolve_markdown_entry meta.source_file
-             |> Option.map (fun (entry : Routes.Markdown.entry) ->
-                    resolve_generated_markdown_page registry ~body:entry.body
-                      ~frontmatter:entry.frontmatter ~title:entry.title
-                      ~description:entry.description meta))
+      match meta.kind with
+      | Code_page -> resolve_generated_code_page registry meta
+      | Markdown_page ->
+          resolve_markdown_entry meta.source_file
+          |> Option.map (fun (entry : Routes.Markdown.entry) ->
+              resolve_generated_markdown_page registry ~body:entry.body
+                ~frontmatter:entry.frontmatter ~title:entry.title
+                ~description:entry.description meta))
 
 let resolve_generated_api (registry : generated_registry)
     (metadata : api_route_meta list) =
   metadata
   |> List.filter_map (fun (meta : api_route_meta) ->
-         match lookup_generated_registry registry.api_handlers meta.source_file with
-         | None -> None
-         | Some handler ->
-             Some
-               (Generated_api_route.make ~route:meta.route ~matcher:meta.matcher
-                  ~params:meta.params ~source_file:meta.source_file
-                  ~middlewares:
-                    (meta.middlewares
-                    |> List.filter_map
-                         (lookup_generated_registry registry.api_middlewares))
-                   ~handler ()))
+      match
+        lookup_generated_registry registry.api_handlers meta.source_file
+      with
+      | None -> None
+      | Some handler ->
+          Some
+            (Generated_api_route.make ~route:meta.route ~matcher:meta.matcher
+               ~params:meta.params ~source_file:meta.source_file
+               ~middlewares:
+                 (meta.middlewares
+                 |> List.filter_map
+                      (lookup_generated_registry registry.api_middlewares))
+               ~handler ()))
 
 let generated_api_routes (module Routes : Generated_routes_server)
     (registry : generated_registry) =
   resolve_generated_api registry (Routes.Api.get_all ())
 
-let resolve_generated_not_found (registry : generated_registry) ~layouts ~render () =
+let resolve_generated_not_found (registry : generated_registry) ~layouts ~render
+    () =
   let layouts = resolve_generated_layout_infos registry layouts in
   let router =
     Utopia_route_builder.build_router ~matcher:"" ~make_page:render ~layouts
@@ -811,9 +825,8 @@ and wrap_raw_inner_html_element (node : React.element) : React.element =
           children = List.map wrap_raw_inner_html_element children;
         }
 
-let meta_tag name content = <meta name=name content=content />
-
-let property_tag property content = <meta property=property content=content />
+let meta_tag name content = <meta name content />
+let property_tag property content = <meta property content />
 
 let render_description_meta = function
   | Some desc -> [ meta_tag "description" desc ]
@@ -893,14 +906,17 @@ let render_icons_links icons =
   |> List.map (fun (ic : icon) ->
       let rel = ic.rel |> Option.value ~default:"icon" in
       let props =
-        [ React.JSX.string "rel" "rel" rel;
-          React.JSX.string "href" "href" ic.href ]
+        [
+          React.JSX.string "rel" "rel" rel;
+          React.JSX.string "href" "href" ic.href;
+        ]
         @ (match ic.sizes with
-           | Some s -> [ React.JSX.string "sizes" "sizes" s ]
-           | None -> [])
-        @ (match ic.mime_type with
-           | Some t -> [ React.JSX.string "type" "type_" t ]
-           | None -> [])
+          | Some s -> [ React.JSX.string "sizes" "sizes" s ]
+          | None -> [])
+        @
+        match ic.mime_type with
+        | Some t -> [ React.JSX.string "type" "type_" t ]
+        | None -> []
       in
       React.createElement "link" props [])
 
@@ -927,9 +943,10 @@ let html_page ~title ~(meta : metadata) ~body =
     if !server_dev_mode then
       [
         <script
-          dangerouslySetInnerHTML=(object
-            method __html = {|window.__UTOPIA_DEV_MODE__=true|}
-          end)
+          dangerouslySetInnerHTML=object
+                                    method __html =
+                                      {|window.__UTOPIA_DEV_MODE__=true|}
+                                  end
         />;
       ]
     else []
@@ -967,12 +984,12 @@ let render_params params =
       <section>
         <h2>(React.string "Params")</h2>
         (React.createElement "ul" []
-          (params
-          |> List.map (fun (name, value) ->
-              <li>
-                <code>(React.string name)</code>
-                (React.string (" = " ^ render_param_value value))
-              </li>)))
+           (params
+           |> List.map (fun (name, value) ->
+               <li>
+                 <code>(React.string name)</code>
+                 (React.string (" = " ^ render_param_value value))
+               </li>)))
       </section>;
     ]
 
@@ -980,10 +997,7 @@ let wrap_with_layouts layouts content =
   List.fold_right
     (fun layout acc ->
       <section>
-        <div>
-          (React.string "Layout: ")
-          <code>(React.string layout)</code>
-        </div>
+        <div>(React.string "Layout: ") <code>(React.string layout)</code></div>
         acc
       </section>)
     layouts content
@@ -1005,10 +1019,6 @@ let render_code_page_fresh route source_file params layouts =
   in
   html_page ~title:route ~meta:empty_metadata
     ~body:(wrap_with_layouts layouts content)
-
-let render_markdown_body markdown_body =
-  markdown_body |> Utopia_markdown.doc_of_string
-  |> Utopia_markdown.element_of_doc
 
 let render_runtime_markdown markdown =
   markdown.doc |> Lazy.force |> Utopia_markdown.element_of_doc
@@ -1047,10 +1057,8 @@ let compiled_page_body params render =
   | [] -> render ()
   | extra -> React.createElement "div" [] (extra @ [ render () ])
 
-let fallback_title route_entry =
-  match route_entry.kind with
-  | Code_page -> if route_entry.route = "" then "/" else route_entry.route
-  | Markdown_page -> if route_entry.route = "" then "/" else route_entry.route
+let fallback_title (route_entry : route_entry) =
+  if route_entry.route = "" then "/" else route_entry.route
 
 let flatten_params params =
   List.map
@@ -1231,9 +1239,7 @@ let render_index (routes : route_entry list) =
   let links =
     routes
     |> List.map (fun { route; kind; source_file; params; layouts; _ } ->
-        let label =
-          match kind with Code_page -> "code" | Markdown_page -> "markdown"
-        in
+        let label = string_of_kind kind in
         let param_text =
           params |> List.map fst |> function
           | [] -> ""
@@ -1248,18 +1254,18 @@ let render_index (routes : route_entry list) =
         in
         let href = "/" ^ route in
         <li>
-          <a href>(React.string ("/" ^ route))</a>
-          (React.string (Printf.sprintf " - %s%s%s (" label param_text layout_text))
+          <a href>(React.string href)</a>
+          (React.string
+             (Printf.sprintf " - %s%s%s (" label param_text layout_text))
           <code>(React.string source_file)</code>
           (React.string ")")
         </li>)
   in
   html_page ~title:"Utopia dev router" ~meta:empty_metadata
     ~body:
-      (<main>
-        <h1>(React.string "Routes")</h1>
-        (React.createElement "ul" [] links)
-      </main>)
+      <main>
+        <h1>(React.string "Routes")</h1> (React.createElement "ul" [] links)
+      </main>
 
 let stream_html ?(status = `OK) ~dev_mode element =
   let element = normalize_model_element element in
@@ -1790,11 +1796,6 @@ let handle_dev_events_publish request =
 let render_not_found_document (nf : generated_not_found) request_target =
   html_page ~title:"Not Found" ~meta:empty_metadata
     ~body:(nf.router_shell request_target)
-
-let render_not_found_element (nf : generated_not_found) =
-  let body = nf.render () in
-  let body = apply_layout_renderers [] nf.layout_renderers body in
-  html_page ~title:"Not Found" ~meta:empty_metadata ~body
 
 let not_found_navigation_model (nf : generated_not_found) =
   let tree = nf.router_tree () |> normalize_model_element in

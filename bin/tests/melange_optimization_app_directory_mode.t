@@ -30,12 +30,24 @@ Optimization works with app/ directory mode:
   > EOF
   $ utopia.compiler > /dev/null
 
-Only dashboard page (with client component) is in melange:
+Only dashboard page (with client component) is in melange,
+alongside the current runtime/router support modules:
 
   $ cat _utopia/dune | tr -s ' \n' ' ' | grep -oP 'melange\.emit.*?modules \K[^)]+' | tr ' ' '\n' | sort
   Lib
   Lib__Ui
   Pages__Dashboard__Page
+  ReactServerDOMEsbuild
+  Routes
+  Routes_client
+  Utopia
+  Utopia_call_server
+  Utopia_dev_client
+  Utopia_route
+  Utopia_router
+  Utopia_router_link
+  Utopia_router_route
+  Utopia_types
   client_entry_melange
 
 Only one extraction rule (for dashboard page with client component):

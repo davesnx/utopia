@@ -1,8 +1,8 @@
-  $ mkdir -p pages/post _utopia
+  $ mkdir -p app/post/[id] app/about _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ cat > 'pages/post/[id].ml' <<'EOF'
+  $ cat > 'app/post/[id]/page.ml' <<'EOF'
   > let paths () = List.init 500 (fun i -> [("id", string_of_int i)])
   > let makeProps () = ()
   > let make () =
@@ -10,7 +10,7 @@
   >     [ React.createElement "h1" [] [React.string "Post title"];
   >       React.createElement "p" [] [React.string "content"] ]
   > EOF
-  $ cat > pages/About.ml <<'EOF'
+  $ cat > app/about/page.ml <<'EOF'
   > let makeProps () = ()
   > let make () = React.string "about page"
   > EOF

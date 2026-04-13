@@ -27,6 +27,6 @@
  (name default)
  (enabled_if
   (= %{profile} dev))
-   (deps
-    (alias_rec all)
-    (alias client)))
+ (deps
+  (alias_rec all)
+  (alias client)))

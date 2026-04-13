@@ -3,41 +3,54 @@ open Notes_data
 let before _request = ()
 
 let metadata _params =
-  Utopia.Metadata.make
-    ~title:"Notes"
+  Utopia.Metadata.make ~title:"Notes"
     ~description:"A stripped-back Utopia Notes demo with SQLite-backed content."
     ()
 
 let[@react.component] make () =
   let summaries = tag_summaries () in
   <main className="flex min-h-screen items-center px-6 py-12 sm:px-8">
-    <section className="mx-auto w-full max-w-[760px] border-t border-[#d8d7d2] pt-8">
-      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#8a8984]">
+    <section
+      className="mx-auto w-full max-w-[760px] border-t border-[#d8d7d2] pt-8">
+      <p
+        className="text-[11px] font-medium uppercase tracking-[0.18em] \
+                   text-[#8a8984]">
         (React.string "Utopia demo")
       </p>
-      <h1 className="mt-3 text-[44px] font-semibold tracking-[-0.05em] text-[#1d1d1f] sm:text-[56px]">
+      <h1
+        className="mt-3 text-[44px] font-semibold tracking-[-0.05em] \
+                   text-[#1d1d1f] sm:text-[56px]">
         (React.string "Notes")
       </h1>
       <p className="mt-4 max-w-[34rem] text-[16px] leading-7 text-[#5e5d58]">
-        (React.string "A stripped-back Utopia Notes demo with a dynamic tag sidebar and SQLite-backed content.")
+        (React.string
+           "A stripped-back Utopia Notes demo with a dynamic tag sidebar and \
+            SQLite-backed content.")
       </p>
       <div className="mt-10 border-t border-[#e4e2db]">
-        (React.array (Array.of_list
-            (List.map
+        (React.array
+           (Array.of_list
+              (List.map
                  (fun summary ->
-                   <Utopia.Router.Link key=summary.slug to_=summary.route
-                     className="js-route-link block border-b border-[#e4e2db] py-4 text-left hover:bg-[#f1f0ec]">
-                     <span className="block text-[17px] font-medium tracking-[-0.02em] text-[#1d1d1f]">
+                   <Utopia.Router.Link
+                     key=summary.slug
+                     to_=summary.route
+                     className="js-route-link block border-b border-[#e4e2db] \
+                                py-4 text-left hover:bg-[#f1f0ec]">
+                     <span
+                       className="block text-[17px] font-medium \
+                                  tracking-[-0.02em] text-[#1d1d1f]">
                        (React.string summary.name)
                      </span>
                      (match summary.description with
-                      | None -> React.null
-                      | Some description ->
-                          <span className="mt-1 block text-[13px] text-[#7a7974]">
-                            (React.string description)
-                          </span>)
+                     | None -> React.null
+                     | Some description ->
+                         <span
+                           className="mt-1 block text-[13px] text-[#7a7974]">
+                           (React.string description)
+                         </span>)
                    </Utopia.Router.Link>)
                  summaries)))
-       </div>
+      </div>
     </section>
   </main>

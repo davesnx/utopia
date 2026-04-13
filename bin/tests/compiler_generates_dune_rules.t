@@ -1,8 +1,8 @@
-  $ mkdir pages _utopia
+  $ mkdir -p app/guide _utopia
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ printf "let page = ()\n" > pages/Home.re
-  $ printf "# Hello\n" > pages/Guide.md
+  $ printf "let page = ()\n" > app/page.re
+  $ printf "# Hello\n" > app/guide/page.md
   $ utopia.compiler > /dev/null
   $ ! test -f _utopia/Utopia.re
   $ ! test -f _utopia/Utopia_route.ml
@@ -28,10 +28,10 @@
   $ ! test -f _utopia/native/Utopia_router_route.re
   $ ! test -f _utopia/native/Utopia_router_link.re
   $ ! test -f _utopia/native/Utopia_route_builder.ml
-  $ grep -qF '(rule (deps ../pages/Home.re) (target Pages__Home.re)' _utopia/dune
+  $ grep -qF '(rule (deps ../../app/page.re) (target Pages__Page.re)' _utopia/dune
   $ grep -qF '(rule (deps client_entry.re) (target client_entry_melange.re)' _utopia/dune
   $ grep -qF '(melange.emit (target target) (module_systems es6)' _utopia/dune
-  $ grep -qF '(rule (deps ../pages/Guide.md) (target Guide.html)' _utopia/dune
+  $ grep -qF 'app/guide/page.md' _utopia/dune
   $ grep -qF '(subdir native' _utopia/dune
   $ ! grep -qF 'target Utopia_routes.ml' _utopia/dune
   $ grep -qF '(wrapped false)' _utopia/dune

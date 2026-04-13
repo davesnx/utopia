@@ -1,11 +1,11 @@
-  $ mkdir pages _utopia
+  $ mkdir -p app/home _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ cat > package.json <<'EOF'
   > {"name":"utopia-test","private":true}
   > EOF
   $ touch _utopia/dune
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/home/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> {React.string("home on fallback port")} </div>;
   > EOF
@@ -19,6 +19,6 @@
   $ rg 'Port 48113 is already in use on 127.0.0.1; using 48114 instead|Ready at|http://127.0.0.1:48114' dev.log
     ⚠ Port 48113 is already in use on 127.0.0.1; using 48114 instead
     Ready at http://127.0.0.1:48114
-  $ kill $dev_pid $blocker_pid
+  $ kill $dev_pid $blocker_pid 2>/dev/null || true
   $ wait $dev_pid 2>/dev/null || true
   $ wait $blocker_pid 2>/dev/null || true

@@ -1,5 +1,5 @@
-  $ mkdir pages
-  $ cat > pages/Home.re <<'EOF'
+  $ mkdir app
+  $ cat > app/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> {React.string("home")} </div>;
   > EOF

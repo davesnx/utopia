@@ -45,15 +45,6 @@ let commands ~version =
     };
   ]
 
-let basename path =
-  let len = String.length path in
-  let rec scan index =
-    if index < 0 then path
-    else if path.[index] = '/' then String.sub path (index + 1) (len - index - 1)
-    else scan (index - 1)
-  in
-  scan (len - 1)
-
 let find_command commands name =
   let lower = String.lowercase_ascii name in
   List.find_opt
@@ -86,7 +77,7 @@ let print_usage commands =
   Printf.printf "  %s   Print CLI version\n" (Terminal.cyan "-v, --version")
 
 let command_from_executable commands argv0 =
-  let name = basename argv0 in
+  let name = Filename.basename argv0 in
   if String.length name > 7 && String.sub name 0 7 = "utopia-" then
     let suffix = String.sub name 7 (String.length name - 7) in
     find_command commands suffix

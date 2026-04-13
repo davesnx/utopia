@@ -87,7 +87,7 @@ let build_env ~dev_token config port =
     |]
   in
   let extras = if config.Flags.verbose then [||] else [| "NO_LOG=1" |] in
-  Process.child_env ~extra:(Array.concat [ base; extras ]) ()
+  Process.child_env ~extra:(Array.append base extras) ()
 
 let parse_requested_port port_value =
   match Process.parse_port port_value with
@@ -182,7 +182,6 @@ let run args =
   let dev_token = generate_dev_token () in
   let selected_port = ref (parse_requested_port config.port) in
   selected_port := select_available_port ~host:config.host !selected_port;
-  let watch_env = build_env ~dev_token config !selected_port in
   let spawn_generated_server () =
     selected_port := select_available_port ~host:config.host !selected_port;
     let server_path = Artifacts.artifact_path generated_server in
@@ -193,7 +192,8 @@ let run args =
 
   let watch_pid =
     if config.no_watch then None
-    else (
+    else
+      let watch_env = build_env ~dev_token config !selected_port in
       Terminal.print_step "Starting dune watch (with RPC)";
       (* Build the default alias (.), the server executable, and the
          esbuild alias explicitly.  _utopia/ is data_only_dirs so
@@ -211,7 +211,7 @@ let run args =
             ])
           watch_env
       in
-      Some pid)
+      Some pid
   in
 
   Terminal.print_step
@@ -227,8 +227,8 @@ let run args =
         | None -> ());
         exit 1
   in
-  let server_mtime =
-    ref (Process.file_mtime (Artifacts.artifact_path generated_server))
+  let initial_server_mtime =
+    Process.file_mtime (Artifacts.artifact_path generated_server)
   in
 
   print_ready config.host !selected_port;
@@ -275,17 +275,15 @@ let run args =
                  let structured =
                    List.map Build_rpc.structured_of_diagnostic diagnostics
                  in
-                 let errors =
-                   List.filter
-                     (fun (d : Build_rpc.structured_diagnostic) ->
-                       d.severity = "error")
-                     structured
-                 in
-                 let warnings =
-                   List.filter
-                     (fun (d : Build_rpc.structured_diagnostic) ->
-                       d.severity = "warning")
-                     structured
+                 let errors, warnings =
+                   List.fold_right
+                     (fun (diagnostic : Build_rpc.structured_diagnostic)
+                          (errors, warnings) ->
+                       match diagnostic.severity with
+                       | "error" -> (diagnostic :: errors, warnings)
+                       | "warning" -> (errors, diagnostic :: warnings)
+                       | _ -> (errors, warnings))
+                     structured ([], [])
                  in
                  let body =
                    format_build_event ~build_id:!build_id ~status:"failed"
@@ -384,7 +382,6 @@ let run args =
                    match spawn_generated_server () with
                    | Ok pid ->
                        server_pid := pid;
-                       server_mtime := Some current;
                        if !selected_port = previous_port then
                          Terminal.print_done "Generated dev server restarted"
                        else (
@@ -402,19 +399,18 @@ let run args =
                        Lwt.return 1)
                | Some _, None ->
                    (* The executable is temporarily missing — dune removes
-                       stale artifacts when a rebuild fails. Keep polling;
-                       the file will reappear once the build succeeds. *)
+                        stale artifacts when a rebuild fails. Keep polling;
+                        the file will reappear once the build succeeds. *)
                    let* () = Lwt_unix.sleep 0.5 in
                    loop last_mtime
                | _, Some current ->
-                   server_mtime := Some current;
                    let* () = Lwt_unix.sleep 0.5 in
                    loop (Some current)
                | _ ->
                    let* () = Lwt_unix.sleep 0.5 in
                    loop last_mtime
            in
-           loop !server_mtime
+           loop initial_server_mtime
          in
          let* code =
            Lwt.pick

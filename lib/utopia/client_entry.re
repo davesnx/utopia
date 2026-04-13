@@ -21,10 +21,10 @@ module App = {
 };
 
 let reportDevError: (string, string, option(string)) => unit =
-  (operation, message, stack) => {
-    ignore(
-      [%mel.raw
-        {|
+    (operation, message, stack) => {
+  ignore(
+    [%mel.raw
+      {|
       (function() {
         if (typeof window !== 'undefined' && window.__utopia_dev_report_error) {
           window.__utopia_dev_report_error({
@@ -36,9 +36,9 @@ let reportDevError: (string, string, option(string)) => unit =
         }
       })()
     |}
-      ],
-    );
-  };
+    ],
+  );
+};
 
 let () =
   try(

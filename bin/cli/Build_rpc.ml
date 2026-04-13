@@ -41,22 +41,17 @@ let format_diagnostic diagnostic =
   let message = Protocol.Diagnostic.message diagnostic |> pp_to_string in
   let targets =
     Protocol.Diagnostic.targets diagnostic
-    |> List.filter_map (fun target ->
+    |> List.map (fun target ->
         match target with
-        | Protocol.Target.Path path -> Some path
-        | Protocol.Target.Alias alias ->
-            Some (Printf.sprintf "(alias %s)" alias)
+        | Protocol.Target.Path path -> path
+        | Protocol.Target.Alias alias -> Printf.sprintf "(alias %s)" alias
         | Protocol.Target.Library library_name ->
-            Some (Printf.sprintf "(library %s)" library_name)
+            Printf.sprintf "(library %s)" library_name
         | Protocol.Target.Executables executables ->
-            Some
-              (Printf.sprintf "(executables %s)"
-                 (String.concat " " executables))
+            Printf.sprintf "(executables %s)" (String.concat " " executables)
         | Protocol.Target.Preprocess preprocesses ->
-            Some
-              (Printf.sprintf "(preprocess %s)"
-                 (String.concat " " preprocesses))
-        | Protocol.Target.Loc loc -> Some (format_loc loc))
+            Printf.sprintf "(preprocess %s)" (String.concat " " preprocesses)
+        | Protocol.Target.Loc loc -> format_loc loc)
   in
   let target_suffix =
     match targets with
@@ -118,17 +113,14 @@ let wait_for_socket ~build_dir ~max_retries ~delay_ms =
   let rec loop attempt =
     if attempt >= max_retries then Lwt.return_none
     else
-      let* result =
-        Lwt.catch
-          (fun () ->
-            let where = Client.Where.default ~build_dir () in
-            let* channel = Client.connect_chan where in
-            Lwt.return_some channel)
-          (fun _exn ->
-            let* () = Lwt_unix.sleep (Float.of_int delay_ms /. 1000.0) in
-            loop (attempt + 1))
-      in
-      Lwt.return result
+      Lwt.catch
+        (fun () ->
+          let where = Client.Where.default ~build_dir () in
+          let* channel = Client.connect_chan where in
+          Lwt.return_some channel)
+        (fun _exn ->
+          let* () = Lwt_unix.sleep (Float.of_int delay_ms /. 1000.0) in
+          loop (attempt + 1))
   in
   loop 0
 

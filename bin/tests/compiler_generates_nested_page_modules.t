@@ -1,14 +1,12 @@
-  $ mkdir -p pages/about/boo _utopia
+  $ mkdir -p app/about/boo _utopia
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ printf "let layout = ()\n" > pages/layout.re
-  $ printf "let page = ()\n" > pages/about/Team.re
-  $ printf "let page = ()\n" > pages/about/boo/index.re
+  $ printf "let layout = ()\n" > app/layout.re
+  $ printf "let page = ()\n" > app/about/page.re
+  $ printf "let page = ()\n" > app/about/boo/page.re
   $ utopia.compiler > /dev/null
-  $ grep -qF 'target Pages__About__Team.re' _utopia/dune
-  $ grep -qF 'target Pages__About__Boo__Index.re' _utopia/dune
+  $ grep -qF 'target Pages__About__Page.re' _utopia/dune
+  $ grep -qF 'target Pages__About__Boo__Page.re' _utopia/dune
   $ grep -qF 'target Pages__Layout.re' _utopia/dune
-  $ cat _utopia/dune | tr -s ' \n' ' ' | grep -qF 'modules Pages__About__Team Pages__About__Boo__Index Pages__Layout client_entry_melange'
-  [1]
-  $ cat _utopia/dune | tr -s ' \n' ' ' | grep -qF '(library (name utopia_'
-  $ cat _utopia/dune | tr -s ' \n' ' ' | grep -qF 'modules Routes'
+  $ grep -qF '(library (name pages_' _utopia/dune
+  $ grep -qF '(modules Routes Routes_client)' _utopia/dune

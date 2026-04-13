@@ -1,7 +1,7 @@
-  $ mkdir -p pages/users routes/users _utopia
+  $ mkdir -p app/users/[id] routes/users _utopia
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ printf "let page = ()\n" > pages/users/[id].ml
+  $ printf "let page = ()\n" > app/users/[id]/page.ml
   $ cat > routes/users/[id].ml <<'EOF'
   > module Params = struct
   >   type t = { id : int }

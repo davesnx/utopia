@@ -3,5 +3,5 @@
   utopia build
   
     ▸ Validating project structure
-    ✗ Missing route source directory. Create 'app/' (preferred) or legacy 'pages/'.
+    ✗ Missing route source directory. Create 'app/'.
   [1]

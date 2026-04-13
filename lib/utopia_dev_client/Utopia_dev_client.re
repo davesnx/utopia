@@ -11,8 +11,8 @@
 
 /* === Overlay rendering (raw JS) === */
 
-%mel.raw
-{|
+[%%mel.raw
+  {|
 // --- Overlay DOM helpers ---
 
 var _overlayRoot = null;
@@ -256,4 +256,5 @@ if (typeof window !== 'undefined' && window.__UTOPIA_DEV_MODE__) {
   _setupGlobalErrorHandlers();
   _connectSSE();
 }
-|};
+|}
+];

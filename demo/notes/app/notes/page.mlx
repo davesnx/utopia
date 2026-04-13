@@ -23,8 +23,8 @@ let[@react.component] make () =
         notes_for_tag summary.slug
         |> List.map (fun (note : note) ->
             <Utopia.Router.Link
-               key=note.summary.slug
-               to_=note.summary.route
+              key=note.summary.slug
+              to_=note.summary.route
               className="js-route-link block border-b border-[#e4e2db] px-6 \
                          py-4 text-left hover:bg-[#f6f5f1] sm:px-8">
               <div className="flex items-baseline justify-between gap-4">

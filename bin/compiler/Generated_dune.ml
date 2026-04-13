@@ -6,7 +6,6 @@ let generated_server_name = "server_main"
 let native_subdir_name = "native"
 let melange_target_name = "target"
 let shared_lib_directory = Fpath.to_string Utopia_path.shared_lib_directory_name
-let generated_routes_source = "Routes.ml"
 let generated_routes_module = "Routes"
 let generated_routes_client_source = "Routes_client.ml"
 let generated_routes_client_module = "Routes_client"
@@ -51,9 +50,7 @@ let native_api_library_libraries generated_utopia_library_name =
 let native_library_flags = [ ":standard"; "-w"; "-26-27-39" ]
 let server_executable_modules = [ generated_server_name ]
 
-let server_executable_libraries ~pages_library_name:_ ~api_library_name:_
-    ~generated_routes_server_library_name ~generated_utopia_library_name:_
-    ~has_api_library:_ =
+let server_executable_libraries ~generated_routes_server_library_name =
   [ generated_routes_server_library_name; "utopia" ]
 
 let routes_server_libraries ~pages_library_name ~api_library_name
@@ -273,7 +270,7 @@ let source_project_root () =
 
 let generate ?(dev_mode = false) ~source_root ~api_root
     ~is_client_component_page ~is_melange_lib_module files api_files
-    route_entries _api_entries =
+    route_entries =
   let open Dune_sexp in
   (* Compute project-aware shared-folder-prefix for the PPX.  Dune sets
      pos_fname relative to _build/default/, so for a nested project like
@@ -813,10 +810,7 @@ let generate ?(dev_mode = false) ~source_root ~api_root
         field_atom "name" generated_server_name;
         field_atoms "modules" server_executable_modules;
         field_atoms "libraries"
-          (server_executable_libraries ~pages_library_name ~api_library_name
-             ~generated_routes_server_library_name
-             ~generated_utopia_library_name
-             ~has_api_library:(api_code_files <> []));
+          (server_executable_libraries ~generated_routes_server_library_name);
       ]
   in
   let generated_routes_server_library_rule =

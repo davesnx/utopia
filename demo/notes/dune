@@ -9,8 +9,8 @@
  (enabled_if
   (= %{profile} dev))
  (alias client)
-  (deps
-   (source_tree ./app)
+ (deps
+  (source_tree ./app)
   (source_tree ./lib)
   (source_tree ./node_modules)
   tailwind.config.js

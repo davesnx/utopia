@@ -1,4 +1,4 @@
-  $ mkdir pages lib _utopia
+  $ mkdir app lib _utopia
   $ cat > dune-project <<'EOF'
   > (lang dune 3.9)
   > (using melange 0.1)
@@ -15,7 +15,7 @@
   > (include _utopia/dune)
   > EOF
   $ touch _utopia/dune
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> {React.string(string_of_int(Data.answer))} </div>;
   > EOF

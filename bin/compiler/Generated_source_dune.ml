@@ -95,7 +95,7 @@ let source_page_directories code_files =
   seen |> Hashtbl.to_seq |> List.of_seq
   |> List.sort (fun (left, _) (right, _) -> String.compare left right)
 
-let generate ~source_root files _route_entries =
+let generate ~source_root files =
   let code_files = Build_inputs.code_files_for_build files in
   let has_shared_lib = Build_inputs.has_shared_lib () in
   let shared_lib_files : Build_inputs.shared_lib_file list =

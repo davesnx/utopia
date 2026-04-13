@@ -1,7 +1,8 @@
 (executable
  (name compiler)
  (public_name utopia.compiler)
- (preprocess (pps ppxlib.metaquot))
+ (preprocess
+  (pps ppxlib.metaquot))
  (libraries
   compiler-libs.common
   ppxlib

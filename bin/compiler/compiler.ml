@@ -57,192 +57,183 @@ let run ~build_mode =
     (Utopia_path.project_generated_directory project |> Utopia_path.to_string);
   clear_generated_files project;
   Runtime_files.copy_runtime_files ();
-  let has_app_directory = Filesystem.directory_exists app_directory in
-  if not has_app_directory then (
+  if not (Filesystem.directory_exists app_directory) then (
     Printf.eprintf "  Error reading route roots: expected '%s/'\n" app_directory;
-    exit 1)
-  else
-    let recursive_app =
-      match Filesystem.read_files_recursive app_directory with
-      | Error (`Page_directory_doesnt_exist _path) -> []
-      | Ok files -> files
+    exit 1);
+  let app_files =
+    match Filesystem.read_files_recursive app_directory with
+    | Ok files -> files
+    | Error (`Page_directory_doesnt_exist _) -> assert false
+  in
+  let collection = Routes.collect_app_files app_files in
+  let page_files = collection.page_files in
+  let api_files = collection.api_files in
+  let route_parse_errors = collection.errors in
+  let not_found_file = collection.not_found_file in
+  Printf.printf "  Pages: %s\n" (String.concat ", " page_files);
+  let route_entries, page_parse_errors =
+    Routes.app_route_entries_of_files page_files
+  in
+  let route_parse_errors = route_parse_errors @ page_parse_errors in
+  let reserved_api_namespace_errors =
+    Routes.reserved_api_namespace_errors route_entries
+  in
+  let api_entries, api_parse_errors =
+    Routes.app_api_route_entries_of_files api_files
+  in
+  let route_schemas, route_schema_errors = Route_schemas.load route_entries in
+  let route_entries = Route_schemas.attach route_entries route_schemas in
+  let route_entries =
+    route_entries |> List.map Diagnostics.detect_metadata_for_entry
+  in
+  let route_entries =
+    route_entries |> List.map Diagnostics.detect_static_for_entry
+  in
+  let route_entries, markdown_warnings =
+    Routes.attach_markdown_payloads route_entries
+  in
+  markdown_warnings
+  |> List.iter (fun warning -> Printf.eprintf "  Warning: %s\n" warning);
+  let conflicts = Diagnostics.find_route_conflicts route_entries in
+  let api_conflicts = Routes.find_api_conflicts api_entries in
+  let api_param_kind_conflicts = Routes.api_param_kind_conflicts api_entries in
+  let has_unknown_param_accesses =
+    Diagnostics.report_unknown_param_accesses route_entries
+  in
+  let has_missing_paths = Diagnostics.report_missing_paths route_entries in
+  let has_errors =
+    route_parse_errors <> []
+    || reserved_api_namespace_errors <> []
+    || api_parse_errors <> [] || route_schema_errors <> [] || conflicts <> []
+    || api_conflicts <> []
+    || api_param_kind_conflicts <> []
+    || has_unknown_param_accesses || has_missing_paths
+  in
+  if has_errors then (
+    if route_parse_errors <> [] then
+      Diagnostics.report_route_parse_errors route_parse_errors;
+    if reserved_api_namespace_errors <> [] then (
+      Printf.eprintf "\n  Page routes cannot use the reserved /api namespace:\n";
+      reserved_api_namespace_errors
+      |> List.iter (fun message -> Printf.eprintf "    - %s\n" message));
+    if api_parse_errors <> [] then (
+      Printf.eprintf "\n  Invalid API declarations:\n";
+      api_parse_errors
+      |> List.iter (fun error -> Printf.eprintf "    - %s\n" error));
+    if route_schema_errors <> [] then
+      Diagnostics.report_route_schema_errors route_schema_errors;
+    if conflicts <> [] then Diagnostics.report_route_conflicts conflicts;
+    if api_conflicts <> [] then (
+      Printf.eprintf "\n  API route conflicts detected:\n";
+      api_conflicts
+      |> List.iter (fun grouped_entries ->
+          let route = (List.hd grouped_entries).Routes.route in
+          Printf.eprintf "\n    - %s has %d competing API files:\n"
+            (Routes.pp_route route)
+            (List.length grouped_entries);
+          grouped_entries
+          |> List.map (fun (entry : Routes.api_route_entry) ->
+              entry.source_file)
+          |> List.sort String.compare
+          |> List.iter (fun source -> Printf.eprintf "        * %s\n" source)));
+    if api_param_kind_conflicts <> [] then (
+      Printf.eprintf "\n  Invalid API param accessor shapes:\n";
+      api_param_kind_conflicts
+      |> List.iter (fun error -> Printf.eprintf "    - %s\n" error));
+    exit 1);
+  print_endline "\n  Generating rules\n";
+  let source_root = app_directory in
+  let api_root = Routes.app_api_directory in
+  (* Scan pages for client components and compute melange optimization *)
+  let client_component_pages, melange_lib_modules =
+    let shared_lib_dir =
+      Fpath.to_string Utopia_path.shared_lib_directory_name
     in
-    let collection = Routes.collect_app_files recursive_app in
-    let recursive_pages = collection.page_files in
-    let recursive_api = collection.api_files in
-    let route_parse_errors = collection.errors in
-    let not_found_file = collection.not_found_file in
-    let () =
-      Printf.printf "  Pages: %s\n" (String.concat ", " recursive_pages)
+    let lib_files = Build_inputs.shared_lib_files_for_build () in
+    let lib_module_map = Client_graph.build_lib_module_map lib_files in
+    let pages_with_cc = ref [] in
+    let all_refs = ref Client_component_scan.StringSet.empty in
+    page_files
+    |> List.iter (fun relative_file ->
+        let source_file = Filename.concat source_root relative_file in
+        if Sys.file_exists source_file then
+          let source =
+            In_channel.with_open_bin source_file (fun ch ->
+                In_channel.input_all ch)
+          in
+          let result = Client_component_scan.extract_client_code source in
+          if result.has_client_components then (
+            pages_with_cc := relative_file :: !pages_with_cc;
+            all_refs :=
+              Client_component_scan.StringSet.union !all_refs
+                result.module_references));
+    let melange_lib_closure =
+      Client_graph.compute_lib_closure ~seed_refs:!all_refs ~lib_module_map
+        ~shared_lib_directory:shared_lib_dir
     in
-    let route_entries, page_parse_errors =
-      Routes.app_route_entries_of_files recursive_pages
+    let cc_set =
+      List.fold_left
+        (fun acc file -> Client_component_scan.StringSet.add file acc)
+        Client_component_scan.StringSet.empty !pages_with_cc
     in
-    let route_parse_errors = route_parse_errors @ page_parse_errors in
-    let reserved_api_namespace_errors =
-      Routes.reserved_api_namespace_errors route_entries
-    in
-    let api_entries, api_parse_errors =
-      Routes.app_api_route_entries_of_files recursive_api
-    in
-    let route_schemas, route_schema_errors = Route_schemas.load route_entries in
-    let route_entries = Route_schemas.attach route_entries route_schemas in
-    let route_entries =
-      route_entries |> List.map Diagnostics.detect_metadata_for_entry
-    in
-    let route_entries =
-      route_entries |> List.map Diagnostics.detect_static_for_entry
-    in
-    let route_entries, markdown_warnings =
-      Routes.attach_markdown_payloads route_entries
-    in
-    markdown_warnings
-    |> List.iter (fun warning -> Printf.eprintf "  Warning: %s\n" warning);
-    let conflicts = Diagnostics.find_route_conflicts route_entries in
-    let api_conflicts = Routes.find_api_conflicts api_entries in
-    let api_param_kind_conflicts =
-      Routes.api_param_kind_conflicts api_entries
-    in
-    let has_unknown_param_accesses =
-      Diagnostics.report_unknown_param_accesses route_entries
-    in
-    let has_missing_paths = Diagnostics.report_missing_paths route_entries in
-    let has_errors =
-      route_parse_errors <> []
-      || reserved_api_namespace_errors <> []
-      || api_parse_errors <> [] || route_schema_errors <> [] || conflicts <> []
-      || api_conflicts <> []
-      || api_param_kind_conflicts <> []
-      || has_unknown_param_accesses || has_missing_paths
-    in
-    if has_errors then (
-      if route_parse_errors <> [] then
-        Diagnostics.report_route_parse_errors route_parse_errors;
-      if reserved_api_namespace_errors <> [] then (
-        Printf.eprintf
-          "\n  Page routes cannot use the reserved /api namespace:\n";
-        reserved_api_namespace_errors
-        |> List.iter (fun message -> Printf.eprintf "    - %s\n" message));
-      if api_parse_errors <> [] then (
-        Printf.eprintf "\n  Invalid API declarations:\n";
-        api_parse_errors
-        |> List.iter (fun error -> Printf.eprintf "    - %s\n" error));
-      if route_schema_errors <> [] then
-        Diagnostics.report_route_schema_errors route_schema_errors;
-      if conflicts <> [] then Diagnostics.report_route_conflicts conflicts;
-      if api_conflicts <> [] then (
-        Printf.eprintf "\n  API route conflicts detected:\n";
-        api_conflicts
-        |> List.iter (fun grouped_entries ->
-            let route = (List.hd grouped_entries).Routes.route in
-            Printf.eprintf "\n    - %s has %d competing API files:\n"
-              (Routes.pp_route route)
-              (List.length grouped_entries);
-            grouped_entries
-            |> List.map (fun (entry : Routes.api_route_entry) ->
-                entry.source_file)
-            |> List.sort String.compare
-            |> List.iter (fun source -> Printf.eprintf "        * %s\n" source)));
-      if api_param_kind_conflicts <> [] then (
-        Printf.eprintf "\n  Invalid API param accessor shapes:\n";
-        api_param_kind_conflicts
-        |> List.iter (fun error -> Printf.eprintf "    - %s\n" error));
-      exit 1)
-    else (
-      print_endline "\n  Generating rules\n";
-      let source_root = app_directory in
-      let api_root = Routes.app_api_directory in
-      (* Scan pages for client components and compute melange optimization *)
-      let client_component_pages, melange_lib_modules =
-        let shared_lib_dir =
-          Fpath.to_string Utopia_path.shared_lib_directory_name
-        in
-        let lib_files = Build_inputs.shared_lib_files_for_build () in
-        let lib_module_map = Client_graph.build_lib_module_map lib_files in
-        let pages_with_cc = ref [] in
-        let all_refs = ref Client_component_scan.StringSet.empty in
-        recursive_pages
-        |> List.iter (fun relative_file ->
-            let source_file = Filename.concat source_root relative_file in
-            if Sys.file_exists source_file then
-              let source =
-                In_channel.with_open_bin source_file (fun ch ->
-                    In_channel.input_all ch)
-              in
-              let result = Client_component_scan.extract_client_code source in
-              if result.has_client_components then (
-                pages_with_cc := relative_file :: !pages_with_cc;
-                all_refs :=
-                  Client_component_scan.StringSet.union !all_refs
-                    result.module_references));
-        let melange_lib_closure =
-          Client_graph.compute_lib_closure ~seed_refs:!all_refs ~lib_module_map
-            ~shared_lib_directory:shared_lib_dir
-        in
-        let cc_set =
-          List.fold_left
-            (fun acc f -> Client_component_scan.StringSet.add f acc)
-            Client_component_scan.StringSet.empty !pages_with_cc
-        in
-        (cc_set, melange_lib_closure)
-      in
-      let is_client_component_page relative_file =
-        Client_component_scan.StringSet.mem relative_file client_component_pages
-      in
-      let is_melange_lib_module module_name =
-        Client_component_scan.StringSet.mem module_name melange_lib_modules
-      in
-      Printf.printf "  Client component pages: %d\n"
-        (Client_component_scan.StringSet.cardinal client_component_pages);
-      Printf.printf "  Melange lib modules: %d\n"
-        (Client_component_scan.StringSet.cardinal melange_lib_modules);
-      let source_support_dune =
-        Generated_source_dune.generate ~source_root recursive_pages
-          route_entries
-      in
-      let dev_mode = build_mode = Esbuild.development in
-      let runtime_dune =
-        Generated_dune.generate ~dev_mode ~source_root ~api_root
-          ~is_client_component_page ~is_melange_lib_module recursive_pages
-          recursive_api route_entries api_entries
-      in
-      let dune_rules =
-        [ source_support_dune; runtime_dune ]
-        |> List.filter (fun value -> String.trim value <> "")
-        |> String.concat "\n\n"
-      in
-      let esbuild_paths = Esbuild.generate_paths ~build_mode () in
-      let generated_routes_client =
-        Generated_routes.generate_client route_entries
-      in
-      let generated_routes =
-        Generated_routes.generate_shim route_entries api_entries
-      in
-      let not_found_layouts =
-        match not_found_file with
-        | Some _ -> Routes.not_found_layouts_of_app_files recursive_pages
-        | None -> []
-      in
-      let generated_routes_server =
-        Generated_routes.generate_server route_entries api_entries
-          ~not_found_file ~not_found_layouts
-      in
-      print_endline dune_rules;
-      Filesystem.write_to_file
-        (file_ref_path (Utopia_path.generated_dune project))
-        dune_rules;
-      Filesystem.write_to_file
-        (file_ref_path (Utopia_path.generated_esbuild_paths project))
-        esbuild_paths;
-      Filesystem.write_to_file
-        (file_ref_path (Utopia_path.generated_routes_source project))
-        generated_routes;
-      Filesystem.write_to_file
-        (file_ref_path (Utopia_path.generated_routes_client_source project))
-        generated_routes_client;
-      Filesystem.write_to_file
-        (file_ref_path (Utopia_path.generated_routes_server_source project))
-        generated_routes_server)
+    (cc_set, melange_lib_closure)
+  in
+  let is_client_component_page relative_file =
+    Client_component_scan.StringSet.mem relative_file client_component_pages
+  in
+  let is_melange_lib_module module_name =
+    Client_component_scan.StringSet.mem module_name melange_lib_modules
+  in
+  Printf.printf "  Client component pages: %d\n"
+    (Client_component_scan.StringSet.cardinal client_component_pages);
+  Printf.printf "  Melange lib modules: %d\n"
+    (Client_component_scan.StringSet.cardinal melange_lib_modules);
+  let source_support_dune =
+    Generated_source_dune.generate ~source_root page_files
+  in
+  let dev_mode = build_mode = Esbuild.development in
+  let runtime_dune =
+    Generated_dune.generate ~dev_mode ~source_root ~api_root
+      ~is_client_component_page ~is_melange_lib_module page_files api_files
+      route_entries
+  in
+  let dune_rules =
+    [ source_support_dune; runtime_dune ]
+    |> List.filter (fun value -> String.trim value <> "")
+    |> String.concat "\n\n"
+  in
+  let esbuild_paths = Esbuild.generate_paths ~build_mode () in
+  let generated_routes_client =
+    Generated_routes.generate_client route_entries
+  in
+  let generated_routes =
+    Generated_routes.generate_shim route_entries api_entries
+  in
+  let not_found_layouts =
+    match not_found_file with
+    | Some _ -> Routes.not_found_layouts_of_app_files page_files
+    | None -> []
+  in
+  let generated_routes_server =
+    Generated_routes.generate_server route_entries api_entries ~not_found_file
+      ~not_found_layouts
+  in
+  print_endline dune_rules;
+  Filesystem.write_to_file
+    (file_ref_path (Utopia_path.generated_dune project))
+    dune_rules;
+  Filesystem.write_to_file
+    (file_ref_path (Utopia_path.generated_esbuild_paths project))
+    esbuild_paths;
+  Filesystem.write_to_file
+    (file_ref_path (Utopia_path.generated_routes_source project))
+    generated_routes;
+  Filesystem.write_to_file
+    (file_ref_path (Utopia_path.generated_routes_client_source project))
+    generated_routes_client;
+  Filesystem.write_to_file
+    (file_ref_path (Utopia_path.generated_routes_server_source project))
+    generated_routes_server
 
 let extract_client_main source_file =
   let source =

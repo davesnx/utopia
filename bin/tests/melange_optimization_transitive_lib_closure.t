@@ -1,6 +1,6 @@
 Lib modules are included transitively: if client code uses A and A uses B, both are included:
 
-  $ mkdir -p pages lib _utopia
+  $ mkdir -p app lib _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
@@ -13,7 +13,7 @@ Lib modules are included transitively: if client code uses A and A uses B, both 
   $ cat > lib/Db.re <<'EOF'
   > let query = () => "server only db call";
   > EOF
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/page.re <<'EOF'
   > module Widget = {
   >   [@react.client.component]
   >   [@react.component]
@@ -34,5 +34,16 @@ Db is only used by server code and should be excluded:
   Lib
   Lib__Formatter
   Lib__Helpers
-  Pages__Home
+  Pages__Page
+  ReactServerDOMEsbuild
+  Routes
+  Routes_client
+  Utopia
+  Utopia_call_server
+  Utopia_dev_client
+  Utopia_route
+  Utopia_router
+  Utopia_router_link
+  Utopia_router_route
+  Utopia_types
   client_entry_melange

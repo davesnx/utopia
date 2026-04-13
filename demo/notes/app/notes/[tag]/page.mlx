@@ -146,46 +146,49 @@ module Checklist = struct
            </p>)
         <div
           className="mt-4 border-y border-[#ebe9e2] divide-y divide-[#ebe9e2]">
-          (React.array (Array.of_list
-              (List.mapi
-                (fun item_index (item_text, item_done) ->
-                  let is_pending = pending_item = Some item_index in
-                  let marker_class =
-                    if item_done then
-                      "mt-[6px] h-3 w-3 shrink-0 border border-[#9f9e98] \
-                       bg-[#9f9e98] transition-colors hover:border-[#8f8e89] \
-                       hover:bg-[#8f8e89] disabled:cursor-default"
-                    else
-                      "mt-[6px] h-3 w-3 shrink-0 border border-[#c6c5bf] \
-                       bg-transparent transition-colors hover:border-[#9f9e98] \
-                       hover:bg-[#f1f0ea] disabled:cursor-default"
-                  in
-                  let marker_class =
-                    if is_pending then marker_class ^ " opacity-60"
-                    else marker_class
-                  in
-                  let text_class =
-                    if is_pending && item_done then
-                      "text-[15px] leading-7 text-[#8a8984] line-through \
-                       opacity-70"
-                    else if is_pending then
-                      "text-[15px] leading-7 text-[#232320] opacity-70"
-                    else if item_done then
-                      "text-[15px] leading-7 text-[#8a8984] line-through"
-                    else "text-[15px] leading-7 text-[#232320]"
-                  in
-                  <div
-                    key=(slug ^ ":" ^ string_of_int item_index)
-                    className="flex items-start gap-3 py-3">
-                    <button
-                      type_="button"
-                      disabled=(Option.is_some pending_item)
-                      onClick=(on_toggle item_index)
-                      className=marker_class
-                    />
-                    <p className=text_class>(React.string item_text)</p>
-                  </div>)
-                items)))
+          (React.array
+             (Array.of_list
+                (List.mapi
+                   (fun item_index (item_text, item_done) ->
+                     let is_pending = pending_item = Some item_index in
+                     let marker_class =
+                       if item_done then
+                         "mt-[6px] h-3 w-3 shrink-0 border border-[#9f9e98] \
+                          bg-[#9f9e98] transition-colors \
+                          hover:border-[#8f8e89] hover:bg-[#8f8e89] \
+                          disabled:cursor-default"
+                       else
+                         "mt-[6px] h-3 w-3 shrink-0 border border-[#c6c5bf] \
+                          bg-transparent transition-colors \
+                          hover:border-[#9f9e98] hover:bg-[#f1f0ea] \
+                          disabled:cursor-default"
+                     in
+                     let marker_class =
+                       if is_pending then marker_class ^ " opacity-60"
+                       else marker_class
+                     in
+                     let text_class =
+                       if is_pending && item_done then
+                         "text-[15px] leading-7 text-[#8a8984] line-through \
+                          opacity-70"
+                       else if is_pending then
+                         "text-[15px] leading-7 text-[#232320] opacity-70"
+                       else if item_done then
+                         "text-[15px] leading-7 text-[#8a8984] line-through"
+                       else "text-[15px] leading-7 text-[#232320]"
+                     in
+                     <div
+                       key=(slug ^ ":" ^ string_of_int item_index)
+                       className="flex items-start gap-3 py-3">
+                       <button
+                         type_="button"
+                         disabled=(Option.is_some pending_item)
+                         onClick=(on_toggle item_index)
+                         className=marker_class
+                       />
+                       <p className=text_class>(React.string item_text)</p>
+                     </div>)
+                   items)))
         </div>
       </section>
 end
@@ -281,25 +284,26 @@ module Tag_page = struct
                    </p>
                  </section>
                else
-                 React.array (Array.of_list
-                    (List.map
-                       (fun ( slug,
-                              _tag_slug,
-                              title,
-                              preview,
-                              updated_at,
-                              body_html,
-                              checklist ) ->
-                         <Note_article
-                           key=slug
-                           slug
-                           title
-                           preview
-                           updated_at
-                           body_html
-                           checklist
-                         />)
-                       tag_notes)))
+                 React.array
+                   (Array.of_list
+                      (List.map
+                         (fun ( slug,
+                                _tag_slug,
+                                title,
+                                preview,
+                                updated_at,
+                                body_html,
+                                checklist ) ->
+                           <Note_article
+                             key=slug
+                             slug
+                             title
+                             preview
+                             updated_at
+                             body_html
+                             checklist
+                           />)
+                         tag_notes)))
             </main>)
 end
 

@@ -1,3 +1,3 @@
-  $ mkdir pages
-  $ printf "let page = ()\n" > pages/Home.re
+  $ mkdir app
+  $ printf "let page = ()\n" > app/page.re
   $ utopia.compiler > /dev/null || true

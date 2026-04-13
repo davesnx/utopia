@@ -80,9 +80,6 @@ let strip_pages_prefix source_file =
 let strip_api_prefix source_file =
   source_file |> strip_directory_prefix ~directory:app_api_directory
 
-let native_module_name_of_source source_file =
-  generated_module_base (strip_pages_prefix source_file)
-
 let route_constructor_name_of_source source_file =
   strip_pages_prefix source_file
   |> Filename.remove_extension |> String.split_on_char '/'
@@ -95,9 +92,3 @@ let compiled_page_module_name_of_source source_file =
 
 let compiled_api_module_name_of_source source_file =
   compiled_api_module_name (strip_api_prefix source_file)
-
-let generated_route_binding_name source_file suffix =
-  let base =
-    native_module_name_of_source source_file |> String.lowercase_ascii
-  in
-  base ^ "_" ^ suffix

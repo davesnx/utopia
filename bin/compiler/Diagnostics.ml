@@ -162,12 +162,6 @@ let detect_static_for_entry (entry : Routes.route_entry) =
         Routes.paths_export_origin = analysis.paths_origin;
       }
 
-let source_with_origin_label source_file origin =
-  match origin with
-  | None -> source_file
-  | Some origin ->
-      Printf.sprintf "%s:%s" source_file (Analysis.string_of_origin origin)
-
 let report_missing_paths (entries : Routes.route_entry list) =
   let issues =
     entries

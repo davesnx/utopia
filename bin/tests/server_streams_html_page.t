@@ -1,8 +1,8 @@
-  $ mkdir pages _utopia
+  $ mkdir -p app/home _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/home/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> {React.string("hello")} </div>;
   > EOF
@@ -19,6 +19,5 @@
   '>window.srr_stream.push()</script><script>window.srr_stream.close()</script>
   $ curl -s --retry 5 --retry-connrefused --retry-delay 1 http://127.0.0.1:8101/home | rg "client_entry_melange\.js"
   [1]
-  $ kill $server_pid
-  $ wait $server_pid || true
-  Terminated
+  $ kill $server_pid 2>/dev/null || true
+  $ wait $server_pid 2>/dev/null || true

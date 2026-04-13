@@ -1,11 +1,11 @@
-  $ mkdir pages _utopia
+  $ mkdir -p app/home _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ cat > package.json <<'EOF'
   > {"name":"utopia-test","private":true}
   > EOF
   $ touch _utopia/dune
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/home/page.re <<'EOF'
   > [@react.server.function]
   > let greet = (~name: string): Js.Promise.t(string) =>
   >   Js.Promise.resolve("Hello " ++ name);
@@ -14,7 +14,7 @@
   > let make = () => <div> {React.string("home")} </div>;
   > EOF
   $ utopia.compiler > /dev/null
-  $ dune describe pp _utopia/native/Pages__Home.re > native.pp
+  $ dune describe pp _utopia/native/Pages__Home__Page.re > native.pp
   $ action_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | head -1)
   $ PORT=8111 HOST=127.0.0.1 NO_LOG=1 utopia dev --no-watch > dev.log 2>&1 &
   $ dev_pid=$!
@@ -22,5 +22,5 @@
   HTTP/1.1 200 OK
   Content-Type: application/react.action
   0:"Hello Dev Alice"
-  $ kill $dev_pid
-  $ wait $dev_pid || true
+  $ kill $dev_pid 2>/dev/null || true
+  $ wait $dev_pid 2>/dev/null || true

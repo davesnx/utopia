@@ -54,7 +54,10 @@ module VirtualHistory = {
   let state = ref([]);
 
   let push = (~path, ~renderPage) => {
-    let entry = {path, renderPage};
+    let entry = {
+      path,
+      renderPage,
+    };
     let rec go =
       fun
       | [] => [entry]
@@ -206,8 +209,7 @@ let requestPath = url =>
 let browserPath = url =>
   requestPath(url) ++ (URL.hash(url) |> Option.value(~default=""));
 
-let currentRoute = () =>
-  currentUrl() |> browserPath |> Utopia_route.of_href;
+let currentRoute = () => currentUrl() |> browserPath |> Utopia_route.of_href;
 
 module PassThroughLayout = {
   [@react.component]

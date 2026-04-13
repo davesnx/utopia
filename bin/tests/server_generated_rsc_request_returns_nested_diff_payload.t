@@ -1,12 +1,12 @@
-  $ mkdir -p pages/about _utopia
+  $ mkdir -p app/about/team app/about/history _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ cat > pages/about/Team.re <<'EOF'
+  $ cat > app/about/team/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> <h1> {React.string("Team")} </h1> </div>;
   > EOF
-  $ cat > pages/about/History.re <<'EOF'
+  $ cat > app/about/history/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> <h1> {React.string("History")} </h1> </div>;
   > EOF
@@ -22,6 +22,5 @@
   Utopia_router_route
   ["diff","/about"
   $ ! rg -q 'Async exception|InnerHtml does not exist in RSC' server.log
-  $ kill $server_pid
-  $ wait $server_pid || true
-  Terminated
+  $ kill $server_pid 2>/dev/null || true
+  $ wait $server_pid 2>/dev/null || true

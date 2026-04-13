@@ -16,13 +16,9 @@ let pass_through_layout () =
     <Utopia_router_route.PageConsumer />
   </Utopia_router.PassThroughLayout>
 
-let has_root_layout layout_nodes =
-  List.exists (fun (path, _) -> path = "/") layout_nodes
-
 let root_layout_element layout_nodes =
-  match List.find_opt (fun (path, _) -> path = "/") layout_nodes with
-  | Some (_, element) -> element
-  | None -> pass_through_layout ()
+  layout_nodes |> List.assoc_opt "/"
+  |> Option.value ~default:(pass_through_layout ())
 
 let route_path_prefixes path =
   let segments =
@@ -59,9 +55,7 @@ let descendant_boundary_nodes ~matcher ~layout_nodes =
   boundary_paths
   |> List.map (fun path ->
       let layout_element =
-        descendant_layouts
-        |> List.find_map (fun (candidate_path, candidate_element) ->
-            if candidate_path = path then Some candidate_element else None)
+        descendant_layouts |> List.assoc_opt path
         |> Option.value ~default:(pass_through_layout ())
       in
       (path, layout_element))
@@ -78,36 +72,29 @@ let rec build_child ~matcher ~make_page current_path remaining_layouts =
   match remaining_layouts with
   | (path, layout_element) :: rest ->
       let child = build_child ~matcher ~make_page path rest in
-      <Utopia_router_route
-        path
-        layout=layout_element
-        pageconsumer=(Some child)
+      <Utopia_router_route path layout=layout_element pageconsumer=(Some child)
       />
   | [] ->
       let page_element = make_page () in
       if slash_matcher matcher = current_path then page_element
       else
         <Utopia_router_route
-          path=(slash_matcher matcher)
-          layout=page_element
-          pageconsumer=None
-        />
+          path=(slash_matcher matcher) layout=page_element pageconsumer=None />
 
 let build_tree ~matcher ~make_page ~layout_nodes =
   let descendants = descendant_boundary_nodes ~matcher ~layout_nodes in
   let child = build_child ~matcher ~make_page "/" descendants in
   <Utopia_router_route
-    path="/"
-    layout=(root_layout_element layout_nodes)
-    pageconsumer=(Some child)
+    path="/" layout=(root_layout_element layout_nodes) pageconsumer=(Some child)
   />
 
 let build_subtree ~matcher ~make_page ~layout_nodes parent_route =
   let descendants = descendant_boundary_nodes ~matcher ~layout_nodes in
-  let cases =
-    "/" :: List.map fst descendants |> List.sort_uniq String.compare
+  let has_parent_route =
+    String.equal parent_route "/"
+    || List.exists (fun (path, _) -> String.equal path parent_route) descendants
   in
-  if List.mem parent_route cases then
+  if has_parent_route then
     let child =
       build_child ~matcher ~make_page parent_route
         (remaining_layouts_after parent_route descendants)
@@ -118,7 +105,7 @@ let build_subtree ~matcher ~make_page ~layout_nodes parent_route =
 let make_layout_nodes layouts =
   layouts
   |> List.map (fun li ->
-      (li.path, li.render (<Utopia_router_route.PageConsumer />)))
+      (li.path, li.render <Utopia_router_route.PageConsumer />))
 
 let build_router ~matcher ~make_page ~layouts =
   let tree () =
@@ -126,7 +113,7 @@ let build_router ~matcher ~make_page ~layouts =
     build_tree ~matcher ~make_page ~layout_nodes
   in
   let shell location =
-    <Utopia_router initialPath=location> (tree ()) </Utopia_router>
+    <Utopia_router initialPath=location>(tree ())</Utopia_router>
   in
   let subtree parent_route =
     let layout_nodes = make_layout_nodes layouts in

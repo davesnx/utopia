@@ -300,11 +300,6 @@ let route_entries_of_files_with ~source_root ~route_path_of_file files =
        ([], layout_errors)
   |> fun (entries, errors) -> (List.rev entries, List.rev errors)
 
-let route_entries_of_files files =
-  route_entries_of_files_with ~source_root:pages_directory
-    ~route_path_of_file:(fun file -> Filename.remove_extension file)
-    files
-
 type app_file_collection = {
   page_files : string list;
   api_files : string list;
@@ -584,11 +579,6 @@ let api_route_entries_of_files_with ~source_root ~route_path_of_file files =
                  (entry :: entries, errors)))
        ([], middleware_errors)
   |> fun (entries, errors) -> (List.rev entries, List.rev errors)
-
-let api_route_entries_of_files files =
-  api_route_entries_of_files_with ~source_root:api_directory
-    ~route_path_of_file:(fun file -> Filename.remove_extension file)
-    files
 
 let app_api_route_entries_of_files files =
   let route_and_middleware_files =

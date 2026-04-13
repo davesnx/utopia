@@ -1,7 +1,7 @@
-  $ mkdir pages routes _utopia
+  $ mkdir -p app/search routes _utopia
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ printf "let page = ()\n" > pages/Search.re
+  $ printf "let page = ()\n" > app/search/page.re
   $ cat > routes/search.re <<'EOF'
   > module Query = {
   >   type t = {q: string};

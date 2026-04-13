@@ -1339,3 +1339,14 @@
 - Updated markdown back-link styling in `demo/md/app/layout.mlx` so the button also fills orange on hover, keeps no underline, and uses the same transition timing.
 - Replaced back-link labels in all markdown pages with explicit ASCII arrow text (`back <-`) in `demo/md/app/faq/page.md`, `demo/md/app/progress/page.md`, and `demo/md/app/manifest/page.md`.
 - Verification passed for `make -C demo/md build`.
+# Execution Plan
+
+## Active slice
+
+- [in_progress] Audit branch-local source files for behavior-preserving simplifications (unused params/helpers, clearer naming, flatter control flow, more direct pattern matching)
+- [pending] Apply minimal cleanups across CLI/compiler/runtime/demos without changing semantics and keep related tests readable
+- [pending] Run formatting plus targeted and broad test/build verification, then record review notes and residual risks
+
+## Review
+
+- Pending branch-wide simplify pass over the current ahead-of-origin changeset, scoped to source and test files rather than prose-only docs/plans unless terminology changes require glossary updates.

@@ -1,8 +1,8 @@
-  $ mkdir -p pages/blog _utopia
+  $ mkdir -p app/blog/[slug] _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ cat > 'pages/blog/[slug].ml' <<'EOF'
+  $ cat > 'app/blog/[slug]/page.ml' <<'EOF'
   > let paths () =
   >   [ [ ("slug", "hello-world") ]; [ ("slug", "second-post") ] ]
   > let makeProps () = ()

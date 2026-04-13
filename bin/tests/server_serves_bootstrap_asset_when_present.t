@@ -1,8 +1,8 @@
-  $ mkdir pages _utopia _utopia/dist
+  $ mkdir -p app/home _utopia _utopia/dist
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/home/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> {React.string("hello")} </div>;
   > EOF
@@ -26,6 +26,5 @@
   HTTP/1.1 200 OK
   Content-Type: application/javascript; charset=utf-8
   console.log('demo bootstrap');
-  $ kill $server_pid
-  $ wait $server_pid || true
-  Terminated
+  $ kill $server_pid 2>/dev/null || true
+  $ wait $server_pid 2>/dev/null || true

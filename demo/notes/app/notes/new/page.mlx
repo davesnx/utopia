@@ -331,36 +331,38 @@ module New_note_editor = struct
                <div
                  className="absolute left-0 right-0 top-[calc(100%+6px)] z-10 \
                             border border-[#d8d7d2] bg-[#fbfaf7] py-1">
-                 (React.array (Array.of_list
-                     (List.mapi
-                        (fun index choice ->
-                          let description = choice_description choice in
-                          let className =
-                            if index = highlighted_tag_index then
-                              "block w-full bg-[#f1f0ea] px-3 py-2 text-left"
-                            else
-                              "block w-full px-3 py-2 text-left \
-                               hover:bg-[#f1f0ea]"
-                          in
-                          <button
-                            key=(choice_slug choice)
-                            type_="button"
-                            onClick=(on_tag_choice_click choice)
-                            className>
-                            <span
-                              className="block text-[14px] font-medium \
-                                         text-[#1d1d1f]">
-                              (React.string (choice_name choice))
-                            </span>
-                            <span
-                              className="mt-1 block text-[12px] text-[#7a7974]">
-                              (React.string
-                                 (if String.trim description = "" then
-                                    choice_slug choice
-                                  else description))
-                            </span>
-                          </button>)
-                        matching_tag_choices)))
+                 (React.array
+                    (Array.of_list
+                       (List.mapi
+                          (fun index choice ->
+                            let description = choice_description choice in
+                            let className =
+                              if index = highlighted_tag_index then
+                                "block w-full bg-[#f1f0ea] px-3 py-2 text-left"
+                              else
+                                "block w-full px-3 py-2 text-left \
+                                 hover:bg-[#f1f0ea]"
+                            in
+                            <button
+                              key=(choice_slug choice)
+                              type_="button"
+                              onClick=(on_tag_choice_click choice)
+                              className>
+                              <span
+                                className="block text-[14px] font-medium \
+                                           text-[#1d1d1f]">
+                                (React.string (choice_name choice))
+                              </span>
+                              <span
+                                className="mt-1 block text-[12px] \
+                                           text-[#7a7974]">
+                                (React.string
+                                   (if String.trim description = "" then
+                                      choice_slug choice
+                                    else description))
+                              </span>
+                            </button>)
+                          matching_tag_choices)))
                </div>)
           </div>
           <p className="mt-3 text-[12px] text-[#8a8984]">
@@ -420,40 +422,42 @@ module New_note_editor = struct
           </div>
           <div
             className="mt-4 border-y border-[#ebe9e2] divide-y divide-[#ebe9e2]">
-            (React.array (Array.of_list
-                (List.map
-                   (fun item ->
-                     let toggle_class =
-                       if item.done_ then
-                         "mt-[6px] h-3 w-3 shrink-0 border border-[#9f9e98] \
-                          bg-[#9f9e98]"
-                       else "mt-[6px] h-3 w-3 shrink-0 border border-[#c6c5bf]"
-                     in
-                     let input_class =
-                       if item.done_ then
-                         "flex-1 border-0 bg-transparent p-0 text-[15px] \
-                          leading-7 text-[#8a8984] line-through outline-none"
-                       else
-                         "flex-1 border-0 bg-transparent p-0 text-[15px] \
-                          leading-7 text-[#232320] outline-none \
-                          placeholder:text-[#b2b1ac]"
-                     in
-                     <div
-                       key=(string_of_int item.id)
-                       className="flex items-start gap-3 py-3">
-                       <button
-                         type_="button"
-                         onClick=(toggle_checklist_item item.id)
-                         className=toggle_class
-                       />
-                       <input
-                         value=item.text
-                         onChange=(update_checklist_text item.id)
-                         className=input_class
-                         placeholder="Checklist item"
-                       />
-                     </div>)
-                   checklist_items)))
+            (React.array
+               (Array.of_list
+                  (List.map
+                     (fun item ->
+                       let toggle_class =
+                         if item.done_ then
+                           "mt-[6px] h-3 w-3 shrink-0 border border-[#9f9e98] \
+                            bg-[#9f9e98]"
+                         else
+                           "mt-[6px] h-3 w-3 shrink-0 border border-[#c6c5bf]"
+                       in
+                       let input_class =
+                         if item.done_ then
+                           "flex-1 border-0 bg-transparent p-0 text-[15px] \
+                            leading-7 text-[#8a8984] line-through outline-none"
+                         else
+                           "flex-1 border-0 bg-transparent p-0 text-[15px] \
+                            leading-7 text-[#232320] outline-none \
+                            placeholder:text-[#b2b1ac]"
+                       in
+                       <div
+                         key=(string_of_int item.id)
+                         className="flex items-start gap-3 py-3">
+                         <button
+                           type_="button"
+                           onClick=(toggle_checklist_item item.id)
+                           className=toggle_class
+                         />
+                         <input
+                           value=item.text
+                           onChange=(update_checklist_text item.id)
+                           className=input_class
+                           placeholder="Checklist item"
+                         />
+                       </div>)
+                     checklist_items)))
           </div>
         </section>
       </div>

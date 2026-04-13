@@ -1,7 +1,7 @@
-  $ mkdir pages _utopia
+  $ mkdir app _utopia
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/page.re <<'EOF'
   > module Inner = {
   >   let metadata _params =
   >     { Utopia_types.title = Some "Inner";
@@ -11,5 +11,6 @@
   > let make = () => <div> {React.string("hello")} </div>;
   > EOF
   $ utopia.compiler > /dev/null
-  $ grep -F 'source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = false;' _utopia/Routes.ml
-    ({ route = "home"; matcher = "home"; conflict_key = "home"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = false; static = true; has_paths = false } : Utopia_types.page_route_meta);
+  $ grep -qF 'source_file = "app/page.re"' _utopia/Routes.ml
+  $ grep -qF 'module_name = "Pages__Page"' _utopia/Routes.ml
+  $ grep -qF 'has_metadata = false;' _utopia/Routes.ml

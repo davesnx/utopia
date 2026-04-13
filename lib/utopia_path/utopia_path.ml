@@ -42,8 +42,9 @@ let current_project () =
     match
       Fpath.relativize ~root:(Fpath.rem_empty_seg workspace_root) project_root
     with
+    | None -> None
     | Some relative when Fpath.is_current_dir relative -> None
-    | relative -> relative
+    | Some relative -> Some relative
   in
   { workspace_root; project_root; project_workspace_path }
 

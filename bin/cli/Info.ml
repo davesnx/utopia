@@ -35,20 +35,9 @@ let run ~version _args =
   if route_count > 0 then Printf.printf "    routes:     %d\n" route_count;
 
   Printf.printf "\n  %s\n" (Terminal.bold "Commands");
-  [
-    ("build", true);
-    ("export", true);
-    ("prod", true);
-    ("dev", true);
-    ("clean", true);
-    ("info", true);
-  ]
-  |> List.iter (fun (name, implemented) ->
-      let status =
-        if implemented then Terminal.green "implemented"
-        else Terminal.yellow "scaffolded"
-      in
-      Printf.printf "    %-10s  %s\n" name status);
+  [ "build"; "export"; "prod"; "dev"; "clean"; "info" ]
+  |> List.iter (fun name ->
+      Printf.printf "    %-10s  %s\n" name (Terminal.green "implemented"));
 
   Printf.printf "\n";
   0

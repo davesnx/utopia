@@ -1,4 +1,4 @@
-  $ mkdir -p demo/notes/pages demo/notes/lib
+  $ mkdir -p demo/notes/app/home demo/notes/lib
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(dirs :standard demo)\n" > dune
   $ cat > demo/notes/package.json <<'EOF'
@@ -9,7 +9,7 @@
   > let label = "nested lib ready";
   > let message = name => "Hello nested prod " ++ name;
   > EOF
-  $ cat > demo/notes/pages/Home.re <<'EOF'
+  $ cat > demo/notes/app/home/page.re <<'EOF'
   > [@react.server.function]
   > let greet = (~name: string): Js.Promise.t(string) =>
   >   Js.Promise.resolve(Greeting.message(name));
@@ -21,7 +21,7 @@
   $ ! rg -q 'Entering directory|Leaving directory' demo/notes/build.log
   $ grep -qF 'export const buildMode = "production";' demo/notes/_utopia/paths.mjs
   $ grep -qF 'export const nodeEnv = "production";' demo/notes/_utopia/paths.mjs
-  $ dune describe pp demo/notes/_utopia/native/Pages__Home.re > native.pp
+  $ dune describe pp demo/notes/_utopia/native/Pages__Home__Page.re > native.pp
   $ action_id=$(grep -oP 'Runtime\.id: "\K[^"]+' native.pp | head -1)
   $ cd demo/notes
   $ PORT=8113 HOST=127.0.0.1 NO_LOG=1 utopia prod > prod.log 2>&1 &
@@ -31,5 +31,5 @@
   HTTP/1.1 200 OK
   Content-Type: application/react.action
   0:"Hello nested prod Alice"
-  $ kill $prod_pid
-  $ wait $prod_pid || true
+  $ kill $prod_pid 2>/dev/null || true
+  $ wait $prod_pid 2>/dev/null || true

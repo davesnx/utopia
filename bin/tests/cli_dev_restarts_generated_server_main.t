@@ -1,11 +1,11 @@
-  $ mkdir pages _utopia
+  $ mkdir -p app/home _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ cat > package.json <<'EOF'
   > {"name":"utopia-test","private":true}
   > EOF
   $ touch _utopia/dune
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/home/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> {React.string("one")} </div>;
   > EOF
@@ -13,11 +13,11 @@
   $ dev_pid=$!
   $ for i in $(seq 30); do curl -sf http://127.0.0.1:8112/home 2>/dev/null | grep -qF 'one' && break; sleep 1; done && echo ready
   ready
-  $ cat > pages/Home.re <<'EOF'
+  $ cat > app/home/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> {React.string("two")} </div>;
   > EOF
   $ for i in $(seq 30); do curl -sf http://127.0.0.1:8112/home 2>/dev/null | grep -qF 'two' && break; sleep 1; done && echo updated
   updated
-  $ kill $dev_pid
-  $ wait $dev_pid || true
+  $ kill $dev_pid 2>/dev/null || true
+  $ wait $dev_pid 2>/dev/null || true

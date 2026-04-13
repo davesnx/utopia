@@ -7,7 +7,8 @@ module A = {
     | Visible
     | Hidden;
 
-  let make = (~title=?, ~className=?, ~visibility=Visible, ~href, ~children, ()) =>
+  let make =
+      (~title=?, ~className=?, ~visibility=Visible, ~href, ~children, ()) =>
     <a ariaHidden={visibility == Hidden} href ?className ?title> children </a>;
 };
 
@@ -145,18 +146,15 @@ module Tbody = {
 };
 
 module Tr = {
-  let make = (~className=?, ~children, ()) =>
-    <tr ?className> children </tr>;
+  let make = (~className=?, ~children, ()) => <tr ?className> children </tr>;
 };
 
 module Th = {
-  let make = (~className=?, ~children, ()) =>
-    <th ?className> children </th>;
+  let make = (~className=?, ~children, ()) => <th ?className> children </th>;
 };
 
 module Td = {
-  let make = (~className=?, ~children, ()) =>
-    <td ?className> children </td>;
+  let make = (~className=?, ~children, ()) => <td ?className> children </td>;
 };
 
 module Footnotes_section = {
@@ -171,8 +169,7 @@ module Footnotes_section = {
 };
 
 module Footnotes_list = {
-  let make = (~className=?, ~children, ()) =>
-    <ol ?className> children </ol>;
+  let make = (~className=?, ~children, ()) => <ol ?className> children </ol>;
 };
 
 module Footnotes_item = {
@@ -182,9 +179,7 @@ module Footnotes_item = {
 
 module Footnote_ref = {
   let make = (~className=?, ~href, ~id, ~children, ()) =>
-    <sup>
-      <a href id ?className role="doc-noteref"> children </a>
-    </sup>;
+    <sup> <a href id ?className role="doc-noteref"> children </a> </sup>;
 };
 
 module Footnote_backref = {

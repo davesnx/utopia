@@ -177,16 +177,17 @@ let[@react.component] make ~(children : React.element) () =
       </div>
       <Sidebar_tag_creation />
       <nav className="flex flex-1 flex-col py-2">
-        (React.array (Array.of_list
-            (List.map
-               (fun summary ->
-                 <Sidebar_tag
-                   key=summary.slug
-                   route=summary.route
-                   name=summary.name
-                   description=(description_text summary.description)
-                 />)
-               tags)))
+        (React.array
+           (Array.of_list
+              (List.map
+                 (fun summary ->
+                   <Sidebar_tag
+                     key=summary.slug
+                     route=summary.route
+                     name=summary.name
+                     description=(description_text summary.description)
+                   />)
+                 tags)))
       </nav>
       <div className="mt-auto border-t border-[#d8d7d2] px-4 py-4">
         <Button.Link

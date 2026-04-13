@@ -1,9 +1,9 @@
-  $ mkdir -p demo/app/pages demo/app/_utopia/dist
+  $ mkdir -p demo/app/app/home demo/app/_utopia/dist
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(dirs :standard demo)\n" > dune
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > demo/app/dune
   $ touch demo/app/_utopia/dune
-  $ cat > demo/app/pages/Home.re <<'EOF'
+  $ cat > demo/app/app/home/page.re <<'EOF'
   > [@react.component]
   > let make = () => <div> <h1> {React.string("Nested demo")} </h1> </div>;
   > EOF
@@ -27,6 +27,5 @@
   body { color: rebeccapurple; }
   $ curl -s --retry 5 --retry-connrefused --retry-delay 1 http://127.0.0.1:8107/dist/client_entry_melange.js
   console.log('nested demo bundle');
-  $ kill $server_pid
-  $ wait $server_pid || true
-  Terminated
+  $ kill $server_pid 2>/dev/null || true
+  $ wait $server_pid 2>/dev/null || true

@@ -1,8 +1,8 @@
-  $ mkdir -p pages/users routes/users _utopia
+  $ mkdir -p app/users/[id] routes/users _utopia
   $ printf "(lang dune 3.8)\n(using melange 0.1)\n" > dune-project
   $ printf "(data_only_dirs _utopia)\n(include _utopia/dune)\n" > dune
   $ touch _utopia/dune
-  $ cat > pages/users/[id].ml <<'EOF'
+  $ cat > app/users/[id]/page.ml <<'EOF'
   > let before _request = ()
   > let[@react.component] make () =
   >   let route =
@@ -11,7 +11,7 @@
   >       ()
   >   in
   >   match Routes.of_route route with
-  >   | Some (Routes.Users_id { params }) ->
+  >   | Some (Routes.Users_id_page { params }) ->
   >       React.string (string_of_int params.id)
   >   | _ -> React.string "invalid"
   > EOF
@@ -31,7 +31,7 @@
   $ utopia.compiler > /dev/null
   $ grep -qF 'module Route_params = Route_schema__Users__Id.Params' _utopia/Routes_client.ml
   $ grep -qF 'let make ~params =' _utopia/Routes_client.ml
-  $ grep -qF 'Users_id of {' _utopia/Routes_client.ml
+  $ grep -qF 'Users_id_page of {' _utopia/Routes_client.ml
   $ grep -qF 'params: Users.Param_id.Route_params.t' _utopia/Routes_client.ml
   $ grep -qF 'Users.Param_id.Route_params.decode' _utopia/Routes_client.ml
   $ export UTOPIA_ROOT="$(dirname "$OPAM_SWITCH_PREFIX")"

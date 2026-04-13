@@ -6,7 +6,7 @@ type file = {
 }
 
 let make_custom_file ~target_name ~repository_source_path ~installed_source_path
-    () =
+    =
   {
     target_name;
     module_name = Filename.remove_extension target_name;
@@ -17,16 +17,15 @@ let make_custom_file ~target_name ~repository_source_path ~installed_source_path
 let make_file target_name =
   make_custom_file ~target_name
     ~repository_source_path:(Filename.concat "lib/utopia" target_name)
-    ~installed_source_path:target_name ()
+    ~installed_source_path:target_name
 
 let esbuild_config = make_file "esbuild.config.mjs"
 let client_entry_source_file = make_file "client_entry.re"
 let server_main_source_file = make_file "server_main.ml"
 
-let all_files =
+let root_files =
   [ esbuild_config; client_entry_source_file; server_main_source_file ]
 
-let root_files = all_files
 let native_files = []
 let melange_module_names = []
 let native_module_names = []
