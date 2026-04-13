@@ -1,7 +1,7 @@
 ---
 title: Hello utopia
-date: 2025.06.15
-description: An introduction to building sites with the Utopia SSG.
+date: 15/06/2025
+description: An introduction to building sites with the utopia.
 ---
 
 Hello, **utopia** is a static site generator built on OCaml and server-reason-react. It

@@ -8,10 +8,6 @@ let metadata _params =
     ~description:"A stripped-back Utopia Notes demo with SQLite-backed content."
     ()
 
-let react_array items = React.array (Array.of_list items)
-
-module Navigate = Utopia.Router.Link
-
 let[@react.component] make () =
   let summaries = tag_summaries () in
   <main className="flex min-h-screen items-center px-6 py-12 sm:px-8">
@@ -26,22 +22,22 @@ let[@react.component] make () =
         (React.string "A stripped-back Utopia Notes demo with a dynamic tag sidebar and SQLite-backed content.")
       </p>
       <div className="mt-10 border-t border-[#e4e2db]">
-        (react_array
-           (List.map
-                (fun summary ->
-                  <Navigate key=summary.slug to_=summary.route
-                    className="js-route-link block border-b border-[#e4e2db] py-4 text-left hover:bg-[#f1f0ec]">
-                    <span className="block text-[17px] font-medium tracking-[-0.02em] text-[#1d1d1f]">
-                      (React.string summary.name)
-                    </span>
-                    (match summary.description with
-                     | None -> React.null
-                     | Some description ->
-                         <span className="mt-1 block text-[13px] text-[#7a7974]">
-                           (React.string description)
-                         </span>)
-                  </Navigate>)
-                summaries))
+        (React.array (Array.of_list
+            (List.map
+                 (fun summary ->
+                   <Utopia.Router.Link key=summary.slug to_=summary.route
+                     className="js-route-link block border-b border-[#e4e2db] py-4 text-left hover:bg-[#f1f0ec]">
+                     <span className="block text-[17px] font-medium tracking-[-0.02em] text-[#1d1d1f]">
+                       (React.string summary.name)
+                     </span>
+                     (match summary.description with
+                      | None -> React.null
+                      | Some description ->
+                          <span className="mt-1 block text-[13px] text-[#7a7974]">
+                            (React.string description)
+                          </span>)
+                   </Utopia.Router.Link>)
+                 summaries)))
        </div>
     </section>
   </main>

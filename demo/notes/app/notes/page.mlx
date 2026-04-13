@@ -6,10 +6,6 @@ let metadata _params =
   Utopia.Metadata.make ~title:"All Notes"
     ~description:"Browse every note across all tags." ()
 
-let react_array items = React.array (Array.of_list items)
-
-module Navigate = Utopia.Router.Link
-
 let[@react.component] make () =
   let scroll_container_class =
     "min-h-screen overflow-y-auto [scrollbar-width:thin] \
@@ -26,9 +22,9 @@ let[@react.component] make () =
     |> List.map (fun (summary : tag_summary) ->
         notes_for_tag summary.slug
         |> List.map (fun (note : note) ->
-            <Navigate
-              key=note.summary.slug
-              to_=note.summary.route
+            <Utopia.Router.Link
+               key=note.summary.slug
+               to_=note.summary.route
               className="js-route-link block border-b border-[#e4e2db] px-6 \
                          py-4 text-left hover:bg-[#f6f5f1] sm:px-8">
               <div className="flex items-baseline justify-between gap-4">
@@ -49,7 +45,7 @@ let[@react.component] make () =
               <p className="mt-3 text-[12px] text-[#8a8984]">
                 (React.string summary.name)
               </p>
-            </Navigate>))
+            </Utopia.Router.Link>))
     |> List.flatten
   in
   <main className=scroll_container_class>
@@ -72,5 +68,5 @@ let[@react.component] make () =
         </p>
       </div>
     </header>
-    <div>(react_array note_rows)</div>
+    <div>(React.array (Array.of_list note_rows))</div>
   </main>

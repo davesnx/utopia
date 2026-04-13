@@ -40,6 +40,11 @@ generate: export
 serve: export
 	$(PYTHON) -m http.server $(PORT) --bind $(HOST) --directory $(STATIC_DIR)
 
+.PHONY: dev
+dev: bootstrap-generated-dune
+	$(DUNE) build --no-print-directory ../../bin/cli/cli.exe
+	$(CLI) dev
+
 .PHONY: clean
 clean: bootstrap-generated-dune
 	$(DUNE) build --no-print-directory ../../bin/cli/cli.exe

@@ -3,30 +3,23 @@ let metadata _params =
 
 let[@react.component] make () =
   <div>
+    <h1 className="font-semibold text-slate-800 text-balance mb-7">
+      (React.string "Posts")
+    </h1>
     <ul>
       (Blog_data.posts
       |> List.map (fun (post : Blog_data.post) ->
-          <li key=post.slug className="font-medium">
+          <li key=post.slug>
             <Utopia.Router.Link
               to_=(Routes.Posts.Param_slug.make ~slug:post.slug ())
               className="group flex gap-1 -mx-2 px-2 justify-between \
-                         items-center">
+                         items-center font-medium">
               <span
                 className="block text-slate-600 group-hover:text-slate-800 \
                            transition-colors">
                 (React.string post.title)
               </span>
-              <span
-                className="text-sm dot-leaders flex-1 text-slate-200 \
-                           font-normal group-hover:text-slate-500 \
-                           transition-colors leading-none"
-              />
-              <time
-                className="block text-slate-500 tabular-nums font-normal \
-                           tracking-tighter group-hover:text-slate-600 \
-                           transition-colors self-start">
-                (React.string post.date)
-              </time>
+              <Date value=post.date />
             </Utopia.Router.Link>
           </li>)
       |> Array.of_list |> React.array)

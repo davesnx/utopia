@@ -15,19 +15,12 @@ let[@react.component] make () =
                    hover:decoration-slate-700">
         (React.string "utopia")
       </a>
-      (React.string
-         ", a static site generator for OCaml and server-reason-react.")
+      (React.string ".")
     </p>
     <p className="mt-7">
       (React.string
-         "The pages are rendered at build time from MLX components. Blog posts \
-          are stored as markdown files, parsed with the shared YAML \
-          frontmatter pipeline, and rendered with syntax highlighting powered \
-          by ochre and TextMate grammars.")
-    </p>
-    <p className="mt-7">
-      (React.string
-         "No JavaScript is shipped to the browser. The entire site is static \
-          HTML and CSS.")
+         "The pages are rendered at build time from React Server components. \
+          Blog posts are stored as markdown files, parsed with the markdown \
+          pipeline, and rendered with syntax highlighting powered by ochre.")
     </p>
   </div>

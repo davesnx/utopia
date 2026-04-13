@@ -11,8 +11,12 @@ CLI := $(ROOT)/_build/default/bin/cli/cli.exe
 SERVER := $(ROOT)/_build/default/demo/blog/_utopia/server_main.exe
 STATIC_DIR := _utopia/static
 
+.PHONY: bootstrap-generated-dune
+bootstrap-generated-dune:
+	@test -f _utopia/dune || { mkdir -p _utopia; : > _utopia/dune; }
+
 .PHONY: compile
-compile:
+compile: bootstrap-generated-dune
 	$(DUNE) build --no-print-directory ../../bin/compiler/compiler.exe ../../bin/cli/cli.exe
 	$(CLI) clean --build-outputs
 	$(COMPILER) > /dev/null
@@ -37,7 +41,12 @@ generate: export
 serve: export
 	$(PYTHON) -m http.server $(PORT) --bind $(HOST) --directory $(STATIC_DIR)
 
+.PHONY: dev
+dev: bootstrap-generated-dune
+	$(DUNE) build --no-print-directory ../../bin/cli/cli.exe
+	$(CLI) dev
+
 .PHONY: clean
-clean:
+clean: bootstrap-generated-dune
 	$(DUNE) build --no-print-directory ../../bin/cli/cli.exe
 	$(CLI) clean --build-outputs

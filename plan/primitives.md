@@ -29,8 +29,17 @@ A layout receives `children` (the rendered child page or nested layout) as its p
 
 Only code pages can be layouts (no `.md` layouts). Exactly one layout per directory; conflicts are compile-time errors.
 
+### Not-found Page
+A file named `not-found.re`, `not-found.ml`, or `not-found.mlx` placed at the root of `app/`. Rendered with a 404 HTTP status when no page route matches the request URL. Similar to Next.js's `not-found.js` convention.
+
+The not-found page is wrapped by the root layout (if one exists), providing consistent visual framing. It participates in the RSC router tree for client-side navigation and streams HTML with the standard RSC pipeline.
+
+Only one not-found file is allowed at the root level; duplicates are compile-time errors. Only code pages can be not-found pages (no `.md`). The not-found page does not define a route and is not included in `Routes.get_all()` metadata.
+
+In dev mode, the root path `/` still shows the dev route index when no root page exists. In production, unmatched routes (including root when no root page exists) render the not-found page.
+
 ### App-local Module
-A non-reserved code module (`.re`, `.ml`, or `.mlx`) under `app/` whose basename is not one of `page`, `layout`, `route`, or `_middleware`. App-local modules do not define routes.
+A non-reserved code module (`.re`, `.ml`, or `.mlx`) under `app/` whose basename is not one of `page`, `layout`, `route`, `_middleware`, or `not-found`. App-local modules do not define routes.
 
 They are support modules available to `page.*` and `layout.*` files in the same directory scope (the module's directory and descendants). Example: `app/button.mlx` exposes `Button` to pages/layouts under `app/**`.
 
@@ -147,11 +156,12 @@ An esbuild plugin that runs `extract_client_components` before bundling and prep
 ### Compiler (`utopia.compiler`)
 Scans route sources recursively, preferring canonical `app/` classification (`page.*` and `route.*`) and falling back to legacy `pages/` + `api/` only when `app/` is absent. It parses directory names into route segments, detects conflicts, collects layouts/middleware, validates param accesses for pages, and generates:
 - `_utopia/dune` (dune build rules)
-- `_utopia/Routes.ml` (typed route builders)
-- route metadata loaders (`Routes.get_all`, `Routes.Api.get_all`)
+- `_utopia/Routes.ml` (public compatibility shim)
+- `_utopia/Routes_client.ml` (typed route builders and client-safe route parsing)
+- `_utopia/Routes_server.ml` (native-only raw server registries and not-found wiring)
 - `_utopia/client_entry.re` (RSC client shell)
 - `_utopia/esbuild.config.mjs` (esbuild configuration)
-- `_utopia/server_main.ml` (per-project server executable)
+- `_utopia/server_main.ml` (copied runtime entrypoint)
 
 The compiler now builds `_utopia/dune` as structured `Sexplib0.Sexp` stanzas through the dedicated `dune_sexp` library, instead of hand-concatenating dune source strings.
 
@@ -160,15 +170,20 @@ Static project support sources are no longer embedded as source blobs in `bin/co
 ### Dune Sexp Library (`dune_sexp`)
 An internal library under `lib/dune_sexp/` that exposes a narrow helper interface for constructing dune stanzas as structured `Sexplib0.Sexp` values and serializing them. The compiler uses it for `_utopia/dune` generation.
 
+### OCaml Codegen Helper (`Ocaml_gen`)
+An internal compiler helper under `bin/compiler/` that wraps `ppxlib.metaquot`, `Ppxlib` AST constructors, and `Pprintast` so generated route modules can be assembled as typed OCaml structure items instead of hand-concatenated source strings. It now owns the full generated route-module surface: `Routes_client` route builders and `of_route`, the `Routes` compatibility shim plus native-only metadata/API helpers, and `Routes_server` registries/not-found wiring.
+
 ### `_utopia/`
 The generated artifacts directory. Contains dune rules, generated route modules/registries, client entry, esbuild config, and server executable wiring -- all produced by the compiler. This directory is created and managed by the build system; users should not edit files here. Projects should include the generated rules with `(include _utopia/dune)` and mark `_utopia` as data-only with `(data_only_dirs _utopia)` so Dune does not parse `_utopia/dune` as a nested standalone project.
 
 Generated files include:
 - `dune` -- build rules (copy, melange.emit, library, esbuild, server exe)
-- `Routes.ml` -- generated typed route tree plus route metadata loaders
+- `Routes.ml` -- generated public compatibility shim that re-exports `Routes_client` and preserves native-only metadata/API helpers
+- `Routes_client.ml` -- generated typed route tree and client-safe route parsing surface
+- `Routes_server.ml` -- generated native-only raw server registries and not-found wiring
 - `client_entry.re` -- RSC client shell (boots React, calls createFromFetch)
 - `esbuild.config.mjs` -- esbuild configuration with the SRR plugin
-- `server_main.ml` -- per-project server executable (wires pages to server lib)
+- `server_main.ml` -- copied runtime entrypoint that boots `Routes_server`
 
 Generated build mirrors include:
 - root `_utopia/Utopia_page__*.re|.ml|.mlx` app page/layout copies for the Melange build
@@ -226,7 +241,7 @@ That single generated `_utopia/dune` file defines:
 
 This single-file `_utopia/dune` path exists to give Merlin/ocamllsp real Dune ownership over shared `lib/` source files and page/layout source files whose basenames are valid module names without maintaining a second generated dune file. Dynamic route segments should therefore live in directory names with a `page` file, such as `app/notes/[tag]/page.mlx` or `app/posts/[slug]/page.mlx`, rather than in invalid basenames like `app/notes/[tag].mlx`.
 
-Generated code now depends directly on the shared public `utopia` library for reusable runtime modules (`Utopia`, `Utopia_call_server`, `Utopia_route`, `Utopia_router`, `Utopia_router_link`, `Utopia_router_route`, `Utopia_route_builder`, `Utopia_server`, `Utopia_types`, and `FunctionReferences`). Project-specific route code is emitted separately as top-level `Routes.ml` inside `_utopia/`.
+Generated code now depends directly on the shared public `utopia` library for reusable runtime modules (`Utopia`, `Utopia_call_server`, `Utopia_route`, `Utopia_router`, `Utopia_router_link`, `Utopia_router_route`, `Utopia_route_builder`, `Utopia_server`, `Utopia_types`, and `FunctionReferences`). Project-specific route code is emitted as three generated modules inside `_utopia/`: public `Routes` (compatibility shim that preserves the historical API), `Routes_client` (client-safe route API), and native-only `Routes_server` (raw server registries and not-found wiring). The checked-in runtime `server_main.ml` stays generic and boots `Routes_server`.
 
 ### Generated Project Assets (`lib/utopia/`)
 Static generated-project assets now live directly under `lib/utopia/`: `client_entry.re`, `esbuild.config.mjs`, and `ReactServerDOMEsbuild.re`. The compiler resolves and copies those files into `_utopia/` when generating a project.

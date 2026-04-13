@@ -1,5 +1,3 @@
-module Navigate = Utopia.Router.Link
-
 type kind = Default | Accent
 type width = Auto | Full
 type state = Enabled | Disabled
@@ -59,7 +57,7 @@ end
 module Link = struct
   let[@react.component] make ~(children : React.element) ~(to_ : Utopia.Route.t)
       ~kind ?(width = Auto) ?(className = "") () =
-    <Navigate
+    <Utopia.Router.Link
       to_
       className=(join_classes
                    [
@@ -67,5 +65,5 @@ module Link = struct
                      class_name ~kind ~width ~extra:className ();
                    ])>
       children
-    </Navigate>
+    </Utopia.Router.Link>
 end

@@ -163,6 +163,7 @@ let basename_without_extension file =
   file |> Filename.basename |> Filename.remove_extension
 
 let is_layout_file file = basename_without_extension file = "layout"
+let is_not_found_file file = basename_without_extension file = "not-found"
 
 let ancestor_directories dir =
   if dir = "" then [ "" ]
@@ -307,6 +308,7 @@ let route_entries_of_files files =
 type app_file_collection = {
   page_files : string list;
   api_files : string list;
+  not_found_file : string option;
   errors : string list;
 }
 
@@ -336,6 +338,7 @@ let collect_app_files files =
   let pages = ref [] in
   let api = ref [] in
   let errors = ref [] in
+  let not_found = ref None in
   let page_files_by_dir = Hashtbl.create 16 in
   let route_files_by_dir = Hashtbl.create 16 in
   let add_page_file dir source_file relative_file =
@@ -370,6 +373,24 @@ let collect_app_files files =
                 source_file app_api_directory
               :: !errors
           else add_page_file dir source_file relative_file
+      | "not-found", Some Code_page -> (
+          if in_api_namespace then ()
+          else if dir <> "" then
+            (* Nested not-found files are treated as app-local support modules
+               for now; only root-level not-found is recognized *)
+            pages := relative_file :: !pages
+          else
+            match !not_found with
+            | None ->
+                not_found := Some source_file;
+                pages := relative_file :: !pages
+            | Some existing ->
+                errors :=
+                  Printf.sprintf
+                    "Duplicate not-found files in %s/: both %s and %s define \
+                     not-found"
+                    app_directory existing source_file
+                  :: !errors)
       | "route", Some Code_page ->
           if in_api_namespace then add_route_file dir source_file relative_file
           else
@@ -402,6 +423,7 @@ let collect_app_files files =
   {
     page_files = List.rev !pages;
     api_files = List.rev api_files;
+    not_found_file = !not_found;
     errors =
       List.rev !errors
       @ app_page_file_conflicts page_files_by_dir
@@ -421,6 +443,13 @@ let app_route_entries_of_files files =
   route_entries_of_files_with ~source_root:app_directory
     ~route_path_of_file:(fun file -> relative_directory file)
     page_and_layout_files
+
+let not_found_layouts_of_app_files files =
+  let layout_by_dir, _errors =
+    collect_layouts ~source_root:app_directory files
+  in
+  ancestor_directories ""
+  |> List.filter_map (fun segment -> Hashtbl.find_opt layout_by_dir segment)
 
 let attach_markdown_payloads (entries : route_entry list) =
   let attach_entry (entry : route_entry) =

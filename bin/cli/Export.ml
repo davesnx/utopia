@@ -17,9 +17,7 @@ let run _args =
   Printf.printf "\n%s\n\n" (Terminal.bold "utopia export");
   Terminal.print_step "Validating project structure";
   if not (Artifacts.has_source_routes_directory ()) then (
-    Terminal.print_err
-      "Missing route source directory. Create 'app/' (preferred) or legacy \
-       'pages/'.";
+    Terminal.print_err "Missing route source directory. Create 'app/'.";
     exit 1);
   Terminal.print_done "Project structure valid";
 

@@ -16,6 +16,10 @@ let generated_api_library_name () =
 let generated_utopia_library_name () =
   "utopia_" ^ Names.sanitize_library_component (project_scope_identity ())
 
+let generated_routes_server_library_name () =
+  "routes_server_"
+  ^ Names.sanitize_library_component (project_scope_identity ())
+
 let generated_source_lib_library_name () =
   "source_lib_" ^ Names.sanitize_library_component (project_scope_identity ())
 

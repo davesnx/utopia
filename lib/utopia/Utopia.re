@@ -4,7 +4,6 @@ let make = Utopia_router.make;
 let callServer = Utopia_call_server.callServer;
 let currentUrl = Utopia_router.currentUrl;
 let browserPath = Utopia_router.browserPath;
-let respond = Utopia_server.respond;
 
 module Route = {
   type t = Utopia_route.t;
@@ -101,8 +100,6 @@ module Router = {
 };
 
 module PassThroughLayout = Utopia_router.PassThroughLayout;
-
-module Markdown = Utopia_markdown_api;
 
 module Metadata = {
   type t = Utopia_types.metadata;

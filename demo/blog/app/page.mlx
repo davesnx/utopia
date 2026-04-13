@@ -1,0 +1,10 @@
+let metadata _params =
+  Utopia.Metadata.make ~title:"Home" ~description:"Home page." ()
+
+let[@react.component] make () =
+  <div>
+    <h1 className="font-semibold text-slate-800 text-balance mb-7">
+      (React.string "Home")
+    </h1>
+    <p className="mt-7">(React.string "This is the home page. Halo!")</p>
+  </div>

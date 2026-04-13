@@ -1,8 +1,4 @@
-open Notes_data
-
-let react_array items = React.array (Array.of_list items)
-
-module Navigate = Utopia.Router.Link
+open! Notes_data
 
 let create_tag ~(name : string) ~(description : string) =
   (Js.Promise.resolve
@@ -24,7 +20,7 @@ module Sidebar_tag = struct
         "js-route-link block border-l border-transparent px-5 py-3 text-left \
          hover:bg-[#f1f0ea]"
     in
-    <Navigate to_=route className>
+    <Utopia.Router.Link to_=route className>
       <span
         className="block text-[15px] font-medium tracking-[-0.01em] \
                    text-[#1d1d1f]">
@@ -35,7 +31,7 @@ module Sidebar_tag = struct
          <span className="mt-1 block text-[12px] leading-5 text-[#7a7974]">
            (React.string description)
          </span>)
-    </Navigate>
+    </Utopia.Router.Link>
 end
 
 module Sidebar_tag_creation = struct
@@ -181,16 +177,16 @@ let[@react.component] make ~(children : React.element) () =
       </div>
       <Sidebar_tag_creation />
       <nav className="flex flex-1 flex-col py-2">
-        (react_array
-           (List.map
-              (fun summary ->
-                <Sidebar_tag
-                  key=summary.slug
-                  route=summary.route
-                  name=summary.name
-                  description=(description_text summary.description)
-                />)
-              tags))
+        (React.array (Array.of_list
+            (List.map
+               (fun summary ->
+                 <Sidebar_tag
+                   key=summary.slug
+                   route=summary.route
+                   name=summary.name
+                   description=(description_text summary.description)
+                 />)
+               tags)))
       </nav>
       <div className="mt-auto border-t border-[#d8d7d2] px-4 py-4">
         <Button.Link

@@ -135,6 +135,8 @@ let wait_for_socket ~build_dir ~max_retries ~delay_ms =
 let active_diagnostics : (int, Protocol.Diagnostic.t) Hashtbl.t =
   Hashtbl.create 64
 
+let clear_active_diagnostics () = Hashtbl.clear active_diagnostics
+
 let diagnostic_id_to_int diagnostic =
   Protocol.Diagnostic.Id.hash (Protocol.Diagnostic.id diagnostic)
 

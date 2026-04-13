@@ -133,9 +133,7 @@ let run args =
 
   Terminal.print_step "Running initial build bootstrap";
   if not (Artifacts.has_source_routes_directory ()) then (
-    Terminal.print_err
-      "Missing route source directory. Create 'app/' (preferred) or legacy \
-       'pages/'.";
+    Terminal.print_err "Missing route source directory. Create 'app/'.";
     exit 1);
 
   if not (Npm_preflight.ensure ~command_name:"utopia dev" ()) then exit 1;
@@ -149,7 +147,7 @@ let run args =
 
   let dune = Binaries.resolve_bin "dune" in
   Terminal.print_step "Building project";
-  (* Build server executable — required *)
+  (* Build server executable — required for the dev server to start. *)
   let code =
     Process.run_command dune
       (Artifacts.dune_build_args [ Artifacts.generated_server_build_target () ])
@@ -157,15 +155,20 @@ let run args =
   if code <> 0 then (
     Terminal.print_err "Initial dune build failed";
     exit code);
-  (* Build client bundle — non-fatal in dev, watch mode will retry *)
+  Terminal.print_done "Project built";
+
+  (* Build client-side bundles (melange + esbuild) — best-effort.
+     This produces the dev overlay JS; if it fails (e.g. melange
+     library compat issues) the server still works without it. *)
   let esbuild_code =
     Process.run_command dune
       (Artifacts.dune_build_args
          [ Artifacts.generated_esbuild_build_target () ])
   in
-  if esbuild_code <> 0 then
-    Terminal.print_warn "Client bundle build failed (will retry in watch mode)";
-  Terminal.print_done "Project built";
+  if esbuild_code = 0 then Terminal.print_done "Client bundles built"
+  else
+    Terminal.print_warn
+      "Client bundle build failed (dev overlay will not be available)";
 
   let generated_server = Artifacts.generated_server_exe_ref () in
   if not (Artifacts.artifact_exists generated_server) then (
@@ -192,9 +195,20 @@ let run args =
     if config.no_watch then None
     else (
       Terminal.print_step "Starting dune watch (with RPC)";
+      (* Build the default alias (.), the server executable, and the
+         esbuild alias explicitly.  _utopia/ is data_only_dirs so
+         (alias_rec all) from the parent does not recurse into it.
+         The explicit targets ensure dune watch rebuilds both the
+         server and client bundles when source files change. *)
       let pid =
         Process.spawn_silent dune
-          ([ "build"; "-w" ] @ Artifacts.dune_root_args () @ [ "." ])
+          ([ "build"; "-w" ]
+          @ Artifacts.dune_root_args ()
+          @ [
+              ".";
+              Artifacts.generated_server_build_target ();
+              Artifacts.generated_esbuild_build_target ();
+            ])
           watch_env
       in
       Some pid)
@@ -294,19 +308,30 @@ let run args =
            }
          in
          let rpc_task =
-           Lwt.catch
-             (fun () ->
-               Build_rpc.run_loop ~hooks:dev_hooks
-                 ~build_dir:
-                   (Filename.concat
-                      (Artifacts.workspace_root_string ())
-                      (Fpath.to_string Artifacts.build_directory))
-                 ~verbose:config.verbose ())
-             (fun exn ->
-               if config.verbose then
-                 Terminal.print_warn
-                   (Printf.sprintf "RPC error: %s" (Printexc.to_string exn));
-               Lwt.return_unit)
+           let build_dir =
+             Filename.concat
+               (Artifacts.workspace_root_string ())
+               (Fpath.to_string Artifacts.build_directory)
+           in
+           let rec rpc_loop () =
+             Build_rpc.clear_active_diagnostics ();
+             let* () =
+               Lwt.catch
+                 (fun () ->
+                   Build_rpc.run_loop ~hooks:dev_hooks ~build_dir
+                     ~verbose:config.verbose ())
+                 (fun exn ->
+                   if config.verbose then
+                     Terminal.print_warn
+                       (Printf.sprintf "RPC error: %s" (Printexc.to_string exn));
+                   Lwt.return_unit)
+             in
+             if config.verbose then
+               Terminal.print_warn "Dune RPC disconnected, reconnecting…";
+             let* () = Lwt_unix.sleep 1.0 in
+             rpc_loop ()
+           in
+           rpc_loop ()
          in
          let watch_monitor =
            match watch_pid with
@@ -376,11 +401,11 @@ let run args =
                             "Could not restart generated dev server: %s" message);
                        Lwt.return 1)
                | Some _, None ->
-                   Terminal.print_err
-                     (Printf.sprintf
-                        "Generated server executable disappeared at %s"
-                        (Artifacts.artifact_display generated_server));
-                   Lwt.return 1
+                   (* The executable is temporarily missing — dune removes
+                       stale artifacts when a rebuild fails. Keep polling;
+                       the file will reappear once the build succeeds. *)
+                   let* () = Lwt_unix.sleep 0.5 in
+                   loop last_mtime
                | _, Some current ->
                    server_mtime := Some current;
                    let* () = Lwt_unix.sleep 0.5 in
@@ -397,6 +422,8 @@ let run args =
                server_monitor;
                watch_monitor;
                (let* () = rpc_task in
+                (* rpc_loop reconnects indefinitely; this is only
+                   reachable if Lwt cancels the promise. *)
                 let waiter, _wakener = Lwt.wait () in
                 waiter);
              ]

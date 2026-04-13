@@ -22,10 +22,6 @@ let run ~version _args =
     (if Filesystem.is_directory Artifacts.source_app_directory then
        Terminal.green "found"
      else Terminal.red "missing");
-  Printf.printf "    pages:      %s\n"
-    (if Filesystem.is_directory Artifacts.source_pages_directory then
-       Terminal.yellow "legacy"
-     else Terminal.dim "absent");
   Printf.printf "    _utopia:    %s\n"
     (if Filesystem.is_directory (Fpath.to_string Artifacts.generated_directory)
      then Terminal.green "generated"

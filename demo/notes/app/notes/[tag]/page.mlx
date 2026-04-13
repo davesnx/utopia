@@ -11,10 +11,6 @@ let metadata params =
         ?description:summary.description ()
   | None -> Utopia.Metadata.make ~title:"Tag" ()
 
-let react_array items = React.array (Array.of_list items)
-
-module Navigate = Utopia.Router.Link
-
 let[@react.server.function] toggle_note_checklist_item_action ~(slug : string)
     ~(item_index : string) =
   (Js.Promise.resolve
@@ -150,8 +146,8 @@ module Checklist = struct
            </p>)
         <div
           className="mt-4 border-y border-[#ebe9e2] divide-y divide-[#ebe9e2]">
-          (react_array
-             (List.mapi
+          (React.array (Array.of_list
+              (List.mapi
                 (fun item_index (item_text, item_done) ->
                   let is_pending = pending_item = Some item_index in
                   let marker_class =
@@ -189,7 +185,7 @@ module Checklist = struct
                     />
                     <p className=text_class>(React.string item_text)</p>
                   </div>)
-                items))
+                items)))
         </div>
       </section>
 end
@@ -285,25 +281,25 @@ module Tag_page = struct
                    </p>
                  </section>
                else
-                 react_array
-                   (List.map
-                      (fun ( slug,
-                             _tag_slug,
-                             title,
-                             preview,
-                             updated_at,
-                             body_html,
-                             checklist ) ->
-                        <Note_article
-                          key=slug
-                          slug
-                          title
-                          preview
-                          updated_at
-                          body_html
-                          checklist
-                        />)
-                      tag_notes))
+                 React.array (Array.of_list
+                    (List.map
+                       (fun ( slug,
+                              _tag_slug,
+                              title,
+                              preview,
+                              updated_at,
+                              body_html,
+                              checklist ) ->
+                         <Note_article
+                           key=slug
+                           slug
+                           title
+                           preview
+                           updated_at
+                           body_html
+                           checklist
+                         />)
+                       tag_notes)))
             </main>)
 end
 

@@ -11,7 +11,5 @@
   > let make () = React.string "dynamic via before"
   > EOF
   $ utopia.compiler > /dev/null
-  $ grep -F 'source_file = "pages/Static.ml"' _utopia/Routes.ml | rg -o 'static = true'
-  static = true
-  $ grep -F 'source_file = "pages/Dynamic.ml"' _utopia/Routes.ml | rg -o 'static = false'
-  static = false
+  $ grep -A 12 -F 'source_file = "pages/Static.ml"' _utopia/Routes.ml | grep -qF 'static = true;'
+  $ grep -A 12 -F 'source_file = "pages/Dynamic.ml"' _utopia/Routes.ml | grep -qF 'static = false;'

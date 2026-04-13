@@ -53,15 +53,13 @@
   > };
   > EOF
   $ utopia.compiler > /dev/null
-  $ grep -E "module Search = struct|module Route_query = Route_schema__Search.Query|module Route_hash = Route_schema__Search.Hash|let make \?query \?hash \(\) =|type t =|Search \{ query = query; hash = hash \}|let of_route route =|let route = make \(\)" _utopia/Routes.ml
-  module Search = struct
-    module Route_query = Route_schema__Search.Query
-    module Route_hash = Route_schema__Search.Hash
-    let make ?query ?hash () =
-    let route = make ()
-  type t =
-  let of_route route =
-        | Some query, Some hash -> Some (Search { query = query; hash = hash })
+  $ grep -qF 'module Route_query = Route_schema__Search.Query' _utopia/Routes_client.ml
+  $ grep -qF 'module Route_hash = Route_schema__Search.Hash' _utopia/Routes_client.ml
+  $ grep -qF 'let make ?query =' _utopia/Routes_client.ml
+  $ grep -qF 'fun ?hash ->' _utopia/Routes_client.ml
+  $ grep -qF 'let route = make ()' _utopia/Routes_client.ml
+  $ grep -qF 'let of_route route =' _utopia/Routes_client.ml
+  $ grep -qF 'Search { query; hash }' _utopia/Routes_client.ml
   $ export UTOPIA_ROOT="$(dirname "$OPAM_SWITCH_PREFIX")"
   $ export OCAMLPATH="$UTOPIA_ROOT/_build/install/default/lib"
   $ dune build --root . @melange _utopia/server_main.exe > /dev/null

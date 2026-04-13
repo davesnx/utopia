@@ -12,7 +12,9 @@
   > let make = () => <div> {React.string("dynamic")} </div>;
   > EOF
   $ utopia.compiler > /dev/null
-  $ grep -F 'source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = true; static = true; has_paths = false' _utopia/Routes.ml
-    ({ route = "home"; matcher = "home"; conflict_key = "home"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = true; static = true; has_paths = false } : Utopia_types.page_route_meta);
-  $ grep -F 'source_file = "pages/Dynamic.re"; module_name = "Pages__Dynamic"; has_metadata = false; static = false; has_paths = false' _utopia/Routes.ml
-    ({ route = "dynamic"; matcher = "dynamic"; conflict_key = "dynamic"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/Dynamic.re"; module_name = "Pages__Dynamic"; has_metadata = false; static = false; has_paths = false } : Utopia_types.page_route_meta);
+  $ grep -A 12 -F 'source_file = "pages/Home.re"' _utopia/Routes.ml | grep -qF 'module_name = "Pages__Home"'
+  $ grep -A 12 -F 'source_file = "pages/Home.re"' _utopia/Routes.ml | grep -qF 'has_metadata = true;'
+  $ grep -A 12 -F 'source_file = "pages/Home.re"' _utopia/Routes.ml | grep -qF 'static = true;'
+  $ grep -A 12 -F 'source_file = "pages/Dynamic.re"' _utopia/Routes.ml | grep -qF 'module_name = "Pages__Dynamic"'
+  $ grep -A 12 -F 'source_file = "pages/Dynamic.re"' _utopia/Routes.ml | grep -qF 'has_metadata = false;'
+  $ grep -A 12 -F 'source_file = "pages/Dynamic.re"' _utopia/Routes.ml | grep -qF 'static = false;'

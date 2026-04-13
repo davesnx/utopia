@@ -1,12 +1,12 @@
 let app_directory = Routes.app_directory
-let pages_directory = Routes.pages_directory
-let api_directory = Routes.api_directory
 
 let generated_files project =
   [
     Utopia_path.generated_dune project;
     Utopia_path.generated_esbuild_paths project;
     Utopia_path.generated_routes_source project;
+    Utopia_path.generated_routes_client_source project;
+    Utopia_path.generated_routes_server_source project;
     Utopia_path.generated_server_source project;
   ]
 
@@ -58,61 +58,32 @@ let run ~build_mode =
   clear_generated_files project;
   Runtime_files.copy_runtime_files ();
   let has_app_directory = Filesystem.directory_exists app_directory in
-  let has_pages_directory = Filesystem.directory_exists pages_directory in
-  let has_api_directory = Filesystem.directory_exists api_directory in
-  if (not has_app_directory) && not has_pages_directory then (
-    Printf.eprintf "  Error reading route roots: expected '%s/' or '%s/'\n"
-      app_directory pages_directory;
+  if not has_app_directory then (
+    Printf.eprintf "  Error reading route roots: expected '%s/'\n" app_directory;
     exit 1)
   else
-    let recursive_pages, recursive_api, route_parse_errors, use_app_directory =
-      if has_app_directory then (
-        let recursive_app =
-          match Filesystem.read_files_recursive app_directory with
-          | Error (`Page_directory_doesnt_exist _path) -> []
-          | Ok files -> files
-        in
-        let collection = Routes.collect_app_files recursive_app in
-        let ignored_legacy_roots =
-          [
-            (pages_directory, has_pages_directory);
-            (api_directory, has_api_directory);
-          ]
-          |> List.filter_map (fun (root, present) ->
-              if present then Some root else None)
-        in
-        if ignored_legacy_roots <> [] then
-          Printf.eprintf
-            "  Warning: app/ detected; ignoring legacy route roots: %s\n"
-            (String.concat ", " ignored_legacy_roots);
-        (collection.page_files, collection.api_files, collection.errors, true))
-      else
-        let recursive_pages =
-          match Filesystem.read_files_recursive pages_directory with
-          | Error (`Page_directory_doesnt_exist _path) -> []
-          | Ok files -> files
-        in
-        let recursive_api =
-          match Filesystem.read_files_recursive api_directory with
-          | Error (`Page_directory_doesnt_exist _path) -> []
-          | Ok files -> files
-        in
-        (recursive_pages, recursive_api, [], false)
+    let recursive_app =
+      match Filesystem.read_files_recursive app_directory with
+      | Error (`Page_directory_doesnt_exist _path) -> []
+      | Ok files -> files
     in
-    Printf.printf "  Pages: %s\n" (String.concat ", " recursive_pages);
+    let collection = Routes.collect_app_files recursive_app in
+    let recursive_pages = collection.page_files in
+    let recursive_api = collection.api_files in
+    let route_parse_errors = collection.errors in
+    let not_found_file = collection.not_found_file in
+    let () =
+      Printf.printf "  Pages: %s\n" (String.concat ", " recursive_pages)
+    in
     let route_entries, page_parse_errors =
-      if use_app_directory then
-        Routes.app_route_entries_of_files recursive_pages
-      else Routes.route_entries_of_files recursive_pages
+      Routes.app_route_entries_of_files recursive_pages
     in
     let route_parse_errors = route_parse_errors @ page_parse_errors in
     let reserved_api_namespace_errors =
       Routes.reserved_api_namespace_errors route_entries
     in
     let api_entries, api_parse_errors =
-      if use_app_directory then
-        Routes.app_api_route_entries_of_files recursive_api
-      else Routes.api_route_entries_of_files recursive_api
+      Routes.app_api_route_entries_of_files recursive_api
     in
     let route_schemas, route_schema_errors = Route_schemas.load route_entries in
     let route_entries = Route_schemas.attach route_entries route_schemas in
@@ -179,12 +150,8 @@ let run ~build_mode =
       exit 1)
     else (
       print_endline "\n  Generating rules\n";
-      let source_root =
-        if use_app_directory then app_directory else pages_directory
-      in
-      let api_root =
-        if use_app_directory then Routes.app_api_directory else api_directory
-      in
+      let source_root = app_directory in
+      let api_root = Routes.app_api_directory in
       (* Scan pages for client components and compute melange optimization *)
       let client_component_pages, melange_lib_modules =
         let shared_lib_dir =
@@ -233,12 +200,11 @@ let run ~build_mode =
         Generated_source_dune.generate ~source_root recursive_pages
           route_entries
       in
-      let _dev_mode = build_mode = Esbuild.development in
-      (* TODO: pass ~dev_mode once dev overlay dune rules are ready *)
+      let dev_mode = build_mode = Esbuild.development in
       let runtime_dune =
-        Generated_dune.generate ~source_root ~api_root ~is_client_component_page
-          ~is_melange_lib_module recursive_pages recursive_api route_entries
-          api_entries
+        Generated_dune.generate ~dev_mode ~source_root ~api_root
+          ~is_client_component_page ~is_melange_lib_module recursive_pages
+          recursive_api route_entries api_entries
       in
       let dune_rules =
         [ source_support_dune; runtime_dune ]
@@ -246,10 +212,21 @@ let run ~build_mode =
         |> String.concat "\n\n"
       in
       let esbuild_paths = Esbuild.generate_paths ~build_mode () in
-      let generated_routes =
-        Generated_routes.generate route_entries api_entries
+      let generated_routes_client =
+        Generated_routes.generate_client route_entries
       in
-      let server_main = Server_main.generate route_entries api_entries in
+      let generated_routes =
+        Generated_routes.generate_shim route_entries api_entries
+      in
+      let not_found_layouts =
+        match not_found_file with
+        | Some _ -> Routes.not_found_layouts_of_app_files recursive_pages
+        | None -> []
+      in
+      let generated_routes_server =
+        Generated_routes.generate_server route_entries api_entries
+          ~not_found_file ~not_found_layouts
+      in
       print_endline dune_rules;
       Filesystem.write_to_file
         (file_ref_path (Utopia_path.generated_dune project))
@@ -261,8 +238,11 @@ let run ~build_mode =
         (file_ref_path (Utopia_path.generated_routes_source project))
         generated_routes;
       Filesystem.write_to_file
-        (file_ref_path (Utopia_path.generated_server_source project))
-        server_main)
+        (file_ref_path (Utopia_path.generated_routes_client_source project))
+        generated_routes_client;
+      Filesystem.write_to_file
+        (file_ref_path (Utopia_path.generated_routes_server_source project))
+        generated_routes_server)
 
 let extract_client_main source_file =
   let source =

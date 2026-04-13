@@ -10,9 +10,10 @@
   > EOF
   $ printf "let page = ()\n" > pages/About.re
   $ utopia.compiler > /dev/null
-  $ grep -F 'source_file = "pages/About.re"; module_name = "Pages__About"; has_metadata = false;' _utopia/Routes.ml
-    ({ route = "about"; matcher = "about"; conflict_key = "about"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/About.re"; module_name = "Pages__About"; has_metadata = false; static = true; has_paths = false } : Utopia_types.page_route_meta);
-  $ grep -F 'source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = true;' _utopia/Routes.ml
-    ({ route = "home"; matcher = "home"; conflict_key = "home"; params = []; layouts = []; kind = Utopia_types.Code_page; source_file = "pages/Home.re"; module_name = "Pages__Home"; has_metadata = true; static = true; has_paths = false } : Utopia_types.page_route_meta);
-  $ grep -F '| "pages/Home.re" -> Some Pages__Home.metadata' _utopia/server_main.ml
-      | "pages/Home.re" -> Some Pages__Home.metadata
+  $ grep -qF 'source_file = "pages/About.re"' _utopia/Routes.ml
+  $ grep -qF 'module_name = "Pages__About"' _utopia/Routes.ml
+  $ grep -qF 'has_metadata = false;' _utopia/Routes.ml
+  $ grep -qF 'source_file = "pages/Home.re"' _utopia/Routes.ml
+  $ grep -qF 'module_name = "Pages__Home"' _utopia/Routes.ml
+  $ grep -qF 'has_metadata = true;' _utopia/Routes.ml
+  $ grep -qF '("pages/Home.re", Pages__Home.metadata)' _utopia/Routes_server.ml

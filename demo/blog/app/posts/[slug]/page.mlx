@@ -10,23 +10,19 @@ let metadata params =
       Utopia.Metadata.make ~title:post.title ~description:post.description ()
   | None -> Utopia.Metadata.make ~title:"Not Found" ()
 
-module Navigate = Utopia.Router.Link
-
 module Post_page = struct
   let[@react.client.component] make ~(slug : string) ~(title : string)
       ~(date : string) ~(children : React.element) () =
     let router = Utopia.useRouter () in
     match Routes.of_route router.route with
-    | Some (Routes.Posts_slug_index { slug = current_slug })
+    | Some (Routes.Posts_slug_page { slug = current_slug })
       when String.equal current_slug slug ->
         <div>
           <div className="flex justify-between items-center mb-7">
             <h1 className="font-semibold text-slate-800 text-balance">
               (React.string title)
             </h1>
-            <time className="tabular-nums tracking-tighter">
-              (React.string date)
-            </time>
+            <Date value=date />
           </div>
           children
         </div>

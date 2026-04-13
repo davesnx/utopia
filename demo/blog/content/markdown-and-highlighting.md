@@ -1,6 +1,6 @@
 ---
 title: Markdown and Syntax Highlighting
-date: 2025.06.01
+date: 01/06/2025
 description: Rendering markdown with ochre syntax highlighting.
 ---
 

@@ -105,6 +105,16 @@ let generated_esbuild_paths project =
 let generated_routes_source project =
   project_root_ref project (Fpath.v "_utopia/Routes.ml") "_utopia/Routes.ml"
 
+let generated_routes_client_source project =
+  project_root_ref project
+    (Fpath.v "_utopia/Routes_client.ml")
+    "_utopia/Routes_client.ml"
+
+let generated_routes_server_source project =
+  project_root_ref project
+    (Fpath.v "_utopia/Routes_server.ml")
+    "_utopia/Routes_server.ml"
+
 let generated_server_source project =
   project_root_ref project
     (Fpath.v "_utopia/server_main.ml")

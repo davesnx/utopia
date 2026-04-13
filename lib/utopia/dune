@@ -4,8 +4,16 @@
  (files
   (client_entry.re as utopia/client_entry.re)
   (esbuild.config.mjs as utopia/esbuild.config.mjs)
+  (server_main.ml as utopia/server_main.ml)
   (ReactServerDOMEsbuild.re as utopia/ReactServerDOMEsbuild.re)
-  (Utopia_dev_overlay.re as utopia/Utopia_dev_overlay.re)))
+   ;; Client-safe modules — copied into melange.emit by the generated dune
+   (Utopia_types.ml as utopia/Utopia_types.ml)
+   (Utopia_route.ml as utopia/Utopia_route.ml)
+   (Utopia_call_server.re as utopia/Utopia_call_server.re)
+  (Utopia_router.re as utopia/Utopia_router.re)
+  (Utopia_router_link.re as utopia/Utopia_router_link.re)
+  (Utopia_router_route.re as utopia/Utopia_router_route.re)
+  (Utopia.re as utopia/Utopia.re)))
 
 (library
  (name utopia)
@@ -45,8 +53,8 @@
   melange-json)
  (preprocess
   (pps
-   server-reason-react.ppx
-   -shared-folder-prefix=
-   server-reason-react.browser_ppx
+    server-reason-react.ppx
+    -shared-folder-prefix=lib/utopia/
+    server-reason-react.browser_ppx
    server-reason-react.melange_ppx
    melange-json-native.ppx)))

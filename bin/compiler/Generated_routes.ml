@@ -1,4 +1,6 @@
 open Utopia_types
+open Ppxlib
+open Ocaml_gen
 
 type tree = {
   route_entry : Routes.route_entry option;
@@ -83,144 +85,14 @@ let module_path_of_entry (entry : Routes.route_entry) =
 let constructor_name_of_entry (entry : Routes.route_entry) =
   Names.route_constructor_name_of_source entry.Routes.source_file
 
-let ocaml_expr_of_param_kind = function
-  | Single -> "Utopia_types.Single"
-  | Catch_all -> "Utopia_types.Catch_all"
-  | Optional_catch_all -> "Utopia_types.Optional_catch_all"
-
 let params_module_ref (entry : Routes.route_entry) =
   let path = module_path_of_entry entry in
   if path = "" then "Route_params" else path ^ ".Route_params"
-
-let segments_expr (entry : Routes.route_entry) =
-  let render_piece = function
-    | Static segment -> Printf.sprintf "[%S]" (String.lowercase_ascii segment)
-    | Param (name, kind) when entry.Routes.route_schema_has_params ->
-        Printf.sprintf
-          "(Utopia_route.Params.segments_exn ~route:%S ~name:%S ~kind:%s \
-           encoded_params)"
-          (Routes.pp_route entry.Routes.route)
-          name
-          (ocaml_expr_of_param_kind kind)
-    | Param (name, Single) -> Printf.sprintf "[%s]" name
-    | Param (name, Catch_all) ->
-        Printf.sprintf "Utopia_route.Nonempty.to_list %s" name
-    | Param (name, Optional_catch_all) ->
-        Printf.sprintf "(match %s with None -> [] | Some value -> value)" name
-  in
-  match route_segments entry |> List.map render_piece with
-  | [] -> "[]"
-  | piece :: rest ->
-      List.fold_left (fun acc piece -> acc ^ " @ " ^ piece) piece rest
-
-let make_signature (entry : Routes.route_entry) =
-  let param_args =
-    if entry.Routes.route_schema_has_params then
-      if entry.Routes.params = [] then [] else [ "~params" ]
-    else
-      entry.Routes.params
-      |> List.map (fun (name, kind) ->
-          match kind with
-          | Single | Catch_all -> "~" ^ name
-          | Optional_catch_all -> "?" ^ name)
-  in
-  let query_args =
-    if entry.Routes.route_schema_has_query then [ "?query" ] else []
-  in
-  let hash_args =
-    if entry.Routes.route_schema_has_hash then [ "?hash" ] else []
-  in
-  String.concat " " (param_args @ query_args @ hash_args @ [ "()" ])
 
 let route_value_available (entry : Routes.route_entry) =
   (not entry.Routes.route_schema_has_params)
   && entry.Routes.params
      |> List.for_all (fun (_name, kind) -> kind = Optional_catch_all)
-
-let render_route_entry indent (entry : Routes.route_entry) =
-  let lines = ref [] in
-  let add line = lines := !lines @ [ indent ^ line ] in
-  let add_body line = lines := !lines @ [ indent ^ "  " ^ line ] in
-  (match entry.Routes.route_schema_module with
-  | Some module_name when entry.Routes.route_schema_has_params ->
-      add (Printf.sprintf "module Route_params = %s.Params" module_name)
-  | _ -> ());
-  (match entry.Routes.route_schema_module with
-  | Some module_name when entry.Routes.route_schema_has_query ->
-      add (Printf.sprintf "module Route_query = %s.Query" module_name)
-  | _ -> ());
-  (match entry.Routes.route_schema_module with
-  | Some module_name when entry.Routes.route_schema_has_hash ->
-      add (Printf.sprintf "module Route_hash = %s.Hash" module_name)
-  | _ -> ());
-  add (Printf.sprintf "let make %s =" (make_signature entry));
-  if entry.Routes.route_schema_has_params then
-    add_body "let encoded_params = Route_params.encode params in";
-  if entry.Routes.route_schema_has_query then
-    add_body
-      "let query = match query with None -> [] | Some value -> \
-       Route_query.encode value in";
-  if entry.Routes.route_schema_has_hash then
-    add_body
-      "let hash = match hash with None -> None | Some value -> Some \
-       (Route_hash.encode value) in";
-  let call =
-    let base =
-      Printf.sprintf "Utopia_route.from_segments ~segments:(%s)"
-        (segments_expr entry)
-    in
-    let with_query =
-      if entry.Routes.route_schema_has_query then base ^ " ~query" else base
-    in
-    let with_hash =
-      if entry.Routes.route_schema_has_hash then with_query ^ " ?hash"
-      else with_query
-    in
-    with_hash ^ " ()"
-  in
-  add_body call;
-  if route_value_available entry then add "let route = make ()";
-  String.concat "\n" !lines
-
-let rec render_tree indent tree =
-  let rendered_route =
-    match tree.route_entry with
-    | None -> []
-    | Some entry -> [ render_route_entry indent entry ]
-  in
-  let rendered_children =
-    tree.children
-    |> List.sort (fun (left, _left_child) (right, _right_child) ->
-        String.compare
-          (module_name_of_segment left)
-          (module_name_of_segment right))
-    |> List.map (fun (segment, child) ->
-        let module_name = module_name_of_segment segment in
-        let body = render_tree (indent ^ "  ") child in
-        String.concat "\n"
-          [
-            indent ^ Printf.sprintf "module %s = struct" module_name;
-            body;
-            indent ^ "end";
-          ])
-  in
-  String.concat "\n\n" (rendered_route @ rendered_children)
-
-let list_pattern items = "[" ^ String.concat "; " items ^ "]"
-
-let pattern_check pattern =
-  Printf.sprintf "(match lowercase_segments with | %s -> true | _ -> false)"
-    pattern
-
-let rec cons_pattern heads tail =
-  match heads with
-  | [] -> ( match tail with Some tail -> tail | None -> "[]")
-  | head :: rest -> head ^ " :: " ^ cons_pattern rest tail
-
-let indent_block prefix text =
-  text |> String.split_on_char '\n'
-  |> List.map (fun line -> prefix ^ line)
-  |> String.concat "\n"
 
 let query_module_ref (entry : Routes.route_entry) =
   let path = module_path_of_entry entry in
@@ -230,365 +102,95 @@ let hash_module_ref (entry : Routes.route_entry) =
   let path = module_path_of_entry entry in
   if path = "" then "Route_hash" else path ^ ".Route_hash"
 
-let current_param_field_type (name, kind) =
-  match kind with
-  | Single -> Printf.sprintf "%s : string" name
-  | Catch_all -> Printf.sprintf "%s : string Utopia_route.Nonempty.t" name
-  | Optional_catch_all -> Printf.sprintf "%s : string list option" name
+let expr_of_page_kind = function
+  | Code_page -> evar "Utopia_types.Code_page"
+  | Markdown_page -> evar "Utopia_types.Markdown_page"
 
-let raw_params_of_exact_segments segments =
-  segments
-  |> List.filter_map (function
-    | Param (name, Single) ->
-        Some (Printf.sprintf "(%S, Utopia_route.Params.one %s)" name name)
-    | _ -> None)
+let expr_of_param_kind = function
+  | Single -> evar "Utopia_types.Single"
+  | Catch_all -> evar "Utopia_types.Catch_all"
+  | Optional_catch_all -> evar "Utopia_types.Optional_catch_all"
 
-let current_field_exprs_of_exact_segments segments =
-  segments
-  |> List.filter_map (function
-    | Param (name, Single) -> Some (Printf.sprintf "%s = %s" name name)
-    | _ -> None)
+let expr_of_param (name, kind) = tuple [ string name; expr_of_param_kind kind ]
+let expr_of_params params = list (List.map expr_of_param params)
+let expr_of_string_list values = list (List.map string values)
 
-let exact_patterns segments =
-  let original =
-    segments
-    |> List.map (function
-      | Static _ -> "_"
-      | Param (name, Single) -> name
-      | _ -> "_")
-  in
-  let lowercase =
-    segments
-    |> List.map (function
-      | Static segment -> Printf.sprintf "%S" (String.lowercase_ascii segment)
-      | Param (_, Single) -> "_"
-      | _ -> "_")
-  in
-  (list_pattern original, list_pattern lowercase)
+let expr_of_option render = function
+  | None -> none
+  | Some value -> some (render value)
 
-let render_current_success entry field_exprs =
-  let constructor = constructor_name_of_entry entry in
-  if field_exprs = [] then Printf.sprintf "Some %s" constructor
-  else
-    Printf.sprintf "Some (%s { %s })" constructor
-      (String.concat "; " field_exprs)
-
-let wrap_expression text = "(\n" ^ text ^ "\n)"
-
-let render_current_decode (entry : Routes.route_entry) ~field_exprs ~raw_params
-    =
-  let path_field_exprs =
-    if entry.Routes.route_schema_has_params then [ "params = params" ]
-    else field_exprs
-  in
-  let success =
-    render_current_success entry
-      (path_field_exprs
-      @ (if entry.Routes.route_schema_has_query then [ "query = query" ] else [])
-      @ if entry.Routes.route_schema_has_hash then [ "hash = hash" ] else [])
-  in
-  let success =
-    if entry.Routes.route_schema_has_params then
-      wrap_expression
-        (Printf.sprintf
-           "let params = %s.decode [%s] in\n\
-            match params with\n\
-            | Some params -> %s\n\
-            | None -> None"
-           (params_module_ref entry)
-           (String.concat "; " raw_params)
-           success)
-    else success
-  in
-  match
-    (entry.Routes.route_schema_has_query, entry.Routes.route_schema_has_hash)
-  with
-  | false, false -> success
-  | true, false ->
-      wrap_expression
-        (Printf.sprintf
-           "let query_entries = Utopia_route.query_entries route in\n\
-            let query = if query_entries = [] then Some None else Option.map \
-            (fun value -> Some value) (%s.decode query_entries) in\n\
-            match query with\n\
-            | Some query -> %s\n\
-            | None -> None"
-           (query_module_ref entry) success)
-  | false, true ->
-      wrap_expression
-        (Printf.sprintf
-           "let hash_value = Utopia_route.hash route in\n\
-            let hash = match hash_value with None -> Some None | Some value -> \
-            Option.map (fun decoded -> Some decoded) (%s.decode value) in\n\
-            match hash with\n\
-            | Some hash -> %s\n\
-            | None -> None"
-           (hash_module_ref entry) success)
-  | true, true ->
-      wrap_expression
-        (Printf.sprintf
-           "let query_entries = Utopia_route.query_entries route in\n\
-            let hash_value = Utopia_route.hash route in\n\
-            let query = if query_entries = [] then Some None else Option.map \
-            (fun value -> Some value) (%s.decode query_entries) in\n\
-            let hash = match hash_value with None -> Some None | Some value -> \
-            Option.map (fun decoded -> Some decoded) (%s.decode value) in\n\
-            match (query, hash) with\n\
-            | Some query, Some hash -> %s\n\
-            | _ -> None"
-           (query_module_ref entry) (hash_module_ref entry) success)
-
-let render_inner_match original_pattern body =
-  Printf.sprintf "match path_segments with\n| %s ->\n%s\n| _ -> None"
-    original_pattern (indent_block "    " body)
-
-let render_exact_current_branch (entry : Routes.route_entry) =
-  let original_pattern, lowercase_pattern =
-    exact_patterns (route_segments entry)
-  in
-  let body =
-    render_current_decode entry
-      ~field_exprs:
-        (current_field_exprs_of_exact_segments (route_segments entry))
-      ~raw_params:(raw_params_of_exact_segments (route_segments entry))
-  in
-  Printf.sprintf "if %s then\n%s"
-    (pattern_check lowercase_pattern)
-    (indent_block "  " (render_inner_match original_pattern body))
-
-let render_catch_all_current_branch (entry : Routes.route_entry) name prefix =
-  let prefix_original =
-    prefix
-    |> List.map (function
-      | Static _ -> "_"
-      | Param (param, Single) -> param
-      | _ -> "_")
-  in
-  let prefix_lowercase =
-    prefix
-    |> List.map (function
-      | Static segment -> Printf.sprintf "%S" (String.lowercase_ascii segment)
-      | Param (_, Single) -> "_"
-      | _ -> "_")
-  in
-  let original_pattern =
-    cons_pattern (prefix_original @ [ name ^ "_head" ]) (Some (name ^ "_tail"))
-  in
-  let lowercase_pattern =
-    cons_pattern (prefix_lowercase @ [ "_" ]) (Some "_")
-  in
-  let body =
-    render_current_decode entry
-      ~field_exprs:
-        (current_field_exprs_of_exact_segments prefix
-        @ [
-            Printf.sprintf
-              "%s = Utopia_route.Nonempty.make ~head:%s_head ~tail:%s_tail ()"
-              name name name;
-          ])
-      ~raw_params:
-        (raw_params_of_exact_segments prefix
-        @ [
-            Printf.sprintf "(%S, Utopia_route.Params.many (%s_head :: %s_tail))"
-              name name name;
-          ])
-  in
-  Printf.sprintf "if %s then\n%s"
-    (pattern_check lowercase_pattern)
-    (indent_block "  " (render_inner_match original_pattern body))
-
-let render_optional_catch_all_current_branches (entry : Routes.route_entry) name
-    prefix =
-  let prefix_original =
-    prefix
-    |> List.map (function
-      | Static _ -> "_"
-      | Param (param, Single) -> param
-      | _ -> "_")
-  in
-  let prefix_lowercase =
-    prefix
-    |> List.map (function
-      | Static segment -> Printf.sprintf "%S" (String.lowercase_ascii segment)
-      | Param (_, Single) -> "_"
-      | _ -> "_")
-  in
-  let absent_body =
-    render_current_decode entry
-      ~field_exprs:
-        (current_field_exprs_of_exact_segments prefix
-        @ [ Printf.sprintf "%s = None" name ])
-      ~raw_params:
-        (raw_params_of_exact_segments prefix
-        @ [ Printf.sprintf "(%S, Utopia_route.Params.many [])" name ])
-  in
-  let present_body =
-    render_current_decode entry
-      ~field_exprs:
-        (current_field_exprs_of_exact_segments prefix
-        @ [ Printf.sprintf "%s = Some (%s_head :: %s_tail)" name name name ])
-      ~raw_params:
-        (raw_params_of_exact_segments prefix
-        @ [
-            Printf.sprintf "(%S, Utopia_route.Params.many (%s_head :: %s_tail))"
-              name name name;
-          ])
-  in
-  [
-    Printf.sprintf "if %s then\n%s"
-      (pattern_check (list_pattern prefix_lowercase))
-      (indent_block "  "
-         (render_inner_match (list_pattern prefix_original) absent_body));
-    Printf.sprintf "if %s then\n%s"
-      (pattern_check (cons_pattern (prefix_lowercase @ [ "_" ]) (Some "_")))
-      (indent_block "  "
-         (render_inner_match
-            (cons_pattern
-               (prefix_original @ [ name ^ "_head" ])
-               (Some (name ^ "_tail")))
-            present_body));
-  ]
-
-let render_current_branches (entry : Routes.route_entry) =
-  match List.rev (route_segments entry) with
-  | Param (name, Catch_all) :: prefix_rev ->
-      [ render_catch_all_current_branch entry name (List.rev prefix_rev) ]
-  | Param (name, Optional_catch_all) :: prefix_rev ->
-      render_optional_catch_all_current_branches entry name
-        (List.rev prefix_rev)
-  | _ -> [ render_exact_current_branch entry ]
-
-let render_current_constructor (entry : Routes.route_entry) =
-  let fields =
-    (if entry.Routes.route_schema_has_params then
-       [ Printf.sprintf "params : %s.t" (params_module_ref entry) ]
-     else entry.Routes.params |> List.map current_param_field_type)
-    |> fun fields ->
-    fields
-    @ (if entry.Routes.route_schema_has_query then
-         [ Printf.sprintf "query : %s.t option" (query_module_ref entry) ]
-       else [])
-    @
-    if entry.Routes.route_schema_has_hash then
-      [ Printf.sprintf "hash : %s.t option" (hash_module_ref entry) ]
-    else []
-  in
-  let constructor = constructor_name_of_entry entry in
-  if fields = [] then Printf.sprintf "  | %s" constructor
-  else Printf.sprintf "  | %s of { %s }" constructor (String.concat "; " fields)
-
-let render_current_module (route_entries : Routes.route_entry list) =
-  let constructors =
-    match route_entries with
-    | [] -> [ "  | No_match" ]
-    | _ -> route_entries |> List.map render_current_constructor
-  in
-  let branches =
-    route_entries
-    |> List.sort compare_route_specificity
-    |> List.concat_map render_current_branches
-  in
-  let matcher =
-    match branches with
-    | [] -> "    None"
-    | first :: rest ->
-        String.concat "\n"
-          ([ "    " ^ first ]
-          @ (rest |> List.map (fun branch -> "    else " ^ branch))
-          @ [ "    else None" ])
-  in
-  String.concat "\n"
-    ([ "type t =" ] @ constructors
-    @ [
-        "";
-        "let of_route route =";
-        "  let path_segments = Utopia_route.path_segments route in";
-        "  let lowercase_segments = List.map String.lowercase_ascii \
-         path_segments in";
-        matcher;
-      ])
-
-let ocaml_expr_of_page_kind = function
-  | Code_page -> "Utopia_types.Code_page"
-  | Markdown_page -> "Utopia_types.Markdown_page"
-
-let ocaml_expr_of_param (name, kind) =
-  Printf.sprintf "(%S, %s)" name (ocaml_expr_of_param_kind kind)
-
-let ocaml_expr_of_params params =
-  params
-  |> List.map ocaml_expr_of_param
-  |> String.concat "; " |> Printf.sprintf "[%s]"
-
-let ocaml_expr_of_string_list values =
-  values
-  |> List.map (fun value -> Printf.sprintf "%S" value)
-  |> String.concat "; " |> Printf.sprintf "[%s]"
-
-let ocaml_expr_of_option render = function
-  | None -> "None"
-  | Some value -> "Some (" ^ render value ^ ")"
-
-let rec ocaml_expr_of_frontmatter_value = function
-  | Utopia_markdown.Null -> "Utopia_markdown.Null"
-  | Utopia_markdown.Bool value -> Printf.sprintf "Utopia_markdown.Bool %b" value
+let rec expr_of_frontmatter_value = function
+  | Utopia_markdown.Null -> evar "Utopia_markdown.Null"
+  | Utopia_markdown.Bool value ->
+      construct "Utopia_markdown.Bool" (Some (bool value))
   | Utopia_markdown.Number value ->
-      Printf.sprintf "Utopia_markdown.Number %f" value
+      construct "Utopia_markdown.Number" (Some (float value))
   | Utopia_markdown.String value ->
-      Printf.sprintf "Utopia_markdown.String %S" value
+      construct "Utopia_markdown.String" (Some (string value))
   | Utopia_markdown.List values ->
-      Printf.sprintf "Utopia_markdown.List [%s]"
-        (values
-        |> List.map ocaml_expr_of_frontmatter_value
-        |> String.concat "; ")
+      construct "Utopia_markdown.List"
+        (Some (list (List.map expr_of_frontmatter_value values)))
   | Utopia_markdown.Object values ->
-      Printf.sprintf "Utopia_markdown.Object [%s]"
-        (values
-        |> List.map (fun (key, value) ->
-            Printf.sprintf "(%S, %s)" key
-              (ocaml_expr_of_frontmatter_value value))
-        |> String.concat "; ")
+      construct "Utopia_markdown.Object"
+        (Some
+           (list
+              (List.map
+                 (fun (key, value) ->
+                   tuple [ string key; expr_of_frontmatter_value value ])
+                 values)))
 
-let ocaml_expr_of_frontmatter_object values =
-  values
-  |> List.map (fun (key, value) ->
-      Printf.sprintf "(%S, %s)" key (ocaml_expr_of_frontmatter_value value))
-  |> String.concat "; "
-  |> Printf.sprintf "Utopia_markdown.frontmatter_object_of_list [%s]"
+let expr_of_frontmatter_object values =
+  call "Utopia_markdown.frontmatter_object_of_list"
+    [
+      ( Nolabel,
+        list
+          (List.map
+             (fun (key, value) ->
+               tuple [ string key; expr_of_frontmatter_value value ])
+             values) );
+    ]
 
-let render_page_meta_entry (entry : Routes.route_entry) =
-  Printf.sprintf
-    "  ({ route = %S; matcher = %S; conflict_key = %S; params = %s; layouts = \
-     %s; kind = %s; source_file = %S; module_name = %S; has_metadata = %b; \
-     static = %b; has_paths = %b } : Utopia_types.page_route_meta);"
-    entry.route entry.matcher entry.conflict_key
-    (ocaml_expr_of_params entry.params)
-    (ocaml_expr_of_string_list entry.layouts)
-    (ocaml_expr_of_page_kind entry.kind)
-    entry.source_file
-    (Names.compiled_page_module_name_of_source entry.source_file)
-    entry.has_metadata entry.static entry.has_paths
+let page_meta_expr (entry : Routes.route_entry) =
+  record
+    [
+      ("route", string entry.route);
+      ("matcher", string entry.matcher);
+      ("conflict_key", string entry.conflict_key);
+      ("params", expr_of_params entry.params);
+      ("layouts", expr_of_string_list entry.layouts);
+      ("kind", expr_of_page_kind entry.kind);
+      ("source_file", string entry.source_file);
+      ( "module_name",
+        string (Names.compiled_page_module_name_of_source entry.source_file) );
+      ("has_metadata", bool entry.has_metadata);
+      ("static", bool entry.static);
+      ("has_paths", bool entry.has_paths);
+    ]
 
-let render_api_meta_entry (entry : Routes.api_route_entry) =
-  Printf.sprintf
-    "    ({ route = %S; matcher = %S; conflict_key = %S; params = %s; \
-     middlewares = %s; source_file = %S; module_name = %S } : \
-     Utopia_types.api_route_meta);"
-    entry.route entry.matcher entry.conflict_key
-    (ocaml_expr_of_params entry.params)
-    (ocaml_expr_of_string_list entry.middlewares)
-    entry.source_file entry.module_name
+let api_meta_expr (entry : Routes.api_route_entry) =
+  record
+    [
+      ("route", string entry.route);
+      ("matcher", string entry.matcher);
+      ("conflict_key", string entry.conflict_key);
+      ("params", expr_of_params entry.params);
+      ("middlewares", expr_of_string_list entry.middlewares);
+      ("source_file", string entry.source_file);
+      ("module_name", string entry.module_name);
+    ]
 
-let render_markdown_meta_entry (entry : Routes.route_entry) =
-  Printf.sprintf
-    "    ({ route = %S; matcher = %S; source_file = %S; body = %S; frontmatter \
-     = %s; title = %s; description = %s } : entry);"
-    entry.route entry.matcher entry.source_file
-    (match entry.markdown_body with Some body -> body | None -> "")
-    (ocaml_expr_of_option ocaml_expr_of_frontmatter_object
-       entry.markdown_frontmatter)
-    (ocaml_expr_of_option (Printf.sprintf "%S") entry.markdown_title)
-    (ocaml_expr_of_option (Printf.sprintf "%S") entry.markdown_description)
+let markdown_meta_expr (entry : Routes.route_entry) =
+  record
+    [
+      ("route", string entry.route);
+      ("matcher", string entry.matcher);
+      ("source_file", string entry.source_file);
+      ("body", string (Option.value entry.markdown_body ~default:""));
+      ( "frontmatter",
+        expr_of_option expr_of_frontmatter_object entry.markdown_frontmatter );
+      ("title", expr_of_option string entry.markdown_title);
+      ("description", expr_of_option string entry.markdown_description);
+    ]
 
 let api_param_entries api_entries =
   let seen = Hashtbl.create 16 in
@@ -600,70 +202,47 @@ let api_param_entries api_entries =
   seen |> Hashtbl.to_seq |> List.of_seq
   |> List.sort (fun (left, _) (right, _) -> String.compare left right)
 
-let render_api_param_accessor (name, kind) =
-  match kind with
-  | Single ->
-      Printf.sprintf
-        "      let %s (request : Dream.request) =\n\
-        \        Utopia_server.api_param_single_exn request %S"
-        name name
-  | Catch_all ->
-      Printf.sprintf
-        "      let %s (request : Dream.request) =\n\
-        \        Utopia_server.api_param_many_exn request %S"
-        name name
-  | Optional_catch_all ->
-      Printf.sprintf
-        "      let %s (request : Dream.request) =\n\
-        \        Utopia_server.api_param_optional_many request %S"
-        name name
+let api_param_accessor_item (name, kind) =
+  let runtime_name =
+    match kind with
+    | Single -> "Utopia_server.api_param_single_exn"
+    | Catch_all -> "Utopia_server.api_param_many_exn"
+    | Optional_catch_all -> "Utopia_server.api_param_optional_many"
+  in
+  let_function name
+    [ typed_pat "request" "Dream.request" ]
+    (call runtime_name [ (Nolabel, evar "request"); (Nolabel, string name) ])
 
-let render_api_module api_entries =
+let api_module_item api_entries =
   let sorted_entries =
     api_entries
     |> List.sort (fun (left : Routes.api_route_entry) right ->
         String.compare left.route right.route)
   in
-  let metadata_lines =
-    sorted_entries |> List.map render_api_meta_entry |> String.concat "\n"
+  let get_all =
+    let_function
+      ~result_type:(list_type (core_type "Utopia_types.api_route_meta"))
+      "get_all" [ unit_pat ]
+      (list (List.map api_meta_expr sorted_entries))
   in
-  let accessor_lines =
-    api_param_entries sorted_entries
-    |> List.map render_api_param_accessor
-    |> String.concat "\n\n"
+  let params_module =
+    module_ "Params"
+      (api_param_entries sorted_entries |> List.map api_param_accessor_item)
   in
-  String.concat "\n"
-    [
-      "module Api = struct";
-      "  let get_all () : Utopia_types.api_route_meta list =";
-      "    [";
-      metadata_lines;
-      "    ]";
-      "";
-      "  module Params = struct";
-      (if accessor_lines = "" then "" else accessor_lines);
-      "  end";
-      "end";
-    ]
+  module_ ~attrs:[ native_platform_attr ] "Api" [ get_all; params_module ]
 
-let render_page_metadata_loader route_entries =
+let page_metadata_loader_item route_entries =
   let sorted_entries =
     route_entries
     |> List.sort (fun (left : Routes.route_entry) right ->
         String.compare left.route right.route)
   in
-  let lines =
-    sorted_entries |> List.map render_page_meta_entry |> String.concat "\n"
-  in
-  String.concat "\n"
-    [
-      "let get_all () : Utopia_types.page_route_meta list =";
-      "  [";
-      lines;
-      "  ]";
-    ]
+  let_function
+    ~result_type:(list_type (core_type "Utopia_types.page_route_meta"))
+    "get_all" [ unit_pat ]
+    (list (List.map page_meta_expr sorted_entries))
 
-let render_markdown_metadata_loader route_entries =
+let markdown_metadata_loader_item route_entries =
   let markdown_entries =
     route_entries
     |> List.filter (fun (entry : Routes.route_entry) ->
@@ -671,38 +250,599 @@ let render_markdown_metadata_loader route_entries =
     |> List.sort (fun (left : Routes.route_entry) right ->
         String.compare left.route right.route)
   in
-  let lines =
-    markdown_entries
-    |> List.map render_markdown_meta_entry
-    |> String.concat "\n"
+  let entry_type =
+    type_record "entry"
+      [
+        ("route", core_type "string");
+        ("matcher", core_type "string");
+        ("source_file", core_type "string");
+        ("body", core_type "string");
+        ( "frontmatter",
+          option_type (core_type "Utopia_markdown.frontmatter_object") );
+        ("title", option_type (core_type "string"));
+        ("description", option_type (core_type "string"));
+      ]
   in
-  String.concat "\n"
+  let get_all =
+    let_function
+      ~result_type:(list_type (core_type "entry"))
+      "get_all" [ unit_pat ]
+      (list (List.map markdown_meta_expr markdown_entries))
+  in
+  module_ ~attrs:[ native_platform_attr ] "Markdown" [ entry_type; get_all ]
+
+let page_render_expr (entry : Routes.route_entry) =
+  match entry.kind with
+  | Markdown_page -> None
+  | Code_page ->
+      let module_name =
+        Names.compiled_page_module_name_of_source entry.source_file
+      in
+      Some
+        (tuple
+           [
+             string entry.source_file;
+             fun0
+               (call "Utopia_server.wrap_raw_inner_html_element"
+                  [
+                    ( Nolabel,
+                      call (module_name ^ ".make")
+                        [
+                          ( Nolabel,
+                            call
+                              (module_name ^ ".makeProps")
+                              [ (Nolabel, unit) ] );
+                        ] );
+                  ]);
+           ])
+
+let page_metadata_expr (entry : Routes.route_entry) =
+  if not entry.has_metadata then None
+  else
+    let module_name =
+      Names.compiled_page_module_name_of_source entry.source_file
+    in
+    Some (tuple [ string entry.source_file; evar (module_name ^ ".metadata") ])
+
+let page_paths_expr (entry : Routes.route_entry) =
+  if not entry.has_paths then None
+  else
+    let module_name =
+      Names.compiled_page_module_name_of_source entry.source_file
+    in
+    Some (tuple [ string entry.source_file; evar (module_name ^ ".paths") ])
+
+let layout_info_expr source_file =
+  let module_name = Names.compiled_page_module_name_of_source source_file in
+  let path = Routes.layout_route_path source_file in
+  tuple
     [
-      "module Markdown = struct";
-      "  type entry = {";
-      "    route : string;";
-      "    matcher : string;";
-      "    source_file : string;";
-      "    body : string;";
-      "    frontmatter : Utopia_markdown.frontmatter_object option;";
-      "    title : string option;";
-      "    description : string option;";
-      "  }";
-      "";
-      "  let get_all () : entry list =";
-      "    [";
-      lines;
-      "    ]";
-      "end";
+      string source_file;
+      record
+        [
+          ("Utopia_route_builder.path", string path);
+          ( "render",
+            fun1 "children"
+              (call "Utopia_server.wrap_raw_inner_html_element"
+                 [
+                   ( Nolabel,
+                     call (module_name ^ ".make")
+                       [
+                         ( Nolabel,
+                           call
+                             (module_name ^ ".makeProps")
+                             [
+                               (Labelled "children", evar "children");
+                               (Nolabel, unit);
+                             ] );
+                       ] );
+                 ]) );
+        ];
     ]
 
-let generate route_entries api_entries =
+let api_handler_expr (entry : Routes.api_route_entry) =
+  tuple [ string entry.source_file; evar (entry.module_name ^ ".handler") ]
+
+let api_middleware_expr source_file =
+  tuple
+    [
+      string source_file;
+      evar (Names.compiled_api_module_name_of_source source_file ^ ".middleware");
+    ]
+
+let server_registry_items route_entries api_entries =
+  let layout_infos =
+    route_entries
+    |> List.concat_map (fun (entry : Routes.route_entry) -> entry.layouts)
+    |> List.sort_uniq String.compare
+    |> List.map layout_info_expr
+  in
+  let api_middlewares =
+    api_entries
+    |> List.concat_map (fun (entry : Routes.api_route_entry) ->
+        entry.middlewares)
+    |> List.sort_uniq String.compare
+    |> List.map api_middleware_expr
+  in
   [
-    build_tree route_entries |> render_tree "";
-    render_current_module route_entries;
-    render_page_metadata_loader route_entries;
-    render_markdown_metadata_loader route_entries;
-    render_api_module api_entries;
+    let_value "page_renders"
+      (list (route_entries |> List.filter_map page_render_expr));
+    let_value "page_metadata"
+      (list (route_entries |> List.filter_map page_metadata_expr));
+    let_value "page_paths"
+      (list (route_entries |> List.filter_map page_paths_expr));
+    let_value "layout_infos" (list layout_infos);
+    let_value "api_handlers" (list (List.map api_handler_expr api_entries));
+    let_value "api_middlewares" (list api_middlewares);
   ]
-  |> List.filter (fun section -> section <> "")
-  |> String.concat "\n\n"
+
+let not_found_page_item ~not_found_file ~not_found_layouts =
+  match not_found_file with
+  | None -> let_value "not_found_page" none
+  | Some source_file ->
+      let module_name = Names.compiled_page_module_name_of_source source_file in
+      let render =
+        fun0
+          (call "Utopia_server.wrap_raw_inner_html_element"
+             [
+               ( Nolabel,
+                 call (module_name ^ ".make")
+                   [
+                     ( Nolabel,
+                       call (module_name ^ ".makeProps") [ (Nolabel, unit) ] );
+                   ] );
+             ])
+      in
+      let_value "not_found_page"
+        (some
+           (call "Utopia_server.Generated_not_found_registry.make"
+              [
+                (Labelled "layouts", expr_of_string_list not_found_layouts);
+                (Labelled "render", render);
+                (Nolabel, unit);
+              ]))
+
+let generate_shim route_entries api_entries =
+  structure_to_string
+    [
+      include_module "Routes_client";
+      page_metadata_loader_item route_entries;
+      markdown_metadata_loader_item route_entries;
+      api_module_item api_entries;
+    ]
+
+let generate_server route_entries api_entries ~not_found_file ~not_found_layouts
+    =
+  structure_to_string
+    ([ include_module "Routes" ]
+    @ server_registry_items route_entries api_entries
+    @ [ not_found_page_item ~not_found_file ~not_found_layouts ])
+
+let list_concat_expr values =
+  match values with
+  | [] -> list []
+  | head :: tail -> List.fold_left (infix "@") head tail
+
+let lower_path_pat_of_segment = function
+  | Static segment -> pstring (String.lowercase_ascii segment)
+  | Param (_, Single) -> pwild
+  | Param (_, Catch_all) -> pwild
+  | Param (_, Optional_catch_all) -> pwild
+
+let original_exact_pat_of_segment = function
+  | Static _ -> pwild
+  | Param (name, Single) -> pvar name
+  | Param (_, Catch_all) -> pwild
+  | Param (_, Optional_catch_all) -> pwild
+
+let prefix_pair_patterns prefix =
+  ( List.map lower_path_pat_of_segment prefix,
+    List.map original_exact_pat_of_segment prefix )
+
+let many_params_expr values =
+  call "Utopia_route.Params.many" [ (Nolabel, values) ]
+
+let raw_params_of_exact_segments_exprs segments =
+  segments
+  |> List.filter_map (function
+    | Param (name, Single) ->
+        Some
+          (tuple
+             [
+               string name;
+               call "Utopia_route.Params.one" [ (Nolabel, evar name) ];
+             ])
+    | _ -> None)
+
+let current_field_exprs_of_exact_segments_ast segments =
+  segments
+  |> List.filter_map (function
+    | Param (name, Single) -> Some (name, evar name)
+    | _ -> None)
+
+let current_constructor_fields (entry : Routes.route_entry) =
+  let path_fields =
+    if entry.Routes.route_schema_has_params then
+      [ ("params", core_type (params_module_ref entry ^ ".t")) ]
+    else
+      entry.Routes.params
+      |> List.map (fun (name, kind) ->
+          ( name,
+            match kind with
+            | Single -> core_type "string"
+            | Catch_all ->
+                core_type_apply "Utopia_route.Nonempty.t" [ core_type "string" ]
+            | Optional_catch_all -> option_type (list_type (core_type "string"))
+          ))
+  in
+  path_fields
+  @ (if entry.Routes.route_schema_has_query then
+       [ ("query", option_type (core_type (query_module_ref entry ^ ".t"))) ]
+     else [])
+  @
+  if entry.Routes.route_schema_has_hash then
+    [ ("hash", option_type (core_type (hash_module_ref entry ^ ".t"))) ]
+  else []
+
+let current_success_expr (entry : Routes.route_entry) field_exprs =
+  let ctor = constructor_name_of_entry entry in
+  let fields =
+    (if entry.Routes.route_schema_has_params then [ ("params", evar "params") ]
+     else field_exprs)
+    @ (if entry.Routes.route_schema_has_query then [ ("query", evar "query") ]
+       else [])
+    @
+    if entry.Routes.route_schema_has_hash then [ ("hash", evar "hash") ] else []
+  in
+  some
+    (if fields = [] then construct ctor None
+     else construct ctor (Some (record fields)))
+
+let option_map_some var_name decoded_expr =
+  call "Option.map"
+    [ (Nolabel, fun1 var_name (some (evar var_name))); (Nolabel, decoded_expr) ]
+
+let decode_path_params_if_needed (entry : Routes.route_entry) raw_params success
+    =
+  if not entry.Routes.route_schema_has_params then success
+  else
+    let_in (pvar "params")
+      (call
+         (params_module_ref entry ^ ".decode")
+         [ (Nolabel, list raw_params) ])
+      (match_ (evar "params")
+         [
+           case (pconstruct "Some" (Some ([], pvar "params"))) success;
+           case pwild none;
+         ])
+
+let decode_query_if_needed (entry : Routes.route_entry) success =
+  if not entry.Routes.route_schema_has_query then success
+  else
+    let_in (pvar "query_entries")
+      (call "Utopia_route.query_entries" [ (Nolabel, evar "route") ])
+      (let_in (pvar "query")
+         (if_
+            (infix "=" (evar "query_entries") (list []))
+            (some none)
+            (option_map_some "value"
+               (call
+                  (query_module_ref entry ^ ".decode")
+                  [ (Nolabel, evar "query_entries") ])))
+         (match_ (evar "query")
+            [
+              case (pconstruct "Some" (Some ([], pvar "query"))) success;
+              case pwild none;
+            ]))
+
+let decode_hash_if_needed (entry : Routes.route_entry) success =
+  if not entry.Routes.route_schema_has_hash then success
+  else
+    let_in (pvar "hash_value")
+      (call "Utopia_route.hash" [ (Nolabel, evar "route") ])
+      (let_in (pvar "hash")
+         (match_ (evar "hash_value")
+            [
+              case (pconstruct "None" None) (some none);
+              case
+                (pconstruct "Some" (Some ([], pvar "value")))
+                (option_map_some "decoded"
+                   (call
+                      (hash_module_ref entry ^ ".decode")
+                      [ (Nolabel, evar "value") ]));
+            ])
+         (match_ (evar "hash")
+            [
+              case (pconstruct "Some" (Some ([], pvar "hash"))) success;
+              case pwild none;
+            ]))
+
+let decode_current_expr (entry : Routes.route_entry) ~field_exprs ~raw_params =
+  let success = current_success_expr entry field_exprs in
+  success
+  |> decode_path_params_if_needed entry raw_params
+  |> decode_query_if_needed entry
+  |> decode_hash_if_needed entry
+
+let exact_case (entry : Routes.route_entry) =
+  let segments = route_segments entry in
+  let lower_pat = list_pat (List.map lower_path_pat_of_segment segments) in
+  let original_pat =
+    list_pat (List.map original_exact_pat_of_segment segments)
+  in
+  case
+    (ptuple [ lower_pat; original_pat ])
+    (decode_current_expr entry
+       ~field_exprs:(current_field_exprs_of_exact_segments_ast segments)
+       ~raw_params:(raw_params_of_exact_segments_exprs segments))
+
+let catch_all_case (entry : Routes.route_entry) name prefix =
+  let lower_prefix, original_prefix = prefix_pair_patterns prefix in
+  let lower_pat = list_pat ~tail:pwild (lower_prefix @ [ pwild ]) in
+  let original_pat =
+    list_pat
+      ~tail:(pvar (name ^ "_tail"))
+      (original_prefix @ [ pvar (name ^ "_head") ])
+  in
+  case
+    (ptuple [ lower_pat; original_pat ])
+    (decode_current_expr entry
+       ~field_exprs:
+         (current_field_exprs_of_exact_segments_ast prefix
+         @ [
+             ( name,
+               call "Utopia_route.Nonempty.make"
+                 [
+                   (Labelled "head", evar (name ^ "_head"));
+                   (Labelled "tail", evar (name ^ "_tail"));
+                   (Nolabel, unit);
+                 ] );
+           ])
+       ~raw_params:
+         (raw_params_of_exact_segments_exprs prefix
+         @ [
+             tuple
+               [
+                 string name;
+                 many_params_expr
+                   (infix "::" (evar (name ^ "_head")) (evar (name ^ "_tail")));
+               ];
+           ]))
+
+let optional_catch_all_cases (entry : Routes.route_entry) name prefix =
+  let lower_prefix, original_prefix = prefix_pair_patterns prefix in
+  let absent_case =
+    case
+      (ptuple [ list_pat lower_prefix; list_pat original_prefix ])
+      (decode_current_expr entry
+         ~field_exprs:
+           (current_field_exprs_of_exact_segments_ast prefix @ [ (name, none) ])
+         ~raw_params:
+           (raw_params_of_exact_segments_exprs prefix
+           @ [ tuple [ string name; many_params_expr (list []) ] ]))
+  in
+  let present_case =
+    case
+      (ptuple
+         [
+           list_pat ~tail:pwild (lower_prefix @ [ pwild ]);
+           list_pat
+             ~tail:(pvar (name ^ "_tail"))
+             (original_prefix @ [ pvar (name ^ "_head") ]);
+         ])
+      (decode_current_expr entry
+         ~field_exprs:
+           (current_field_exprs_of_exact_segments_ast prefix
+           @ [
+               ( name,
+                 some
+                   (infix "::" (evar (name ^ "_head")) (evar (name ^ "_tail")))
+               );
+             ])
+         ~raw_params:
+           (raw_params_of_exact_segments_exprs prefix
+           @ [
+               tuple
+                 [
+                   string name;
+                   many_params_expr
+                     (infix "::"
+                        (evar (name ^ "_head"))
+                        (evar (name ^ "_tail")));
+                 ];
+             ]))
+  in
+  [ absent_case; present_case ]
+
+let current_cases (entry : Routes.route_entry) =
+  match List.rev (route_segments entry) with
+  | Param (name, Catch_all) :: prefix_rev ->
+      [ catch_all_case entry name (List.rev prefix_rev) ]
+  | Param (name, Optional_catch_all) :: prefix_rev ->
+      optional_catch_all_cases entry name (List.rev prefix_rev)
+  | _ -> [ exact_case entry ]
+
+let make_params (entry : Routes.route_entry) =
+  let path_params =
+    if entry.Routes.route_schema_has_params then
+      if entry.Routes.params = [] then []
+      else [ labelled_param "params" (pvar "params") ]
+    else
+      entry.Routes.params
+      |> List.map (fun (name, kind) ->
+          match kind with
+          | Single | Catch_all -> labelled_param name (pvar name)
+          | Optional_catch_all -> optional_param name (pvar name))
+  in
+  let query_params =
+    if entry.Routes.route_schema_has_query then
+      [ optional_param "query" (pvar "query") ]
+    else []
+  in
+  let hash_params =
+    if entry.Routes.route_schema_has_hash then
+      [ optional_param "hash" (pvar "hash") ]
+    else []
+  in
+  path_params @ query_params @ hash_params @ [ value_param unit_pat ]
+
+let client_segments_expr (entry : Routes.route_entry) =
+  let pieces =
+    route_segments entry
+    |> List.map (function
+      | Static segment -> list [ string (String.lowercase_ascii segment) ]
+      | Param (name, kind) when entry.Routes.route_schema_has_params ->
+          call "Utopia_route.Params.segments_exn"
+            [
+              (Labelled "route", string (Routes.pp_route entry.Routes.route));
+              (Labelled "name", string name);
+              (Labelled "kind", expr_of_param_kind kind);
+              (Nolabel, evar "encoded_params");
+            ]
+      | Param (name, Single) -> list [ evar name ]
+      | Param (name, Catch_all) ->
+          call "Utopia_route.Nonempty.to_list" [ (Nolabel, evar name) ]
+      | Param (name, Optional_catch_all) ->
+          match_ (evar name)
+            [
+              case (pconstruct "None" None) (list []);
+              case (pconstruct "Some" (Some ([], pvar "value"))) (evar "value");
+            ])
+  in
+  list_concat_expr pieces
+
+let make_body (entry : Routes.route_entry) =
+  let final_call =
+    call "Utopia_route.from_segments"
+      ([ (Labelled "segments", client_segments_expr entry) ]
+      @ (if entry.Routes.route_schema_has_query then
+           [ (Labelled "query", evar "query") ]
+         else [])
+      @ (if entry.Routes.route_schema_has_hash then
+           [ (Optional "hash", evar "hash") ]
+         else [])
+      @ [ (Nolabel, unit) ])
+  in
+  let body =
+    if entry.Routes.route_schema_has_hash then
+      let_in (pvar "hash")
+        (match_ (evar "hash")
+           [
+             case (pconstruct "None" None) none;
+             case
+               (pconstruct "Some" (Some ([], pvar "value")))
+               (some (call "Route_hash.encode" [ (Nolabel, evar "value") ]));
+           ])
+        final_call
+    else final_call
+  in
+  let body =
+    if entry.Routes.route_schema_has_query then
+      let_in (pvar "query")
+        (match_ (evar "query")
+           [
+             case (pconstruct "None" None) (list []);
+             case
+               (pconstruct "Some" (Some ([], pvar "value")))
+               (call "Route_query.encode" [ (Nolabel, evar "value") ]);
+           ])
+        body
+    else body
+  in
+  if entry.Routes.route_schema_has_params then
+    let_in (pvar "encoded_params")
+      (call "Route_params.encode" [ (Nolabel, evar "params") ])
+      body
+  else body
+
+let client_route_entry_items (entry : Routes.route_entry) =
+  let aliases =
+    [
+      ( entry.Routes.route_schema_has_params,
+        "Route_params",
+        Option.map
+          (fun module_name -> module_name ^ ".Params")
+          entry.Routes.route_schema_module );
+      ( entry.Routes.route_schema_has_query,
+        "Route_query",
+        Option.map
+          (fun module_name -> module_name ^ ".Query")
+          entry.Routes.route_schema_module );
+      ( entry.Routes.route_schema_has_hash,
+        "Route_hash",
+        Option.map
+          (fun module_name -> module_name ^ ".Hash")
+          entry.Routes.route_schema_module );
+    ]
+    |> List.filter_map (fun (enabled, alias_name, target) ->
+        match (enabled, target) with
+        | true, Some target -> Some (module_alias alias_name target)
+        | _ -> None)
+  in
+  let make_item =
+    let_function_params "make" (make_params entry) (make_body entry)
+  in
+  let route_items =
+    if route_value_available entry then
+      [ let_value "route" (call "make" [ (Nolabel, unit) ]) ]
+    else []
+  in
+  aliases @ [ make_item ] @ route_items
+
+let rec client_tree_structure tree =
+  let route_items =
+    match tree.route_entry with
+    | None -> []
+    | Some entry -> client_route_entry_items entry
+  in
+  let child_items =
+    tree.children
+    |> List.sort (fun (left, _) (right, _) ->
+        String.compare
+          (module_name_of_segment left)
+          (module_name_of_segment right))
+    |> List.map (fun (segment, child) ->
+        module_ (module_name_of_segment segment) (client_tree_structure child))
+  in
+  route_items @ child_items
+
+let current_type_item (route_entries : Routes.route_entry list) =
+  let constructors =
+    match route_entries with
+    | [] -> [ ("No_match", []) ]
+    | _ ->
+        route_entries
+        |> List.map (fun entry ->
+            (constructor_name_of_entry entry, current_constructor_fields entry))
+  in
+  type_variant "t" constructors
+
+let current_module_item (route_entries : Routes.route_entry list) =
+  let cases =
+    route_entries
+    |> List.sort compare_route_specificity
+    |> List.concat_map current_cases
+  in
+  let body =
+    let_in (pvar "path_segments")
+      (call "Utopia_route.path_segments" [ (Nolabel, evar "route") ])
+      (let_in
+         (pvar "lowercase_segments")
+         (call "List.map"
+            [
+              (Nolabel, evar "String.lowercase_ascii");
+              (Nolabel, evar "path_segments");
+            ])
+         (match_
+            (tuple [ evar "lowercase_segments"; evar "path_segments" ])
+            (cases @ [ case pwild none ])))
+  in
+  [
+    current_type_item route_entries;
+    let_function "of_route" [ pvar "route" ] body;
+  ]
+
+let generate_client route_entries =
+  structure_to_string
+    (client_tree_structure (build_tree route_entries)
+    @ current_module_item route_entries)

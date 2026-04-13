@@ -12,5 +12,5 @@
   > let make = () => <div> {React.string("hello")} </div>;
   > EOF
   $ utopia.compiler > /dev/null
-  $ grep -F 'source_file = "pages/Home.re"' _utopia/Routes.ml | rg -o 'static = true; has_paths = false'
-  static = true; has_paths = false
+  $ grep -A 12 -F 'source_file = "pages/Home.re"' _utopia/Routes.ml | grep -qF 'static = true;'
+  $ grep -A 12 -F 'source_file = "pages/Home.re"' _utopia/Routes.ml | grep -qF 'has_paths = false'

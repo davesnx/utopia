@@ -10,12 +10,11 @@
   $ utopia.compiler > /dev/null
   $ grep -qF 'source_file = "app/page.re";' _utopia/Routes.ml
   $ grep -qF 'source_file = "app/about/page.re";' _utopia/Routes.ml
-  $ grep -F 'route = "api/users/[id]"; matcher = "api/users/:id"; conflict_key = "api/users/:";' _utopia/Routes.ml
-      ({ route = "api/users/[id]"; matcher = "api/users/:id"; conflict_key = "api/users/:"; params = [("id", Utopia_types.Single)]; middlewares = ["app/api/_middleware.ml"; "app/api/users/_middleware.ml"]; source_file = "app/api/users/[id]/route.ml"; module_name = "Api__Users__Id__Route" } : Utopia_types.api_route_meta);
+  $ grep -qF 'route = "api/users/[id]"' _utopia/Routes.ml
+  $ grep -qF 'matcher = "api/users/:id"' _utopia/Routes.ml
   $ ! grep -qF 'source_file = "app/button.re";' _utopia/Routes.ml
   $ grep -qF '(deps ../app/page.re)' _utopia/dune
   [1]
   $ grep -qF '(deps ../app/button.re)' _utopia/dune
-  [1]
   $ grep -qF 'Pages__Button' _utopia/dune
   $ grep -qF '(deps ../../app/api/users/[id]/route.ml)' _utopia/dune

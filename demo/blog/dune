@@ -10,7 +10,7 @@
   (= %{profile} dev))
  (alias client)
  (deps
-  (source_tree ./pages)
+  (source_tree ./app)
   (source_tree ./lib)
   (source_tree ./node_modules)
   tailwind.config.js

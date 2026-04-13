@@ -29,13 +29,11 @@
   > end
   > EOF
   $ utopia.compiler > /dev/null
-  $ grep -E "module Users = struct|module Param_id = struct|module Route_params = Route_schema__Users__Id.Params|let make ~params \(\) =|Users_id of \{ params : Users.Param_id.Route_params.t \}|Route_params.decode \[\(" _utopia/Routes.ml
-  module Users = struct
-    module Param_id = struct
-      module Route_params = Route_schema__Users__Id.Params
-      let make ~params () =
-    | Users_id of { params : Users.Param_id.Route_params.t }
-        let params = Users.Param_id.Route_params.decode [("id", Utopia_route.Params.one id)] in
+  $ grep -qF 'module Route_params = Route_schema__Users__Id.Params' _utopia/Routes_client.ml
+  $ grep -qF 'let make ~params =' _utopia/Routes_client.ml
+  $ grep -qF 'Users_id of {' _utopia/Routes_client.ml
+  $ grep -qF 'params: Users.Param_id.Route_params.t' _utopia/Routes_client.ml
+  $ grep -qF 'Users.Param_id.Route_params.decode' _utopia/Routes_client.ml
   $ export UTOPIA_ROOT="$(dirname "$OPAM_SWITCH_PREFIX")"
   $ export OCAMLPATH="$UTOPIA_ROOT/_build/install/default/lib"
   $ dune build --root . @melange _utopia/server_main.exe > /dev/null

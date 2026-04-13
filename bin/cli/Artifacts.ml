@@ -1,5 +1,4 @@
 let source_app_directory = "app"
-let source_pages_directory = "pages"
 let build_directory = Utopia_path.build_directory_name
 let generated_directory = Utopia_path.generated_directory_name
 let generated_directory_string = Fpath.to_string generated_directory
@@ -51,8 +50,8 @@ let generated_server_build_target () =
 
 let generated_esbuild_build_target () =
   let project = project_paths () in
-  "@"
-  ^ Fpath.to_string Fpath.(Utopia_path.project_utopia_dir project / "esbuild")
+  Fpath.(Utopia_path.project_utopia_dir project / ".esbuild_stamp")
+  |> Fpath.to_string
 
 let generated_build_targets () = [ generated_server_build_target () ]
 
@@ -72,4 +71,3 @@ let missing_artifacts artifacts =
 
 let has_source_routes_directory () =
   Filesystem.is_directory source_app_directory
-  || Filesystem.is_directory source_pages_directory

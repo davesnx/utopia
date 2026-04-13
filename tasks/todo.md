@@ -2,6 +2,84 @@
 
 ## Active slice
 
+- [completed] Inventory scoped `bin/tests` compiler/melange/generated-dune cram files that still create legacy `pages/` or top-level `api/` fixtures
+- [in_progress] Convert scoped compiler/melange/generated-dune fixtures to app-directory-only equivalents without weakening assertions
+- [pending] Re-run targeted `dune runtest` for every edited test and capture failures, changed files, and risky assumptions
+
+## Review
+
+- Pending targeted fixture migration + verification for compiler/melange/generated-dune cram tests.
+
+# Execution Plan
+
+## Active slice
+
+- [completed] Audit runtime-focused `bin/tests/server_*.t`, `ssg_*.t`, and `cli_*.t` for legacy `pages/` / `api/` fixture usage
+- [in_progress] Convert scoped runtime cram fixtures and assertions to app-directory-only roots and module names
+- [pending] Update CLI project-shape expectation strings from app-or-pages wording to app-only wording
+- [pending] Re-run targeted `dune runtest` on changed files and capture review notes
+
+## Review
+
+- Pivoted after user clarification: the right fix is to remove legacy `pages/` mode instead of preserving or repairing it.
+
+# Execution Plan
+
+## Active slice
+
+- [completed] Introduce a typed OCaml codegen helper for compiler-generated route modules
+- [completed] Migrate `Generated_routes.ml` fully off raw source-string concatenation
+- [completed] Update docs/primitives for the new compiler codegen helper
+- [completed] Re-verify route-generation and server/runtime compatibility tests
+
+## Review
+
+- Added `bin/compiler/Ocaml_gen.ml`, a typed wrapper over `ppxlib.metaquot`, `Ppxlib` AST helpers, and `Pprintast`, so compiler-generated route modules can be assembled as OCaml structure items instead of ad-hoc source strings.
+- Added `bin/compiler/Ocaml_gen.mli` to keep that helper surface narrow and explicit; removed dead helpers from the implementation so the module stays focused on the route generator's actual needs.
+- Updated `bin/compiler/dune` to preprocess with `ppxlib.metaquot` and depend on `ppxlib` alongside `compiler-libs.common`.
+- Migrated all of `bin/compiler/Generated_routes.ml` to AST generation: `Routes_client` nested route builders and `of_route`, the `Routes` shim metadata/API loaders, and `Routes_server` registries/not-found wiring are now built from typed AST nodes and pretty-printed.
+- Deleted the legacy string-based `Routes_client` generator block after the AST path passed the compatibility suite, so `Generated_routes.ml` no longer assembles OCaml source via `Printf.sprintf` / `String.concat` templates.
+- Re-verified with:
+- `opam exec -- dune build bin/compiler/compiler.exe`
+- `opam exec -- dune runtest bin/tests/compiler_builds_typed_routes_project.t bin/tests/compiler_builds_custom_path_params_project.t bin/tests/compiler_generates_server_main.t bin/tests/compiler_generates_dune_rules.t bin/tests/compiler_detects_metadata_function.t bin/tests/compiler_generates_markdown_payloads.t bin/tests/compiler_recognizes_app_not_found_page.t bin/tests/compiler_generates_api_routes.t bin/tests/compiler_generates_app_directory_routes.t bin/tests/compiler_generates_app_directory_dynamic_routes.t bin/tests/compiler_prefers_app_directory_over_legacy_roots.t bin/tests/ssg_static_page_detected.t bin/tests/ssg_non_static_page_ignored.t bin/tests/ssg_static_detection_ignores_comments_and_strings.t bin/tests/ssg_before_makes_page_dynamic.t bin/tests/compiler_generates_app_markdown_page_payloads.t bin/tests/compiler_warns_invalid_markdown_frontmatter.t bin/tests/server_generated_api_routes_json_envelopes.t bin/tests/ssg_server_static_serving_and_dev_fallback.t bin/tests/cli_prod_uses_generated_server_main.t bin/tests/server_root_page_without_layout_uses_pageconsumer.t`
+
+## Active slice
+
+- [completed] Eliminate `Generated_server_registry.ml` and move the remaining unavoidable native wiring under generated `Routes_server`
+- [completed] Move markdown/page/API assembly back into checked-in `utopia` runtime modules and static `server_main.ml`
+- [completed] Simplify compiler/runtime/dune wiring to depend only on copied `server_main.ml` plus generated `Routes`, `Routes_client`, and `Routes_server`
+- [completed] Update docs/tests and re-verify targeted generated-server/runtime flows
+
+## Review
+
+- Deleted `bin/compiler/Server_main.ml`; the compiler no longer owns a separate server-main source generator.
+- The compiler now writes three route artifacts: `Routes_client.ml` for typed route builders, `Routes.ml` as the public compatibility shim, and `Routes_server.ml` for unavoidable native-only registries and not-found wiring.
+- `Routes` keeps the historical user-facing API intact by re-exporting `Routes_client` and preserving native-only metadata/API helpers such as `Routes.get_all`, `Routes.Markdown`, and `Routes.Api.Params`.
+- `lib/utopia/server_main.ml` is now a fixed runtime entrypoint that calls `Utopia_server.run_generated_routes_server_cli (module Routes_server)`.
+- `lib/utopia/Utopia_server.mlx` now type-checks against a `Generated_routes_server` module contract instead of ad-hoc generated registries.
+- `_utopia/dune` now builds a `routes_server_<project>` library for `Routes_server`, keeps `Routes` + `Routes_client` in the existing routes support library, and copies route schema modules into `_utopia/native/` so typed routes still compile.
+- Verified with:
+- `opam exec -- dune build bin/compiler/compiler.exe lib/utopia/utopia.cma`
+- `opam exec -- dune runtest bin/tests/compiler_builds_typed_routes_project.t bin/tests/compiler_builds_custom_path_params_project.t bin/tests/compiler_prefers_app_directory_over_legacy_roots.t bin/tests/compiler_generates_server_main.t bin/tests/compiler_generates_dune_rules.t bin/tests/compiler_detects_metadata_function.t bin/tests/compiler_generates_markdown_payloads.t bin/tests/compiler_recognizes_app_not_found_page.t bin/tests/compiler_generates_api_routes.t bin/tests/compiler_generates_app_directory_routes.t bin/tests/compiler_generates_app_directory_dynamic_routes.t bin/tests/ssg_static_page_detected.t bin/tests/ssg_non_static_page_ignored.t bin/tests/ssg_static_detection_ignores_comments_and_strings.t bin/tests/ssg_before_makes_page_dynamic.t bin/tests/compiler_generates_app_markdown_page_payloads.t bin/tests/compiler_warns_invalid_markdown_frontmatter.t bin/tests/server_generated_api_routes_json_envelopes.t bin/tests/ssg_server_static_serving_and_dev_fallback.t bin/tests/cli_prod_uses_generated_server_main.t bin/tests/server_root_page_without_layout_uses_pageconsumer.t`
+
+## Active slice
+
+- [completed] Verify the actual `createFromFetch` / RSC client contract used during navigation and where the payload stops being consumed
+- [completed] Patch the router against the confirmed runtime contract instead of the previous transition hypothesis
+- [completed] Replace or update regression coverage so it proves the real navigation path
+- [completed] Re-verify against the affected demo/runtime path
+
+## Review
+
+- Confirmed the previous transition-only hypothesis was insufficient.
+- Root cause: for app-directory projects with `app/page.*` but no root `app/layout.*`, `Utopia_route_builder.build_tree` built the root router node as `layout=(make_page ())` with `pageconsumer=None`. Diff navigations from `/` then updated hidden router state instead of visible content, matching the user report: the route fetch succeeded and nothing changed on screen.
+- Fixed `lib/utopia/Utopia_route_builder.mlx` so the root router node always uses a visible `pageconsumer`, defaulting the root layout to `PassThroughLayout` when no root layout file exists.
+- Added `bin/tests/server_root_page_without_layout_uses_pageconsumer.t` to lock the root-page streamed payload shape for the no-root-layout case.
+- Verified directly with a throwaway workspace app (`app/page.re`, `app/about/page.re`, no `app/layout.re`): the streamed root payload now contains `"path":"/","layout":["$","$2",...],"pageconsumer":["$","div",...,{"children":"home"}` instead of burying the page under `layout`.
+- Removed the earlier transition-only router patch and its speculative regression test so the change set stays focused on the confirmed root cause.
+
+## Active slice
+
 - [completed] Merge runtime-overlay planning details into `plan/11-dev-full-reload-and-browser-overlay.md`
 - [completed] Keep `plan/08-dev-mode.md` as the separate low-level dev-loop mechanics companion
 - [completed] Replace `plan/10-client-error-overlay.md` with a deprecation pointer to plan 11

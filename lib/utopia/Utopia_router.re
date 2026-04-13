@@ -54,15 +54,13 @@ module VirtualHistory = {
   let state = ref([]);
 
   let push = (~path, ~renderPage) => {
-    let filteredRoutes = List.filter(route => route.path != path, state^);
-    state :=
-      filteredRoutes
-      @ [
-        {
-          path,
-          renderPage,
-        },
-      ];
+    let entry = {path, renderPage};
+    let rec go =
+      fun
+      | [] => [entry]
+      | [hd, ...tl] when hd.path == path => go(tl)
+      | [hd, ...tl] => [hd, ...go(tl)];
+    state := go(state^);
   };
 
   let find = path => List.find_opt(route => route.path == path, state^);
@@ -208,7 +206,8 @@ let requestPath = url =>
 let browserPath = url =>
   requestPath(url) ++ (URL.hash(url) |> Option.value(~default=""));
 
-let callServer = Utopia_call_server.callServer;
+let currentRoute = () =>
+  currentUrl() |> browserPath |> Utopia_route.of_href;
 
 module PassThroughLayout = {
   [@react.component]
@@ -231,7 +230,6 @@ let make = (~initialPath: string, ~children: React.element) => {
     setCachedNodeKey(_ => Js.Date.now() |> string_of_float);
     setElement(_ => page);
     VirtualHistory.cleanup();
-    true;
   };
 
   let renderDiffPage = (~parentRoute, page) =>
@@ -280,7 +278,10 @@ let make = (~initialPath: string, ~children: React.element) => {
         nextPath,
         Fetch.RequestInit.make(~method_=Get, ~headers, ()),
       );
-    ReactServerDOMEsbuild.createFromFetch(~callServer, promise);
+    ReactServerDOMEsbuild.createFromFetch(
+      ~callServer=Utopia_call_server.callServer,
+      promise,
+    );
   };
 
   let%browser_only rec navigate =
@@ -308,9 +309,7 @@ let make = (~initialPath: string, ~children: React.element) => {
       !shouldRevalidate
       && Utopia_route.pathname(to_) != URL.pathname(current);
 
-    if (nextBrowserPath == currentBrowserPath && !shouldRevalidate) {
-      ();
-    } else if (nextRequestPath == currentRequestPath && !shouldRevalidate) {
+    let commitNavigation = () => {
       if (shouldReplace) {
         History.replaceState(
           HistoryState.empty,
@@ -328,9 +327,33 @@ let make = (~initialPath: string, ~children: React.element) => {
       };
       setRoute(_ => to_);
       setPath(_ => nextRequestPath);
+    };
+
+    if (nextBrowserPath == currentBrowserPath && !shouldRevalidate) {
+      ();
+    } else if (nextRequestPath == currentRequestPath && !shouldRevalidate) {
+      commitNavigation();
     } else {
       let diffFrom = shouldRequestDiff ? Some(currentRequestPath) : None;
-      let promise = fetchNavigation(~currentPath=diffFrom, nextRequestPath);
+      /* createFromFetch is typed as returning Js.Promise.t('a) but actually
+         returns a React "thenable" whose .then() returns undefined instead
+         of a chainable Promise.  We need a real Promise here for the
+         .then()/.catch() chain below.
+
+         JS Promise.resolve(thenable) adopts the thenable into a real
+         Promise, but Melange's Js.Promise.resolve is typed as
+         'a => Js.Promise.t('a), so passing a Js.Promise.t(x) produces
+         Js.Promise.t(Js.Promise.t(x)) in the type system -- the classic
+         promise-inside-promise issue in the Js.Promise bindings.  At
+         runtime JS flattens this. We use mel.raw to call Promise.resolve
+         directly, bypassing the double-wrapping type issue. */
+      let adoptThenable: Js.Promise.t('a) => Js.Promise.t('a) = [%mel.raw
+        {| function(t) { return Promise.resolve(t); } |}
+      ];
+      let promise =
+        adoptThenable(
+          fetchNavigation(~currentPath=diffFrom, nextRequestPath),
+        );
       let _ =
         promise
         |> Js.Promise.then_(
@@ -343,57 +366,34 @@ let make = (~initialPath: string, ~children: React.element) => {
                    ~key=nextRequestPath,
                    ~page=HistoryCache.DiffPage(parentRoute, nextElement),
                  );
-                 if (shouldReplace) {
-                   History.replaceState(
-                     HistoryState.empty,
-                     "",
-                     nextBrowserPath,
-                     browserHistory(),
-                   );
-                 } else {
-                   History.pushState(
-                     HistoryState.empty,
-                     "",
-                     nextBrowserPath,
-                     browserHistory(),
-                   );
-                 };
-                 setRoute(_ => to_);
-                 setPath(_ => nextRequestPath);
+                 commitNavigation();
                  Js.Promise.resolve();
                } else {
                  navigate(~history=Replace, ~freshness=Revalidate, to_);
                  Js.Promise.resolve();
                }
-             | _ =>
+             | "full" =>
                HistoryCache.set(
                  historyCache,
                  ~key=nextRequestPath,
                  ~page=HistoryCache.FullPage(nextElement),
                );
-               ignore(renderFullPage(nextElement));
-               if (shouldReplace) {
-                 History.replaceState(
-                   HistoryState.empty,
-                   "",
-                   nextBrowserPath,
-                   browserHistory(),
-                 );
-               } else {
-                 History.pushState(
-                   HistoryState.empty,
-                   "",
-                   nextBrowserPath,
-                   browserHistory(),
-                 );
-               };
-               setRoute(_ => to_);
-               setPath(_ => nextRequestPath);
+               renderFullPage(nextElement);
+               commitNavigation();
+               Js.Promise.resolve();
+             | unknown =>
+               Js.Console.warn(
+                 "Utopia: unknown navigation mode: " ++ unknown,
+               );
+               renderFullPage(nextElement);
+               commitNavigation();
                Js.Promise.resolve();
              }
            })
         |> Js.Promise.catch(err => {
-             let msg = [%mel.raw {| String(err && err.message ? err.message : err) |}];
+             let msg = [%mel.raw
+               {| String(err && err.message ? err.message : err) |}
+             ];
              reportNavigationError(nextRequestPath, msg);
              Js.Promise.resolve();
            });
@@ -402,7 +402,7 @@ let make = (~initialPath: string, ~children: React.element) => {
   };
 
   React.useEffect0(() => {
-    let initialRoute = currentUrl() |> browserPath |> Utopia_route.of_href;
+    let initialRoute = currentRoute();
     let initialRequestPath = Utopia_route.request_path(initialRoute);
     HistoryCache.set(
       historyCache,
@@ -421,13 +421,13 @@ let make = (~initialPath: string, ~children: React.element) => {
   });
 
   React.useEffect0(() => {
-    let watcherId = _event => {
-      let nextRoute = currentUrl() |> browserPath |> Utopia_route.of_href;
+    let handlePopState = _event => {
+      let nextRoute = currentRoute();
       let nextRequestPath = Utopia_route.request_path(nextRoute);
       setRoute(_ => nextRoute);
       setPath(_ => nextRequestPath);
       switch (HistoryCache.get(historyCache, ~key=nextRequestPath)) {
-      | Some(HistoryCache.FullPage(page)) => ignore(renderFullPage(page))
+      | Some(HistoryCache.FullPage(page)) => renderFullPage(page)
       | Some(HistoryCache.DiffPage(parentRoute, page)) =>
         if (!renderDiffPage(~parentRoute, page)) {
           navigate(~history=Replace, ~freshness=Revalidate, nextRoute);
@@ -438,7 +438,7 @@ let make = (~initialPath: string, ~children: React.element) => {
 
     DOM.EventTarget.addEventListener(
       "popstate",
-      watcherId,
+      handlePopState,
       browserEventTarget(),
     );
 
@@ -446,7 +446,7 @@ let make = (~initialPath: string, ~children: React.element) => {
       () =>
         DOM.EventTarget.removeEventListener(
           "popstate",
-          watcherId,
+          handlePopState,
           browserEventTarget(),
         ),
     );

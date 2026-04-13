@@ -30,6 +30,8 @@ val generated_dune : project -> file_ref
 val generated_esbuild_config : project -> file_ref
 val generated_esbuild_paths : project -> file_ref
 val generated_routes_source : project -> file_ref
+val generated_routes_client_source : project -> file_ref
+val generated_routes_server_source : project -> file_ref
 val generated_server_source : project -> file_ref
 val generated_server_exe : project -> file_ref
 val built_binary : project -> binary -> file_ref

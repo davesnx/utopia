@@ -8,16 +8,21 @@ let melange_target_name = "target"
 let shared_lib_directory = Fpath.to_string Utopia_path.shared_lib_directory_name
 let generated_routes_source = "Routes.ml"
 let generated_routes_module = "Routes"
+let generated_routes_client_source = "Routes_client.ml"
+let generated_routes_client_module = "Routes_client"
+let generated_routes_server_module = "Routes_server"
 
 let generated_esbuild_config_path () =
   Utopia_path.generated_esbuild_config (Project.project_paths ())
   |> Utopia_path.file_display
 
-let melange_libraries generated_utopia_library_name =
+let melange_libraries =
   [
-    generated_utopia_library_name;
-    "utopia";
-    "server-reason-react.react-server-dom-esbuild";
+    (* Only melange-compatible libraries belong here. The full "utopia"
+       library and the generated routes library are server-only — they
+       transitively pull in dream, unix, lwt, cmarkit, etc. The
+       utopia.client sub-library exposes only the melange-safe modules
+       (Utopia_route, Utopia_router, Utopia_call_server, etc.). *)
     "reason-react";
     "melange-webapi";
     "melange-fetch";
@@ -46,13 +51,15 @@ let native_api_library_libraries generated_utopia_library_name =
 let native_library_flags = [ ":standard"; "-w"; "-26-27-39" ]
 let server_executable_modules = [ generated_server_name ]
 
-let server_executable_libraries ~pages_library_name ~api_library_name
+let server_executable_libraries ~pages_library_name:_ ~api_library_name:_
+    ~generated_routes_server_library_name ~generated_utopia_library_name:_
+    ~has_api_library:_ =
+  [ generated_routes_server_library_name; "utopia" ]
+
+let routes_server_libraries ~pages_library_name ~api_library_name
     ~generated_utopia_library_name ~has_api_library =
   let base = [ pages_library_name; generated_utopia_library_name; "utopia" ] in
-  if has_api_library then
-    pages_library_name :: api_library_name
-    :: [ generated_utopia_library_name; "utopia" ]
-  else base
+  if has_api_library then base @ [ api_library_name ] else base
 
 let melange_preprocess_pps =
   [
@@ -227,7 +234,11 @@ let native_shared_lib_dependency source_file =
 let root_route_schema_dependency source_file =
   Printf.sprintf "../%s" source_file
 
-let app_reserved_basenames = [ "page"; "layout"; "route"; "_middleware" ]
+let native_route_schema_dependency source_file =
+  Printf.sprintf "../../%s" source_file
+
+let app_reserved_basenames =
+  [ "page"; "layout"; "route"; "_middleware"; "not-found" ]
 
 let app_local_alias_lines ~source_root
     (code_files : Build_inputs.compiled_code_file list) =
@@ -264,10 +275,25 @@ let generate ?(dev_mode = false) ~source_root ~api_root
     ~is_client_component_page ~is_melange_lib_module files api_files
     route_entries _api_entries =
   let open Dune_sexp in
+  (* Compute project-aware shared-folder-prefix for the PPX.  Dune sets
+     pos_fname relative to _build/default/, so for a nested project like
+     demo/notes the filename is demo/notes/_utopia/Foo.re.  The prefix
+     must include the full project path to strip it cleanly. *)
+  let project_path = Project.workspace_relative_project_path () in
+  let melange_shared_folder_prefix =
+    if project_path = "" then "_utopia/" else project_path ^ "/_utopia/"
+  in
+  let native_shared_folder_prefix =
+    if project_path = "" then "_utopia/native/"
+    else project_path ^ "/_utopia/native/"
+  in
   let pages_library_name = Project.generated_pages_library_name () in
   let api_library_name = Project.generated_api_library_name () in
   let generated_utopia_library_name =
     Project.generated_utopia_library_name ()
+  in
+  let generated_routes_server_library_name =
+    Project.generated_routes_server_library_name ()
   in
   let shared_lib_files : Build_inputs.shared_lib_file list =
     Build_inputs.shared_lib_files_for_build ()
@@ -289,31 +315,58 @@ let generate ?(dev_mode = false) ~source_root ~api_root
     @ if has_app_local_aliases then [ generated_app_local_module ] else []
   in
   let is_route_or_layout_file relative_file =
-    match relative_file |> Filename.basename |> Filename.remove_extension with
-    | "page" | "layout" -> true
-    | _ -> false
+    if source_root <> Names.app_directory then true
+    else
+      match relative_file |> Filename.basename |> Filename.remove_extension with
+      | "page" | "layout" -> true
+      | _ -> false
   in
-  let melange_code_files =
+  let melange_client_component_files =
     code_files
     |> List.filter (fun (file : Build_inputs.compiled_code_file) ->
         is_client_component_page file.relative_file)
   in
+  (* Non-reserved app components (like date.mlx) are shared between
+     server and client.  They're NOT pages/layouts but may be used by
+     client components.  Plain-copy them into the melange stanza. *)
+  let melange_shared_component_files =
+    code_files
+    |> List.filter (fun (file : Build_inputs.compiled_code_file) ->
+        (not (is_client_component_page file.relative_file))
+        && not (is_route_or_layout_file file.relative_file))
+  in
+  let melange_code_files =
+    melange_client_component_files @ melange_shared_component_files
+  in
   let melange_copy_rules =
-    melange_code_files
+    (melange_client_component_files
     |> List.map (fun (file : Build_inputs.compiled_code_file) ->
         let deps = root_page_dependency ~source_root file.relative_file in
-        let modules_to_open =
-          if is_route_or_layout_file file.relative_file then page_open_modules
-          else shared_lib_open_modules
-        in
         let prelude_lines =
-          modules_to_open
+          page_open_modules
           |> List.map (fun module_name ->
               open_statement file.extension module_name)
         in
         extraction_copy_rule ~deps
           ~target:(Printf.sprintf "%s%s" file.base_name file.extension)
-          ~prelude_lines)
+          ~prelude_lines))
+    @ (melange_shared_component_files
+      |> List.map (fun (file : Build_inputs.compiled_code_file) ->
+          let deps = root_page_dependency ~source_root file.relative_file in
+          let prelude_lines =
+            shared_lib_open_modules
+            |> List.map (fun module_name ->
+                open_statement file.extension module_name)
+          in
+          copy_rule ~deps
+            ~target:(Printf.sprintf "%s%s" file.base_name file.extension)
+            ~prelude_lines
+            ~line_directive_path:
+              (if emits_line_directive file.extension then Some deps else None))
+      )
+  in
+  let melange_app_local_aliases =
+    app_local_alias_lines ~source_root melange_code_files
   in
   let native_copy_rules =
     code_files
@@ -354,20 +407,61 @@ let generate ?(dev_mode = false) ~source_root ~api_root
       ~deps:(Utopia_runtime.target_name Utopia_runtime.client_entry_source_file)
       ~target:client_entry_target
   in
-  let dev_overlay_rule =
+  let dev_client_rule =
     if dev_mode then
       Some
         (copy_dependency_rule
-           ~deps:
-             (Utopia_runtime.target_name Utopia_runtime.dev_overlay_source_file)
-           ~target:Utopia_runtime.dev_overlay_melange_target_name)
+           ~deps:"%{lib:utopia:utopia_dev_client/Utopia_dev_client.re}"
+           ~target:"Utopia_dev_client.re")
     else None
   in
-  let react_server_dom_runtime_rule =
-    copy_dependency_rule
-      ~deps:
-        "%{lib:server-reason-react.react-server-dom-esbuild:ReactServerDOMEsbuild.js}"
-      ~target:"ReactServerDOMEsbuild.js"
+  (* Utopia client modules: copied from the installed utopia package into
+     the melange.emit stanza as local modules.  These are the modules
+     actually needed by client-side code (router, route types, call
+     server, etc.).  They cannot be a library dependency because
+     server-reason-react.react-server-dom-esbuild produces a
+     pre-compiled JS that conflicts with melange.emit's output. *)
+  let utopia_client_modules =
+    [
+      "Utopia_types.ml";
+      "Utopia_route.ml";
+      "Utopia_call_server.re";
+      "Utopia_router.re";
+      "Utopia_router_link.re";
+      "Utopia_router_route.re";
+      "Utopia.re";
+      "ReactServerDOMEsbuild.re";
+    ]
+  in
+  let utopia_client_copy_rules =
+    utopia_client_modules
+    |> List.map (fun filename ->
+        copy_dependency_rule
+          ~deps:(Printf.sprintf "%%{lib:utopia:utopia/%s}" filename)
+          ~target:filename)
+  in
+  let utopia_client_module_names =
+    utopia_client_modules |> List.map (fun f -> f |> Filename.remove_extension)
+  in
+  (* ReactServerDOMEsbuild is provided by the
+     server-reason-react.react-server-dom-esbuild library in
+     melange_libraries — no copy rule needed. *)
+  (* Routes.ml and Routes_client.ml are owned by melange.emit (client side).
+     For the native routes support library we copy them into the native/
+     subdirectory so dune sees distinct source files in distinct directories. *)
+  let native_routes_copy_rule =
+    rule
+      ~target:(generated_routes_module ^ ".ml")
+      ~deps:[ atom ("../" ^ generated_routes_module ^ ".ml") ]
+      ~action:(run "cp" [ "%{deps}"; "%{target}" ])
+      ()
+  in
+  let native_routes_client_copy_rule =
+    rule
+      ~target:(generated_routes_client_module ^ ".ml")
+      ~deps:[ atom ("../" ^ generated_routes_client_source) ]
+      ~action:(run "cp" [ "%{deps}"; "%{target}" ])
+      ()
   in
   let generated_utopia_library_rule =
     let route_schema_modules =
@@ -379,7 +473,9 @@ let generate ?(dev_mode = false) ~source_root ~api_root
       [
         field_atom "name" generated_utopia_library_name;
         field_atom "wrapped" "false";
-        field_atoms "modules" (generated_routes_module :: route_schema_modules);
+        field_atoms "modules"
+          (generated_routes_module :: generated_routes_client_module
+         :: route_schema_modules);
         field_atoms "libraries" [ "utopia" ];
       ]
   in
@@ -443,7 +539,7 @@ let generate ?(dev_mode = false) ~source_root ~api_root
     else
       [
         write_file_rule ~target:"App_local.re"
-          ~content:(String.concat "\n" app_local_aliases);
+          ~content:(String.concat "\n" melange_app_local_aliases);
       ]
   in
   let native_app_local_namespace_rule =
@@ -459,6 +555,13 @@ let generate ?(dev_mode = false) ~source_root ~api_root
     |> List.map (fun (file : Build_inputs.route_schema_file) ->
         copy_dependency_rule
           ~deps:(root_route_schema_dependency file.source_file)
+          ~target:(Build_inputs.route_schema_target file))
+  in
+  let native_route_schema_copy_rules =
+    route_schema_files
+    |> List.map (fun (file : Build_inputs.route_schema_file) ->
+        copy_dependency_rule
+          ~deps:(native_route_schema_dependency file.source_file)
           ~target:(Build_inputs.route_schema_target file))
   in
   let markdown_rules =
@@ -516,23 +619,27 @@ let generate ?(dev_mode = false) ~source_root ~api_root
         (if has_shared_lib then [ generated_library_module ] else [])
         @ if has_app_local_aliases then [ generated_app_local_module ] else []
       in
-      let dev_modules =
-        if dev_mode then [ Utopia_runtime.dev_overlay_melange_module_name ]
-        else []
-      in
+      let dev_modules = if dev_mode then [ "Utopia_dev_client" ] else [] in
       prelude_modules @ lib_modules @ page_modules @ dev_modules
-      @ [ Utopia_runtime.client_entry_melange_module_name ]
+      @ utopia_client_module_names
+      @ [
+          generated_routes_module;
+          generated_routes_client_module;
+          Utopia_runtime.client_entry_melange_module_name;
+        ]
     in
-    let compile_flags = open_flags [ "Melange_json.Primitives" ] in
+    let compile_flags =
+      [ "-w"; "-26-27-32-39" ] @ open_flags [ "Melange_json.Primitives" ]
+    in
     form "melange.emit"
       [
         field_atom "target" melange_target_name;
         field_atoms "module_systems" [ "es6" ];
         field_atoms "compile_flags" compile_flags;
         field_atoms "modules" modules;
-        field_atoms "libraries"
-          (melange_libraries generated_utopia_library_name);
-        preprocess_field ~default_shared_folder_prefix:"_utopia/"
+        field_atoms "libraries" melange_libraries;
+        preprocess_field
+          ~default_shared_folder_prefix:melange_shared_folder_prefix
           ~mirrored_shared_folder_prefix:"../" ~pps:melange_preprocess_pps
           ~modules ~mirrored_modules;
       ]
@@ -587,7 +694,8 @@ let generate ?(dev_mode = false) ~source_root ~api_root
         field_atoms "modules" modules;
         field_atoms "libraries"
           (native_library_libraries generated_utopia_library_name);
-        preprocess_field ~default_shared_folder_prefix:"_utopia/native/"
+        preprocess_field
+          ~default_shared_folder_prefix:native_shared_folder_prefix
           ~mirrored_shared_folder_prefix:"../../" ~pps:native_preprocess_pps
           ~modules ~mirrored_modules;
       ]
@@ -643,7 +751,8 @@ let generate ?(dev_mode = false) ~source_root ~api_root
              field_atoms "modules" modules;
              field_atoms "libraries"
                (native_api_library_libraries generated_utopia_library_name);
-             preprocess_field ~default_shared_folder_prefix:"_utopia/native/"
+             preprocess_field
+               ~default_shared_folder_prefix:native_shared_folder_prefix
                ~mirrored_shared_folder_prefix:"../../"
                ~pps:native_preprocess_pps ~modules ~mirrored_modules;
            ])
@@ -659,13 +768,26 @@ let generate ?(dev_mode = false) ~source_root ~api_root
              native_copy_rules;
              native_api_copy_rules;
              native_shared_lib_copy_rules;
+             native_route_schema_copy_rules;
              native_shared_lib_namespace_rule;
              native_app_local_namespace_rule;
-             [ native_library_rule ] @ native_api_library_rules;
+             [
+               native_routes_copy_rule;
+               native_routes_client_copy_rule;
+               generated_utopia_library_rule;
+               native_library_rule;
+             ]
+             @ native_api_library_rules;
            ])
   in
+  let esbuild_stamp = ".esbuild_stamp" in
+  (* The esbuild rule is inside (subdir _utopia ...) where
+     data_only_dirs shields it from (alias_rec all).  It uses a plain
+     file target — not an alias — because dune does not expose aliases
+     from data-only directories on the command line.  File targets in
+     data-only subdirs are still addressable via their build path. *)
   let esbuild_rule =
-    rule ~alias:"esbuild"
+    rule ~target:esbuild_stamp
       ~deps:
         [
           form "alias" [ atom "melange" ];
@@ -674,10 +796,14 @@ let generate ?(dev_mode = false) ~source_root ~api_root
           atom "../package.json";
         ]
       ~action:
-        (form "chdir"
+        (form "progn"
            [
-             atom (source_project_root ());
-             run "node" [ generated_esbuild_config_path () ];
+             form "chdir"
+               [
+                 atom (source_project_root ());
+                 run "node" [ generated_esbuild_config_path () ];
+               ];
+             form "write-file" [ atom "%{target}"; atom "" ];
            ])
       ()
   in
@@ -688,6 +814,20 @@ let generate ?(dev_mode = false) ~source_root ~api_root
         field_atoms "modules" server_executable_modules;
         field_atoms "libraries"
           (server_executable_libraries ~pages_library_name ~api_library_name
+             ~generated_routes_server_library_name
+             ~generated_utopia_library_name
+             ~has_api_library:(api_code_files <> []));
+      ]
+  in
+  let generated_routes_server_library_rule =
+    form "library"
+      [
+        field_atom "name" generated_routes_server_library_name;
+        field_atom "wrapped" "false";
+        field_atoms "flags" native_library_flags;
+        field_atoms "modules" [ generated_routes_server_module ];
+        field_atoms "libraries"
+          (routes_server_libraries ~pages_library_name ~api_library_name
              ~generated_utopia_library_name
              ~has_api_library:(api_code_files <> []));
       ]
@@ -705,17 +845,14 @@ let generate ?(dev_mode = false) ~source_root ~api_root
       :: List.concat
            [
              melange_copy_rules;
-             [
-               client_entry_rule;
-               react_server_dom_runtime_rule;
-               generated_utopia_library_rule;
-             ];
-             (match dev_overlay_rule with Some r -> [ r ] | None -> []);
+             [ client_entry_rule ];
+             utopia_client_copy_rules;
+             (match dev_client_rule with Some r -> [ r ] | None -> []);
              melange_shared_lib_copy_rules;
              melange_route_schema_copy_rules;
              melange_shared_lib_namespace_rule;
              melange_app_local_namespace_rule;
-             [ melange_rule ];
+             [ melange_rule; generated_routes_server_library_rule ];
              markdown_rules;
              [ native_subdir_rule; esbuild_rule; server_executable; ssg_rule ];
            ])

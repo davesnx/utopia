@@ -1,0 +1,5 @@
+(install
+ (section lib)
+ (package utopia)
+ (files
+  (Utopia_dev_client.re as utopia_dev_client/Utopia_dev_client.re)))

@@ -312,11 +312,34 @@ let compute_closure items client_items tokens_array =
   Hashtbl.fold (fun _ item acc -> item :: acc) included []
   |> List.sort (fun a b -> compare a.byte_start b.byte_start)
 
+(* Count newlines in [source] from byte 0 up to (not including) [byte_pos]. *)
+let count_newlines_before source byte_pos =
+  let count = ref 0 in
+  for i = 0 to min (byte_pos - 1) (String.length source - 1) do
+    if source.[i] = '\n' then incr count
+  done;
+  !count
+
+(* Extract selected regions from [source], padding with blank lines so that
+   each region starts at its original line position.  This preserves line
+   numbers for the PPX, which hashes them into server-function IDs. *)
 let extract_regions source items =
-  items
-  |> List.map (fun item ->
-      String.sub source item.byte_start (item.byte_end - item.byte_start))
-  |> String.concat ""
+  let buf = Buffer.create (String.length source) in
+  let current_line = ref 0 in
+  List.iter
+    (fun item ->
+      let target_line = count_newlines_before source item.byte_start in
+      while !current_line < target_line do
+        Buffer.add_char buf '\n';
+        incr current_line
+      done;
+      let content =
+        String.sub source item.byte_start (item.byte_end - item.byte_start)
+      in
+      Buffer.add_string buf content;
+      String.iter (fun c -> if c = '\n' then incr current_line) content)
+    items;
+  Buffer.contents buf
 
 let extract_client_code source =
   if not (has_client_component source) then

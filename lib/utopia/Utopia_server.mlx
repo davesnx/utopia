@@ -91,9 +91,198 @@ module Generated_api_route = struct
     { route; matcher; params; middlewares; source_file; handler }
 end
 
+type generated_not_found = {
+  render : unit -> React.element;
+  layout_renderers : (React.element -> React.element) list;
+  router_shell : string -> React.element;
+  router_tree : unit -> React.element;
+}
+
+module Generated_not_found = struct
+  let make ~render ~layout_renderers ~router_shell ~router_tree () =
+    { render; layout_renderers; router_shell; router_tree }
+end
+
+type generated_not_found_registry = {
+  not_found_layouts : string list;
+  not_found_render : unit -> React.element;
+}
+
+module Generated_not_found_registry = struct
+  let make ~layouts ~render () =
+    { not_found_layouts = layouts; not_found_render = render }
+end
+
+type generated_registry = {
+  page_renders : (string * (unit -> React.element)) list;
+  page_metadata : (string * ((string * string) list -> metadata)) list;
+  page_paths : (string * (unit -> (string * string) list list)) list;
+  layout_infos : (string * Utopia_route_builder.layout_info) list;
+  api_handlers : (string * Dream.handler) list;
+  api_middlewares : (string * (Dream.handler -> Dream.handler)) list;
+}
+
+module Generated_registry = struct
+  let make ~page_renders ~page_metadata ~page_paths ~layout_infos ~api_handlers
+      ~api_middlewares () =
+    {
+      page_renders;
+      page_metadata;
+      page_paths;
+      layout_infos;
+      api_handlers;
+      api_middlewares;
+    }
+end
+
+module type Generated_routes_server = sig
+  val get_all : unit -> page_route_meta list
+
+  module Markdown : sig
+    type entry = {
+      route : string;
+      matcher : string;
+      source_file : string;
+      body : string;
+      frontmatter : Utopia_markdown.frontmatter_object option;
+      title : string option;
+      description : string option;
+    }
+
+    val get_all : unit -> entry list
+  end
+
+  module Api : sig
+    val get_all : unit -> api_route_meta list
+  end
+
+  val page_renders : (string * (unit -> React.element)) list
+  val page_metadata : (string * ((string * string) list -> metadata)) list
+  val page_paths : (string * (unit -> (string * string) list list)) list
+  val layout_infos : (string * Utopia_route_builder.layout_info) list
+  val api_handlers : (string * Dream.handler) list
+  val api_middlewares : (string * (Dream.handler -> Dream.handler)) list
+  val not_found_page : generated_not_found_registry option
+end
+
 let make_markdown_payload ~markdown_body ~frontmatter_object ?meta_title
     ?meta_description () =
   { markdown_body; frontmatter_object; meta_title; meta_description }
+
+let lookup_generated_registry entries source_file = List.assoc_opt source_file entries
+
+let resolve_generated_layout_infos (registry : generated_registry) source_files =
+  source_files
+  |> List.filter_map (lookup_generated_registry registry.layout_infos)
+
+let generated_layout_renderers layouts =
+  List.map (fun (layout : Utopia_route_builder.layout_info) -> layout.render) layouts
+
+let resolve_generated_code_page (registry : generated_registry)
+    (meta : page_route_meta) =
+  let layouts = resolve_generated_layout_infos registry meta.layouts in
+  let metadata = lookup_generated_registry registry.page_metadata meta.source_file in
+  let paths =
+    if meta.has_paths then
+      lookup_generated_registry registry.page_paths meta.source_file
+    else None
+  in
+  match lookup_generated_registry registry.page_renders meta.source_file with
+  | None -> None
+  | Some render ->
+      let router =
+        Utopia_route_builder.build_router ~matcher:meta.matcher ~make_page:render
+          ~layouts
+      in
+      Some
+        (Generated_route.code ~route:meta.route ~matcher:meta.matcher
+           ~params:meta.params ~source_file:meta.source_file
+           ~layouts:meta.layouts ~render ~metadata
+           ~layout_renderers:(generated_layout_renderers layouts)
+           ~router_shell:router.Utopia_route_builder.shell
+           ~router_tree:router.Utopia_route_builder.tree
+           ~router_subtree:router.Utopia_route_builder.subtree ~static:meta.static
+           ~paths ())
+
+let resolve_generated_markdown_page (registry : generated_registry)
+    ~(body : string) ~(frontmatter : Utopia_markdown.frontmatter_object option)
+    ~(title : string option) ~(description : string option)
+    (meta : page_route_meta) =
+  let layouts = resolve_generated_layout_infos registry meta.layouts in
+  let metadata = lookup_generated_registry registry.page_metadata meta.source_file in
+  let render () = body |> Utopia_markdown.doc_of_string |> Utopia_markdown.element_of_doc in
+  let router =
+    Utopia_route_builder.build_router ~matcher:meta.matcher ~make_page:render
+      ~layouts
+  in
+  Generated_route.markdown ~route:meta.route ~matcher:meta.matcher
+    ~params:meta.params ~source_file:meta.source_file ~layouts:meta.layouts
+    ~metadata ~layout_renderers:(generated_layout_renderers layouts)
+    ~router_shell:router.Utopia_route_builder.shell
+    ~router_tree:router.Utopia_route_builder.tree
+    ~router_subtree:router.Utopia_route_builder.subtree
+    ~markdown:
+      (make_markdown_payload ~markdown_body:body ~frontmatter_object:frontmatter
+         ?meta_title:title ?meta_description:description ())
+    ~static:meta.static ()
+
+let generated_pages (module Routes : Generated_routes_server)
+    (registry : generated_registry) =
+  let markdown_entries = Routes.Markdown.get_all () in
+  let resolve_markdown_entry source_file =
+    markdown_entries
+    |> List.find_opt (fun (entry : Routes.Markdown.entry) ->
+           String.equal entry.source_file source_file)
+  in
+  Routes.get_all ()
+  |> List.filter_map (fun (meta : page_route_meta) ->
+         match meta.kind with
+         | Code_page -> resolve_generated_code_page registry meta
+         | Markdown_page ->
+             resolve_markdown_entry meta.source_file
+             |> Option.map (fun (entry : Routes.Markdown.entry) ->
+                    resolve_generated_markdown_page registry ~body:entry.body
+                      ~frontmatter:entry.frontmatter ~title:entry.title
+                      ~description:entry.description meta))
+
+let resolve_generated_api (registry : generated_registry)
+    (metadata : api_route_meta list) =
+  metadata
+  |> List.filter_map (fun (meta : api_route_meta) ->
+         match lookup_generated_registry registry.api_handlers meta.source_file with
+         | None -> None
+         | Some handler ->
+             Some
+               (Generated_api_route.make ~route:meta.route ~matcher:meta.matcher
+                  ~params:meta.params ~source_file:meta.source_file
+                  ~middlewares:
+                    (meta.middlewares
+                    |> List.filter_map
+                         (lookup_generated_registry registry.api_middlewares))
+                   ~handler ()))
+
+let generated_api_routes (module Routes : Generated_routes_server)
+    (registry : generated_registry) =
+  resolve_generated_api registry (Routes.Api.get_all ())
+
+let resolve_generated_not_found (registry : generated_registry) ~layouts ~render () =
+  let layouts = resolve_generated_layout_infos registry layouts in
+  let router =
+    Utopia_route_builder.build_router ~matcher:"" ~make_page:render ~layouts
+  in
+  Generated_not_found.make ~render
+    ~layout_renderers:(generated_layout_renderers layouts)
+    ~router_shell:router.Utopia_route_builder.shell
+    ~router_tree:router.Utopia_route_builder.tree ()
+
+let generated_not_found (registry : generated_registry)
+    (not_found : generated_not_found_registry option) =
+  match not_found with
+  | None -> None
+  | Some value ->
+      Some
+        (resolve_generated_not_found registry ~layouts:value.not_found_layouts
+           ~render:value.not_found_render ())
 
 type route_entry = {
   route : string;
@@ -454,21 +643,8 @@ let common_prefix_length left right =
   in
   loop 0 left right
 
-let element ?(props = []) tag children = React.createElement tag props children
-let text value = React.string value
-
-let string_prop ?jsx_name name value =
-  let jsx_name = match jsx_name with Some value -> value | None -> name in
-  React.JSX.string name jsx_name value
-
-let dangerously_inner_html html =
-  React.JSX.dangerouslyInnerHtml
-    (object
-       method __html = html
-    end)
-
 let bootstrap_module_paths = [ "/dist/client_entry_melange.js" ]
-let dev_overlay_module_path = "/dist/Utopia_dev_overlay.js"
+let dev_overlay_module_path = "/dist/Utopia_dev_client.js"
 let stylesheet_paths = [ "/output.css" ]
 
 let available_bootstrap_module_paths ~dev_mode () =
@@ -635,20 +811,9 @@ and wrap_raw_inner_html_element (node : React.element) : React.element =
           children = List.map wrap_raw_inner_html_element children;
         }
 
-let meta_tag name content =
-  element
-    ~props:[ string_prop "name" name; string_prop "content" content ]
-    "meta" []
+let meta_tag name content = <meta name=name content=content />
 
-let property_tag property content =
-  element
-    ~props:[ string_prop "property" property; string_prop "content" content ]
-    "meta" []
-
-let link_tag ~rel ~href props =
-  element
-    ~props:([ string_prop "rel" rel; string_prop "href" href ] @ props)
-    "link" []
+let property_tag property content = <meta property=property content=content />
 
 let render_description_meta = function
   | Some desc -> [ meta_tag "description" desc ]
@@ -662,7 +827,7 @@ let render_authors_meta authors =
   authors |> List.map (fun author -> meta_tag "author" author)
 
 let render_canonical_link = function
-  | Some url -> [ link_tag ~rel:"canonical" ~href:url [] ]
+  | Some url -> [ <link rel="canonical" href=url /> ]
   | None -> []
 
 let render_robots_meta = function
@@ -727,14 +892,17 @@ let render_icons_links icons =
   icons
   |> List.map (fun (ic : icon) ->
       let rel = ic.rel |> Option.value ~default:"icon" in
-      let extra =
-        (match ic.sizes with Some s -> [ string_prop "sizes" s ] | None -> [])
-        @
-        match ic.mime_type with
-        | Some t -> [ string_prop "type" t ]
-        | None -> []
+      let props =
+        [ React.JSX.string "rel" "rel" rel;
+          React.JSX.string "href" "href" ic.href ]
+        @ (match ic.sizes with
+           | Some s -> [ React.JSX.string "sizes" "sizes" s ]
+           | None -> [])
+        @ (match ic.mime_type with
+           | Some t -> [ React.JSX.string "type" "type_" t ]
+           | None -> [])
       in
-      link_tag ~rel ~href:ic.href extra)
+      React.createElement "link" props [])
 
 let render_verification_meta verification =
   verification
@@ -750,37 +918,28 @@ let render_verification_meta verification =
 
 let server_dev_mode = ref false
 
-let html_page ~title ~meta ~body =
+let html_page ~title ~(meta : metadata) ~body =
   let stylesheet_links =
     available_stylesheet_paths ()
-    |> List.map (fun path ->
-        element
-          ~props:[ string_prop "rel" "stylesheet"; string_prop "href" path ]
-          "link" [])
+    |> List.map (fun path -> <link rel="stylesheet" href=path />)
   in
   let dev_mode_script =
     if !server_dev_mode then
       [
-        element
-          ~props:[ dangerously_inner_html {|window.__UTOPIA_DEV_MODE__=true|} ]
-          "script" [];
+        <script
+          dangerouslySetInnerHTML=(object
+            method __html = {|window.__UTOPIA_DEV_MODE__=true|}
+          end)
+        />;
       ]
     else []
   in
   let head =
-    element "head"
+    React.createElement "head" []
       ([
-         element
-           ~props:[ string_prop ~jsx_name:"charSet" "charset" "utf-8" ]
-           "meta" [];
-         element
-           ~props:
-             [
-               string_prop "name" "viewport";
-               string_prop "content" "width=device-width, initial-scale=1";
-             ]
-           "meta" [];
-         element "title" [ text title ];
+         <meta charSet="utf-8" />;
+         <meta name="viewport" content="width=device-width, initial-scale=1" />;
+         <title>(React.string title)</title>;
        ]
       @ dev_mode_script
       @ render_description_meta meta.description
@@ -794,10 +953,8 @@ let html_page ~title ~meta ~body =
       @ render_verification_meta meta.verification
       @ stylesheet_links)
   in
-  let body =
-    element "body" [ element ~props:[ string_prop "id" "root" ] "div" [ body ] ]
-  in
-  element "html" [ head; body ]
+  let body_el = <body>body</body> in
+  <html>head body_el</html>
 
 let render_param_value = function
   | One value -> value
@@ -807,44 +964,44 @@ let render_params params =
   if params = [] then []
   else
     [
-      element "section"
-        [
-          element "h2" [ text "Params" ];
-          element "ul"
-            (params
-            |> List.map (fun (name, value) ->
-                element "li"
-                  [
-                    element "code" [ text name ];
-                    text (" = " ^ render_param_value value);
-                  ]));
-        ];
+      <section>
+        <h2>(React.string "Params")</h2>
+        (React.createElement "ul" []
+          (params
+          |> List.map (fun (name, value) ->
+              <li>
+                <code>(React.string name)</code>
+                (React.string (" = " ^ render_param_value value))
+              </li>)))
+      </section>;
     ]
 
 let wrap_with_layouts layouts content =
   List.fold_right
     (fun layout acc ->
-      element "section"
-        [
-          element "div" [ text "Layout: "; element "code" [ text layout ] ]; acc;
-        ])
+      <section>
+        <div>
+          (React.string "Layout: ")
+          <code>(React.string layout)</code>
+        </div>
+        acc
+      </section>)
     layouts content
 
 let render_code_page_fresh route source_file params layouts =
   let source = read_file source_file in
   let content =
-    element "main"
+    React.createElement "main" []
       ([
-         element "h1" [ text ("/" ^ route) ];
-         element "p"
-           [
-             text "Code page from ";
-             element "code" [ text source_file ];
-             text ".";
-           ];
+         <h1>(React.string ("/" ^ route))</h1>;
+         <p>
+           (React.string "Code page from ")
+           <code>(React.string source_file)</code>
+           (React.string ".")
+         </p>;
        ]
       @ render_params params
-      @ [ element "pre" [ text source ] ])
+      @ [ <pre>(React.string source)</pre> ])
   in
   html_page ~title:route ~meta:empty_metadata
     ~body:(wrap_with_layouts layouts content)
@@ -888,7 +1045,7 @@ let apply_layout_renderers layouts layout_renderers body =
 let compiled_page_body params render =
   match render_params params with
   | [] -> render ()
-  | extra -> element "div" (extra @ [ render () ])
+  | extra -> React.createElement "div" [] (extra @ [ render () ])
 
 let fallback_title route_entry =
   match route_entry.kind with
@@ -940,7 +1097,9 @@ let render_route_element route_entry params =
               "missing compiled markdown payload; rendering empty markdown body";
             React.null
       in
-      let body = element "main" (render_params params @ [ markdown_body ]) in
+      let body =
+        React.createElement "main" [] (render_params params @ [ markdown_body ])
+      in
       let body =
         apply_layout_renderers route_entry.layouts route_entry.layout_renderers
           body
@@ -1087,24 +1246,24 @@ let render_index (routes : route_entry list) =
               " layouts: "
               ^ String.concat ", " (List.map Filename.basename values)
         in
-        element "li"
-          [
-            element
-              ~props:[ string_prop "href" ("/" ^ route) ]
-              "a"
-              [ text ("/" ^ route) ];
-            text (Printf.sprintf " - %s%s%s (" label param_text layout_text);
-            element "code" [ text source_file ];
-            text ")";
-          ])
+        let href = "/" ^ route in
+        <li>
+          <a href>(React.string ("/" ^ route))</a>
+          (React.string (Printf.sprintf " - %s%s%s (" label param_text layout_text))
+          <code>(React.string source_file)</code>
+          (React.string ")")
+        </li>)
   in
   html_page ~title:"Utopia dev router" ~meta:empty_metadata
     ~body:
-      (element "main" [ element "h1" [ text "Routes" ]; element "ul" links ])
+      (<main>
+        <h1>(React.string "Routes")</h1>
+        (React.createElement "ul" [] links)
+      </main>)
 
-let stream_html ~dev_mode element =
+let stream_html ?(status = `OK) ~dev_mode element =
   let element = normalize_model_element element in
-  Dream.stream
+  Dream.stream ~status
     ~headers:[ ("Content-Type", "text/html; charset=utf-8") ]
     (fun response_stream ->
       let open Lwt.Syntax in
@@ -1628,9 +1787,27 @@ let handle_dev_events_publish request =
 
 (* === End dev event channel === *)
 
+let render_not_found_document (nf : generated_not_found) request_target =
+  html_page ~title:"Not Found" ~meta:empty_metadata
+    ~body:(nf.router_shell request_target)
+
+let render_not_found_element (nf : generated_not_found) =
+  let body = nf.render () in
+  let body = apply_layout_renderers [] nf.layout_renderers body in
+  html_page ~title:"Not Found" ~meta:empty_metadata ~body
+
+let not_found_navigation_model (nf : generated_not_found) =
+  let tree = nf.router_tree () |> normalize_model_element in
+  React.Model.List
+    [
+      React.Model.Json (`String "full");
+      React.Model.Json (`String "");
+      React.Model.Element tree;
+    ]
+
 let route_request (routes : route_entry list)
     (api_routes : api_route_entry list) index_html ~lookup_server_function
-    ~dev_mode request =
+    ~not_found ~dev_mode request =
   let target = Dream.target request |> normalize_target in
   (* Dev event endpoints — only in dev mode *)
   if dev_mode && target = "_utopia/dev-events" then
@@ -1672,12 +1849,24 @@ let route_request (routes : route_entry list)
           else
             stream_html ~dev_mode
               (render_route_document route_entry (Dream.target request) params)
-      | None when segments = [] ->
-          if accepts_react_component request then
-            stream_model ~location:(Dream.target request)
-              (React.Model.Element (normalize_model_element index_html))
-          else stream_html ~dev_mode index_html
-      | None -> Dream.respond ~status:`Not_Found "Route not found"
+      | None ->
+          let serve_not_found () =
+            match not_found with
+            | Some nf ->
+                if accepts_react_component request then
+                  stream_model ~location:(Dream.target request)
+                    (not_found_navigation_model nf)
+                else
+                  stream_html ~status:`Not_Found ~dev_mode
+                    (render_not_found_document nf (Dream.target request))
+            | None -> Dream.respond ~status:`Not_Found "Route not found"
+          in
+          if dev_mode && segments = [] then
+            if accepts_react_component request then
+              stream_model ~location:(Dream.target request)
+                (React.Model.Element (normalize_model_element index_html))
+            else stream_html ~dev_mode index_html
+          else serve_not_found ()
 
 let max_port = 65535
 let valid_port port = port >= 1 && port <= max_port
@@ -1709,7 +1898,8 @@ let rec run_with_port_fallback ~interface ~port pipeline =
     run_with_port_fallback ~interface ~port:next_port pipeline
 
 let start_runtime_routes (routes : route_entry list)
-    (api_routes : api_route_entry list) ~lookup_server_function ~dev_mode =
+    (api_routes : api_route_entry list) ~lookup_server_function ~not_found
+    ~dev_mode =
   server_dev_mode := dev_mode;
   Printexc.record_backtrace true;
   Logs.set_level (Some Info);
@@ -1718,7 +1908,8 @@ let start_runtime_routes (routes : route_entry list)
   let index_html = render_index routes in
   let enable_logging = Sys.getenv_opt "NO_LOG" = None in
   let handler =
-    route_request routes api_routes index_html ~lookup_server_function ~dev_mode
+    route_request routes api_routes index_html ~lookup_server_function
+      ~not_found ~dev_mode
   in
   let pipeline = if enable_logging then Dream.logger @@ handler else handler in
   run_with_port_fallback ~interface:(host_from_env ()) ~port:(port_from_env ())
@@ -1910,13 +2101,37 @@ let ssg_generated (generated_routes : generated_route list) =
 
 let start_generated ~(pages : generated_route list)
     ~(api_routes : generated_api_route list) ~lookup_server_function
-    ?(dev_mode = false) () =
+    ?(not_found : generated_not_found option = None) ?(dev_mode = false) () =
   match
     ( runtime_routes_of_generated_routes pages,
       runtime_api_routes_of_generated_routes api_routes )
   with
   | Ok routes, Ok api_routes ->
-      start_runtime_routes routes api_routes ~lookup_server_function ~dev_mode
+      start_runtime_routes routes api_routes ~lookup_server_function ~not_found
+        ~dev_mode
   | Error message, _ | _, Error message ->
       Printf.eprintf "Error: %s\n%!" message;
       exit 1
+
+let run_generated_cli ~(pages : generated_route list)
+    ~(api_routes : generated_api_route list) ~lookup_server_function
+    ?(not_found : generated_not_found option = None) () =
+  let argv = Array.to_list Sys.argv in
+  if List.mem "--ssg" argv then ssg_generated pages
+  else
+    let dev_mode = List.mem "--dev" argv in
+    start_generated ~pages ~api_routes ~lookup_server_function ~not_found
+      ~dev_mode ()
+
+let run_generated_routes_server_cli (module Routes : Generated_routes_server)
+    ~lookup_server_function () =
+  let registry =
+    Generated_registry.make ~page_renders:Routes.page_renders
+      ~page_metadata:Routes.page_metadata ~page_paths:Routes.page_paths
+      ~layout_infos:Routes.layout_infos ~api_handlers:Routes.api_handlers
+      ~api_middlewares:Routes.api_middlewares ()
+  in
+  let pages = generated_pages (module Routes) registry in
+  let api_routes = generated_api_routes (module Routes) registry in
+  let not_found = generated_not_found registry Routes.not_found_page in
+  run_generated_cli ~pages ~api_routes ~lookup_server_function ~not_found ()

@@ -94,18 +94,13 @@ let rec build_child ~matcher ~make_page current_path remaining_layouts =
         />
 
 let build_tree ~matcher ~make_page ~layout_nodes =
-  let page_path = slash_matcher matcher in
-  let root_has = has_root_layout layout_nodes in
-  if page_path = "/" && not root_has then
-    <Utopia_router_route path="/" layout=(make_page ()) pageconsumer=None />
-  else
-    let descendants = descendant_boundary_nodes ~matcher ~layout_nodes in
-    let child = build_child ~matcher ~make_page "/" descendants in
-    <Utopia_router_route
-      path="/"
-      layout=(root_layout_element layout_nodes)
-      pageconsumer=(Some child)
-    />
+  let descendants = descendant_boundary_nodes ~matcher ~layout_nodes in
+  let child = build_child ~matcher ~make_page "/" descendants in
+  <Utopia_router_route
+    path="/"
+    layout=(root_layout_element layout_nodes)
+    pageconsumer=(Some child)
+  />
 
 let build_subtree ~matcher ~make_page ~layout_nodes parent_route =
   let descendants = descendant_boundary_nodes ~matcher ~layout_nodes in

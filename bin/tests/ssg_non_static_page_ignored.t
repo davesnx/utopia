@@ -8,8 +8,8 @@
   > let make () = React.string "non-static"
   > EOF
   $ utopia.compiler > /dev/null
-  $ grep -F 'source_file = "pages/Home.ml"' _utopia/Routes.ml | rg -o 'static = false; has_paths = false'
-  static = false; has_paths = false
+  $ grep -A 12 -F 'source_file = "pages/Home.ml"' _utopia/Routes.ml | grep -qF 'static = false;'
+  $ grep -A 12 -F 'source_file = "pages/Home.ml"' _utopia/Routes.ml | grep -qF 'has_paths = false'
   $ dune build _utopia/server_main.exe > /dev/null
   $ _build/default/_utopia/server_main.exe --ssg > /dev/null
   $ test ! -f _utopia/static/home.html && echo no-static-output
