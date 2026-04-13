@@ -21,7 +21,7 @@ Server-only app routes (no [@react.client.component]) are excluded from melange:
 Melange modules should NOT include any page modules (no client components):
 
   $ cat _utopia/dune | tr -s ' \n' ' ' | grep -oP 'melange\.emit.*?modules \K[^)]+' | tr ' ' '\n' | sort
-  ReactServerDOMEsbuild
+  React_server_dom_esbuild
   Routes
   Routes_client
   Utopia

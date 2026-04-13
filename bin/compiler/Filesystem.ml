@@ -43,10 +43,12 @@ let write_to_file file content =
   Out_channel.with_open_bin file (fun channel -> output_string channel content)
 
 let ensure_directory path =
-  if Sys.file_exists path then (
-    if not (Sys.is_directory path) then
-      failwith (Printf.sprintf "Expected directory at %s" path))
-  else Sys.mkdir path 0o755
+  if Sys.file_exists path then
+    if Sys.is_directory path then Ok ()
+    else Error (Printf.sprintf "Expected directory but found file at %s" path)
+  else (
+    Sys.mkdir path 0o755;
+    Ok ())
 
 let copy_file source_file target_file =
   let contents =

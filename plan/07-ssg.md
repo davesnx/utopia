@@ -1,5 +1,7 @@
 # SSG
 
+**Status**: Completed
+
 Add opt-in static site generation. Pages are static by default; pages with `let before` are dynamic.
 
 ---

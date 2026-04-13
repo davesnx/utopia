@@ -11,33 +11,13 @@ let browserDocument: Dom.document = Webapi.Dom.document;
 
 module App = {
   let initialModel =
-    ReactServerDOMEsbuild.createFromReadableStream(
+    React_server_dom_esbuild.createFromReadableStream(
       ~callServer=Utopia_call_server.callServer,
       srrStream##readable_stream,
     );
 
   [@react.component]
   let make = () => React.Experimental.usePromise(initialModel);
-};
-
-let reportDevError: (string, string, option(string)) => unit =
-    (operation, message, stack) => {
-  ignore(
-    [%mel.raw
-      {|
-      (function() {
-        if (typeof window !== 'undefined' && window.__utopia_dev_report_error) {
-          window.__utopia_dev_report_error({
-            operation: operation,
-            message: message,
-            stack: stack || null,
-            context: null
-          });
-        }
-      })()
-    |}
-    ],
-  );
 };
 
 let () =
@@ -51,6 +31,6 @@ let () =
     let message = Printexc.to_string(exn);
     let stack = Printexc.get_backtrace();
     let stackOpt = String.length(stack) > 0 ? Some(stack) : None;
-    reportDevError("hydration", message, stackOpt);
+    Utopia_call_server.reportDevError("hydration", message, stackOpt, None);
     Js.Console.error2("Hydration failed:", message);
   };

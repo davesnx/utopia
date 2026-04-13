@@ -1,5 +1,7 @@
 # Client components
 
+**Status**: Completed
+
 Implement client component boundary detection, the esbuild bundling pipeline, and client-side hydration.
 
 ---

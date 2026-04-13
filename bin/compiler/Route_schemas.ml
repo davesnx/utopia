@@ -113,77 +113,31 @@ let load (route_entries : Routes.route_entry list) =
                      let has_params = has_named_module source "Params" in
                      let has_query = has_named_module source "Query" in
                      let has_hash = has_named_module source "Hash" in
-                     let errors =
-                       if
-                         has_params
-                         && not (module_has_function source "Params" "encode")
-                       then
-                         Printf.sprintf
-                           "Route schema %s defines module Params but is \
-                            missing `let encode = ...`"
-                           source_file
-                         :: errors
-                       else errors
+                     let required_functions =
+                       [
+                         (has_params, "Params", "encode");
+                         (has_params, "Params", "decode");
+                         (has_query, "Query", "encode");
+                         (has_query, "Query", "decode");
+                         (has_hash, "Hash", "encode");
+                         (has_hash, "Hash", "decode");
+                       ]
                      in
                      let errors =
-                       if
-                         has_params
-                         && not (module_has_function source "Params" "decode")
-                       then
-                         Printf.sprintf
-                           "Route schema %s defines module Params but is \
-                            missing `let decode = ...`"
-                           source_file
-                         :: errors
-                       else errors
-                     in
-                     let errors =
-                       if
-                         has_query
-                         && not (module_has_function source "Query" "encode")
-                       then
-                         Printf.sprintf
-                           "Route schema %s defines module Query but is \
-                            missing `let encode = ...`"
-                           source_file
-                         :: errors
-                       else errors
-                     in
-                     let errors =
-                       if
-                         has_query
-                         && not (module_has_function source "Query" "decode")
-                       then
-                         Printf.sprintf
-                           "Route schema %s defines module Query but is \
-                            missing `let decode = ...`"
-                           source_file
-                         :: errors
-                       else errors
-                     in
-                     let errors =
-                       if
-                         has_hash
-                         && not (module_has_function source "Hash" "encode")
-                       then
-                         Printf.sprintf
-                           "Route schema %s defines module Hash but is missing \
-                            `let encode = ...`"
-                           source_file
-                         :: errors
-                       else errors
-                     in
-                     let errors =
-                       if
-                         has_hash
-                         && not (module_has_function source "Hash" "decode")
-                       then
-                         Printf.sprintf
-                           "Route schema %s defines module Hash but is missing \
-                            `let decode = ...`"
-                           source_file
-                         :: errors
-                       else errors
+                       List.fold_left
+                         (fun errors (present, mod_name, fn_name) ->
+                           if
+                             present
+                             && not
+                                  (module_has_function source mod_name fn_name)
+                           then
+                             Printf.sprintf
+                               "Route schema %s defines module %s but is \
+                                missing `let %s = ...`"
+                               source_file mod_name fn_name
+                             :: errors
+                           else errors)
+                         errors required_functions
                      in
                      let errors =
                        if

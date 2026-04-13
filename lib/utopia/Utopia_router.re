@@ -9,7 +9,7 @@ module History = DOM.History;
 [@platform js]
 module HistoryState = {
   type t = History.state;
-  let empty: t = Obj.magic(Js.Dict.empty());
+  let empty: t = [%mel.raw {| ({}) |}];
 };
 
 module HistoryCache = {
@@ -99,7 +99,7 @@ let navigation_history_of_json = json =>
   switch (string_of_json(json)) {
   | "Push" => Push
   | "Replace" => Replace
-  | _ => failwith("Invalid navigation_history JSON")
+  | _ => Push
   };
 
 let navigation_freshness_to_json = freshness =>
@@ -112,7 +112,7 @@ let navigation_freshness_of_json = json =>
   switch (string_of_json(json)) {
   | "Use_cache" => Use_cache
   | "Revalidate" => Revalidate
-  | _ => failwith("Invalid navigation_freshness JSON")
+  | _ => Use_cache
   };
 
 type t = {
@@ -244,21 +244,11 @@ let make = (~initialPath: string, ~children: React.element) => {
     };
 
   let%browser_only reportNavigationError = (targetPath, message) => {
-    ignore(
-      [%mel.raw
-        {|
-      (function() {
-        if (typeof window !== 'undefined' && window.__utopia_dev_report_error) {
-          window.__utopia_dev_report_error({
-            operation: 'navigation',
-            message: message,
-            stack: null,
-            context: 'to: ' + targetPath
-          });
-        }
-      })()
-    |}
-      ],
+    Utopia_call_server.reportDevError(
+      "navigation",
+      message,
+      None,
+      Some("to: " ++ targetPath),
     );
   };
 
@@ -280,7 +270,7 @@ let make = (~initialPath: string, ~children: React.element) => {
         nextPath,
         Fetch.RequestInit.make(~method_=Get, ~headers, ()),
       );
-    ReactServerDOMEsbuild.createFromFetch(
+    React_server_dom_esbuild.createFromFetch(
       ~callServer=Utopia_call_server.callServer,
       promise,
     );

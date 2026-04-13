@@ -1,7 +1,7 @@
 open Utopia_types
 
-let app_directory = "app"
-let app_api_directory = "app/api"
+let app_directory = Names.app_directory
+let app_api_directory = Names.app_api_directory
 let pages_directory = "pages"
 let api_directory = "api"
 
@@ -107,11 +107,7 @@ let render_route_segment = function
   | Param (name, Catch_all) -> Printf.sprintf "[...%s]" name
   | Param (name, Optional_catch_all) -> Printf.sprintf "[[...%s]]" name
 
-let render_matcher_segment = function
-  | Static segment -> String.lowercase_ascii segment
-  | Param (name, Single) -> ":" ^ name
-  | Param (name, Catch_all) -> "*" ^ name
-  | Param (name, Optional_catch_all) -> "**" ^ name
+let render_matcher_segment = Utopia_route_match.render_matcher_segment
 
 let render_conflict_segment = function
   | Static segment -> String.lowercase_ascii segment

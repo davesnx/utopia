@@ -1,6 +1,6 @@
 open! Melange_json.Primitives;
 
-let reportServerActionError = (actionId, phase, message) =>
+let reportDevError = (operation, message, stack, context) =>
   switch%platform () {
   | Client =>
     ignore(
@@ -9,10 +9,10 @@ let reportServerActionError = (actionId, phase, message) =>
       (function() {
         if (typeof window !== 'undefined' && window.__utopia_dev_report_error) {
           window.__utopia_dev_report_error({
-            operation: 'server_action',
+            operation: operation,
             message: message,
-            stack: null,
-            context: 'action=' + actionId + ' phase=' + phase
+            stack: stack || null,
+            context: context || null
           });
         }
       })()
@@ -22,10 +22,18 @@ let reportServerActionError = (actionId, phase, message) =>
   | Server => ()
   };
 
+let reportServerActionError = (actionId, phase, message) =>
+  reportDevError(
+    "server_action",
+    message,
+    None,
+    Some("action=" ++ actionId ++ " phase=" ++ phase),
+  );
+
 let callServer = (id, args) =>
   switch%platform () {
   | Client =>
-    ReactServerDOMEsbuild.encodeReply(args)
+    React_server_dom_esbuild.encodeReply(args)
     |> Js.Promise.catch(err => {
          let msg = [%mel.raw
            {| String(err && err.message ? err.message : err) |}
@@ -38,30 +46,30 @@ let callServer = (id, args) =>
          );
        })
     |> Js.Promise.then_(body => {
-         let isFormData = ReactServerDOMEsbuild.encodedReplyIsFormData(body);
-         let headers =
-           if (isFormData) {
-             Fetch.HeadersInit.makeWithArray([|
-               ("Accept", "application/react.action"),
-               ("ACTION_ID", id),
-               ("X-Action-ID", id),
-             |]);
-           } else {
-             Fetch.HeadersInit.makeWithArray([|
-               ("Accept", "application/react.action"),
-               ("Content-Type", "text/plain;charset=utf-8"),
-               ("ACTION_ID", id),
-               ("X-Action-ID", id),
-             |]);
-           };
-         let init =
-           Fetch.RequestInit.make(
-             ~method_=Post,
-             ~headers,
-             /* FormData replies need the browser-generated multipart boundary. */
-             ~body=Obj.magic(body),
-             (),
-           );
+          let isFormData = React_server_dom_esbuild.encodedReplyIsFormData(body);
+          let commonHeaders = [|
+            ("Accept", "application/react.action"),
+            ("ACTION_ID", id),
+            ("X-Action-ID", id),
+          |];
+          let headers =
+            Fetch.HeadersInit.makeWithArray(
+              if (isFormData) {
+                commonHeaders;
+              } else {
+                Array.append(commonHeaders, [|
+                  ("Content-Type", "text/plain;charset=utf-8"),
+                |]);
+              },
+            );
+          let init =
+            Fetch.RequestInit.make(
+              ~method_=Post,
+              ~headers,
+              /* FormData replies need the browser-generated multipart boundary. */
+              ~body=React_server_dom_esbuild.toBodyInit(body),
+              (),
+            );
          Fetch.fetchWithInit("", init)
          |> Js.Promise.catch(err => {
               let msg = [%mel.raw
@@ -75,7 +83,7 @@ let callServer = (id, args) =>
               );
             })
          |> Js.Promise.then_(response =>
-              ReactServerDOMEsbuild.createFromReadableStream(
+               React_server_dom_esbuild.createFromReadableStream(
                 Fetch.Response.body(response),
               )
               |> Js.Promise.catch(err => {

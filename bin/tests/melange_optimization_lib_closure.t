@@ -30,7 +30,7 @@ Melange includes Utils (used by client component) but not Server_only:
   Lib
   Lib__Utils
   Pages__Page
-  ReactServerDOMEsbuild
+  React_server_dom_esbuild
   Routes
   Routes_client
   Utopia

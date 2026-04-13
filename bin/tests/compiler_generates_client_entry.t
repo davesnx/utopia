@@ -7,7 +7,7 @@ $ grep -qF 'external srrStream: srrStream = "srr_stream";' _utopia/client_entry.
 $ grep -qF 'external hydrateDocumentRoot: (Dom.document, React.element) => ReactDOM.Client.root = "hydrateRoot";' _utopia/client_entry.re
 $ grep -qF 'let browserDocument: Dom.document = Webapi.Dom.document;' _utopia/client_entry.re
 $ grep -qF 'let initialModel =' _utopia/client_entry.re
-$ grep -qF 'ReactServerDOMEsbuild.createFromReadableStream(' _utopia/client_entry.re
+$ grep -qF 'React_server_dom_esbuild.createFromReadableStream(' _utopia/client_entry.re
 $ grep -qF '~callServer=Utopia.callServer,' _utopia/client_entry.re
 $ grep -qF 'React.Experimental.usePromise(initialModel)' _utopia/client_entry.re
 $ grep -qF 'React.startTransition(() => {' _utopia/client_entry.re

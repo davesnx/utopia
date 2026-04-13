@@ -168,7 +168,7 @@ window.__client_manifest_map["path/to/module"] = React.lazy(() =>
 
 **esbuild** bundles the client entry + bootstrap.js. Dynamic `import()` calls create separate chunks per client component.
 
-**On the client**: `ReactServerDOMEsbuild.createFromFetch` reads the RSC stream and resolves client component references via `window.__client_manifest_map`.
+**On the client**: `React_server_dom_esbuild.createFromFetch` reads the RSC stream and resolves client component references via `window.__client_manifest_map`.
 
 ### RSC boundary
 
@@ -176,7 +176,7 @@ Props crossing the server-to-client boundary must be JSON-serializable. Serializ
 
 ### Server Functions (implemented)
 
-A function annotated with `[@react.server.function]` executes on the server but can be called from client components. The PPX generates a unique ID and registers the function in a server-side registry. On the client side, a proxy is created via `ReactServerDOMEsbuild.createServerReference`. Server functions enable progressive enhancement: forms work without JavaScript (POST to the same page), and with JavaScript, the client calls the server function directly and receives an RSC response.
+A function annotated with `[@react.server.function]` executes on the server but can be called from client components. The PPX generates a unique ID and registers the function in a server-side registry. On the client side, a proxy is created via `React_server_dom_esbuild.createServerReference`. Server functions enable progressive enhancement: forms work without JavaScript (POST to the same page), and with JavaScript, the client calls the server function directly and receives an RSC response.
 
 Because page modules compile through both native and Melange build paths, page-level form actions use SRR's explicit action encoding rather than passing a bare function value:
 
@@ -188,7 +188,7 @@ let submit_action =
   };
 ```
 
-Client-side direct calls use the generated `Utopia_call_server.callServer` transport plus `ReactServerDOMEsbuild.encodeReply` to choose the POST body format. Plain argument lists travel as encoded request bodies, while `Js.FormData.t` arguments travel as multipart form-data so the server can decode them through `ReactServerDOM.decodeFormDataReply`.
+Client-side direct calls use the generated `Utopia_call_server.callServer` transport plus `React_server_dom_esbuild.encodeReply` to choose the POST body format. Plain argument lists travel as encoded request bodies, while `Js.FormData.t` arguments travel as multipart form-data so the server can decode them through `ReactServerDOM.decodeFormDataReply`.
 
 On the server, Utopia resolves the action ID from `X-Action-ID` (and accepts legacy `ACTION_ID` for compatibility), looks up the callback in generated `_utopia/native/FunctionReferences.re`, and streams `application/react.action` payloads with `ReactServerDOM.create_action_response`.
 
@@ -891,7 +891,7 @@ Both `utopia build` and `utopia dev` explicitly request `@_utopia/esbuild` along
 
 ### Client entry (implemented)
 
-Utopia generates a shared client shell at `_utopia/client_entry.re`, compiles it through Melange as `client_entry_melange.re`, and bundles the resulting JS with esbuild. The entry reads the initial RSC stream from `window.srr_stream`, calls `ReactServerDOMEsbuild.createFromReadableStream`, and hydrates the full browser `document` rather than a nested `#root` element.
+Utopia generates a shared client shell at `_utopia/client_entry.re`, compiles it through Melange as `client_entry_melange.re`, and bundles the resulting JS with esbuild. The entry reads the initial RSC stream from `window.srr_stream`, calls `React_server_dom_esbuild.createFromReadableStream`, and hydrates the full browser `document` rather than a nested `#root` element.
 
 The browser-side server-action transport lives in the separate generated `Utopia_call_server.re` support module so the initial client entry does not need to import the full router runtime just to invoke actions.
 

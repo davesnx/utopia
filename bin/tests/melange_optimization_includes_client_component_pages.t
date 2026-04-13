@@ -25,7 +25,7 @@ Melange modules include the client component page but not server-only page:
 
   $ cat _utopia/dune | tr -s ' \n' ' ' | grep -oP 'melange\.emit.*?modules \K[^)]+' | tr ' ' '\n' | sort
   Pages__Page
-  ReactServerDOMEsbuild
+  React_server_dom_esbuild
   Routes
   Routes_client
   Utopia

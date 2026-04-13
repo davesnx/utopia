@@ -1,5 +1,7 @@
 # Dev mode
 
+**Status**: Completed
+
 This document is now a compact execution companion for core dev-loop mechanics.
 
 Authoritative behavior and acceptance criteria live in `plan/11-dev-full-reload-and-browser-overlay.md`.

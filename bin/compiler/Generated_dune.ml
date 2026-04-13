@@ -213,29 +213,34 @@ let copy_dependency_rule ~deps ~target =
     ~action:(run "cp" [ "%{deps}"; "%{target}" ])
     ()
 
+(* Relative dependency paths for generated dune rules.
+   [depth] is the number of parent directories to traverse: 1 = "../", 2 = "../../". *)
+let relative_dependency ~depth directory file =
+  let prefix = String.concat "" (List.init depth (fun _ -> "../")) in
+  prefix ^ Filename.concat directory file
+
 let root_page_dependency ~source_root relative_file =
-  Printf.sprintf "../%s" (Filename.concat source_root relative_file)
+  relative_dependency ~depth:1 source_root relative_file
 
 let native_page_dependency ~source_root relative_file =
-  Printf.sprintf "../../%s" (Filename.concat source_root relative_file)
+  relative_dependency ~depth:2 source_root relative_file
 
 let native_api_dependency ~api_root relative_file =
-  Printf.sprintf "../../%s" (Filename.concat api_root relative_file)
+  relative_dependency ~depth:2 api_root relative_file
 
 let root_shared_lib_dependency source_file =
-  Printf.sprintf "../%s" (Filename.concat shared_lib_directory source_file)
+  relative_dependency ~depth:1 shared_lib_directory source_file
 
 let native_shared_lib_dependency source_file =
-  Printf.sprintf "../../%s" (Filename.concat shared_lib_directory source_file)
+  relative_dependency ~depth:2 shared_lib_directory source_file
 
 let root_route_schema_dependency source_file =
-  Printf.sprintf "../%s" source_file
+  relative_dependency ~depth:1 "" source_file
 
 let native_route_schema_dependency source_file =
-  Printf.sprintf "../../%s" source_file
+  relative_dependency ~depth:2 "" source_file
 
-let app_reserved_basenames =
-  [ "page"; "layout"; "route"; "_middleware"; "not-found" ]
+let app_reserved_basenames = Names.app_reserved_basenames
 
 let app_local_alias_lines ~source_root
     (code_files : Build_inputs.compiled_code_file list) =
@@ -427,7 +432,7 @@ let generate ?(dev_mode = false) ~source_root ~api_root
       "Utopia_router_link.re";
       "Utopia_router_route.re";
       "Utopia.re";
-      "ReactServerDOMEsbuild.re";
+      "React_server_dom_esbuild.re";
     ]
   in
   let utopia_client_copy_rules =
@@ -440,7 +445,7 @@ let generate ?(dev_mode = false) ~source_root ~api_root
   let utopia_client_module_names =
     utopia_client_modules |> List.map (fun f -> f |> Filename.remove_extension)
   in
-  (* ReactServerDOMEsbuild is provided by the
+  (* React_server_dom_esbuild is provided by the
      server-reason-react.react-server-dom-esbuild library in
      melange_libraries — no copy rule needed. *)
   (* Routes.ml and Routes_client.ml are owned by melange.emit (client side).

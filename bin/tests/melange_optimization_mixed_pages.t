@@ -46,7 +46,7 @@ alongside the current runtime/router support modules:
   $ cat _utopia/dune | tr -s ' \n' ' ' | grep -oP 'melange\.emit.*?modules \K[^)]+' | tr ' ' '\n' | sort
   Pages__Dashboard__Page
   Pages__Page
-  ReactServerDOMEsbuild
+  React_server_dom_esbuild
   Routes
   Routes_client
   Utopia

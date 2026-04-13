@@ -1,5 +1,7 @@
 # Compiler RSC
 
+**Status**: Completed
+
 Update the compiler to generate all artifacts needed for the React Server Components pipeline.
 
 ---

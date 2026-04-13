@@ -1,5 +1,7 @@
 # Shared types
 
+**Status**: Completed
+
 Extract duplicated types between compiler and server into a shared library.
 
 ---

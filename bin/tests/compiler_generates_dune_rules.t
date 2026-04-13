@@ -42,7 +42,7 @@
   $ grep -qF -- '-shared-folder-prefix=../' _utopia/dune
   $ grep -qF -- '-shared-folder-prefix=_utopia/' _utopia/dune
   $ grep -qF -- '-shared-folder-prefix=../../' _utopia/dune
-  $ grep -qF 'target ReactServerDOMEsbuild.re' _utopia/dune
+  $ grep -qF 'target React_server_dom_esbuild.re' _utopia/dune
   $ ! grep -qF 'target FunctionReferences.re' _utopia/dune
   $ grep -qF 'target Utopia.re' _utopia/dune
   $ grep -qF 'target Utopia_route.ml' _utopia/dune

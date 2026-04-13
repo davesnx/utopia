@@ -1,5 +1,7 @@
 # Optimization for Melange Page Compilation
 
+**Status**: Completed
+
 Compile only browser-required code for Melange builds.
 
 ---
@@ -217,7 +219,7 @@ No public runtime API changes.
 | Create | `bin/compiler/client_graph.ml` |
 | Create | `bin/compiler/client_bridge_gen.ml` |
 | Modify | `bin/compiler/Generated_dune.ml` |
-| Modify | `lib/utopia/ReactServerDOMEsbuild.re` (only if bridge IDs need runtime support) |
+| Modify | `lib/utopia/React_server_dom_esbuild.re` (only if bridge IDs need runtime support) |
 | Create | `bin/tests/melange_optimization_skips_server_only_pages.t` |
 | Create | `bin/tests/melange_optimization_includes_client_dependency_closure.t` |
 | Create | `bin/tests/melange_optimization_generates_component_bridges.t` |

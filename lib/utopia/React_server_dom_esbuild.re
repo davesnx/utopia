@@ -39,6 +39,12 @@ let encodedReplyIsFormData = (reply: encodedReply): bool => [%mel.raw
   |js}
 ];
 
+/* The RSC encodeReply result is always a valid BodyInit (FormData or string).
+   Use a JS-level identity to avoid Obj.magic while keeping proper types. */
+let toBodyInit = (reply: encodedReply): Fetch.BodyInit.t => [%mel.raw
+  {js| reply |js}
+];
+
 let callServerRef: ref(option(callServer)) = ref(None);
 let setCallServer = callServer => {
   callServerRef := Some(callServer);

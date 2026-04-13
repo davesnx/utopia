@@ -68,9 +68,9 @@ let resolve_project_support_source file =
   match
     List.find_opt Filesystem.file_exists (runtime_source_candidates file)
   with
-  | Some path -> path
+  | Some path -> Ok path
   | None ->
-      failwith
+      Error
         (Printf.sprintf "Missing project support file for %s"
            (Utopia_runtime.target_name file))
 
@@ -79,12 +79,20 @@ let copy_runtime_files () =
   let generated_directory =
     Utopia_path.project_generated_directory project |> Utopia_path.to_string
   in
-  Filesystem.ensure_directory generated_directory;
+  (match Filesystem.ensure_directory generated_directory with
+  | Ok () -> ()
+  | Error message ->
+      Printf.eprintf "  %s\n" message;
+      exit 1);
   let copy_into directory file =
-    let source_file = resolve_project_support_source file in
-    let target_file =
-      Filename.concat directory (Utopia_runtime.target_name file)
-    in
-    Filesystem.copy_file source_file target_file
+    match resolve_project_support_source file with
+    | Ok source_file ->
+        let target_file =
+          Filename.concat directory (Utopia_runtime.target_name file)
+        in
+        Filesystem.copy_file source_file target_file
+    | Error message ->
+        Printf.eprintf "  %s\n" message;
+        exit 1
   in
   List.iter (copy_into generated_directory) Utopia_runtime.root_files

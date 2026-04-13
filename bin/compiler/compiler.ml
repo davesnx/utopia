@@ -53,8 +53,14 @@ let parse_build_mode argv =
 let run ~build_mode =
   print_endline "\n\nutopia compiler";
   let project = Project.project_paths () in
-  Filesystem.ensure_directory
-    (Utopia_path.project_generated_directory project |> Utopia_path.to_string);
+  (match
+     Filesystem.ensure_directory
+       (Utopia_path.project_generated_directory project |> Utopia_path.to_string)
+   with
+  | Ok () -> ()
+  | Error message ->
+      Printf.eprintf "  %s\n" message;
+      exit 1);
   clear_generated_files project;
   Runtime_files.copy_runtime_files ();
   if not (Filesystem.directory_exists app_directory) then (
@@ -63,7 +69,9 @@ let run ~build_mode =
   let app_files =
     match Filesystem.read_files_recursive app_directory with
     | Ok files -> files
-    | Error (`Page_directory_doesnt_exist _) -> assert false
+    | Error (`Page_directory_doesnt_exist dir) ->
+        Printf.eprintf "  Error reading route roots: '%s/' does not exist\n" dir;
+        exit 1
   in
   let collection = Routes.collect_app_files app_files in
   let page_files = collection.page_files in

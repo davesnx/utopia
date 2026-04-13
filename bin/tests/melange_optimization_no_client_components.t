@@ -15,7 +15,7 @@ but no page modules:
 
   $ grep -qF 'melange.emit' _utopia/dune
   $ cat _utopia/dune | tr -s ' \n' ' ' | grep -oP 'melange\.emit.*?modules \K[^)]+' | tr ' ' '\n' | sort
-  ReactServerDOMEsbuild
+  React_server_dom_esbuild
   Routes
   Routes_client
   Utopia

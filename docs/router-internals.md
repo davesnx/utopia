@@ -133,7 +133,7 @@ Specificity weights: `Static` (4) > `Single` (3) > `Catch_all` (2) > `Optional_c
 The server checks the `Accept` header to decide the response format:
 
 - **No special header** (initial page load): `stream_html` renders a full HTML document with embedded RSC data for hydration. The RSC stream is inlined so the client can hydrate without an extra round-trip.
-- **`Accept: application/react.component`** (client navigation): `stream_model` returns the RSC wire format directly. The client decodes this progressively via `ReactServerDOMEsbuild.createFromFetch`.
+- **`Accept: application/react.component`** (client navigation): `stream_model` returns the RSC wire format directly. The client decodes this progressively via `React_server_dom_esbuild.createFromFetch`.
 
 ### Diff computation (`route_navigation_model`)
 
@@ -274,11 +274,11 @@ The SSE lifecycle is independent of the router's navigation system but shares th
 
 ### Initial page load
 
-The server renders the page to HTML via `ReactServerDOM.render_html`, embedding the RSC data stream inline. On the client, `client_entry.re` reads this stream from `window.srr_stream.readable_stream` and passes it to `ReactServerDOMEsbuild.createFromReadableStream` to hydrate the React tree.
+The server renders the page to HTML via `ReactServerDOM.render_html`, embedding the RSC data stream inline. On the client, `client_entry.re` reads this stream from `window.srr_stream.readable_stream` and passes it to `React_server_dom_esbuild.createFromReadableStream` to hydrate the React tree.
 
 ### Client navigation
 
-`fetchNavigation` sends a `fetch()` request with `Accept: application/react.component`. The response promise is passed directly to `ReactServerDOMEsbuild.createFromFetch`, which progressively decodes the RSC wire format. The resolved value is a `(mode, parentRoute, element)` tuple that the router uses to update the page.
+`fetchNavigation` sends a `fetch()` request with `Accept: application/react.component`. The response promise is passed directly to `React_server_dom_esbuild.createFromFetch`, which progressively decodes the RSC wire format. The resolved value is a `(mode, parentRoute, element)` tuple that the router uses to update the page.
 
 ### Server functions
 

@@ -1,5 +1,7 @@
 # Server rewrite
 
+**Status**: Completed
+
 Extract the server into a library and replace placeholder rendering with DreamRSC.
 
 ---

@@ -1,6 +1,9 @@
 let app_directory = "app"
 let app_api_directory = "app/api"
 
+let app_reserved_basenames =
+  [ "page"; "layout"; "route"; "_middleware"; "not-found" ]
+
 let sanitize_module_component value =
   let buffer = Buffer.create (String.length value) in
   String.iter

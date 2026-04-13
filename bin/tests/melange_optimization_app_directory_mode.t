@@ -37,7 +37,7 @@ alongside the current runtime/router support modules:
   Lib
   Lib__Ui
   Pages__Dashboard__Page
-  ReactServerDOMEsbuild
+  React_server_dom_esbuild
   Routes
   Routes_client
   Utopia

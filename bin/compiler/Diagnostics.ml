@@ -1,4 +1,4 @@
-let app_directory = "app"
+let app_directory = Names.app_directory
 
 let find_route_conflicts (entries : Routes.route_entry list) =
   let grouped = Hashtbl.create 32 in

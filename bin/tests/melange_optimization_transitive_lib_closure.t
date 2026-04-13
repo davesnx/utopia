@@ -35,7 +35,7 @@ Db is only used by server code and should be excluded:
   Lib__Formatter
   Lib__Helpers
   Pages__Page
-  ReactServerDOMEsbuild
+  React_server_dom_esbuild
   Routes
   Routes_client
   Utopia

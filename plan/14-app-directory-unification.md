@@ -1,5 +1,7 @@
 # App directory unification
 
+**Status**: Completed
+
 Unify page routes and API routes under a single `app/` root.
 
 ---

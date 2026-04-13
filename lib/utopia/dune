@@ -5,7 +5,7 @@
   (client_entry.re as utopia/client_entry.re)
   (esbuild.config.mjs as utopia/esbuild.config.mjs)
   (server_main.ml as utopia/server_main.ml)
-  (ReactServerDOMEsbuild.re as utopia/ReactServerDOMEsbuild.re)
+  (React_server_dom_esbuild.re as utopia/React_server_dom_esbuild.re)
   ;; Client-safe modules — copied into melange.emit by the generated dune
   (Utopia_types.ml as utopia/Utopia_types.ml)
   (Utopia_route.ml as utopia/Utopia_route.ml)
@@ -20,12 +20,15 @@
  (public_name utopia)
  (wrapped false)
  (flags :standard -w -26-27-32-39)
- (modules
-  FunctionReferences
-  Utopia
-  Utopia_call_server
+  (modules
+   FunctionReferences
+   Utopia
+   Utopia_call_server
+  Utopia_dev_events
   Utopia_markdown_api
+  Utopia_request_context
   Utopia_route
+  Utopia_route_match
   Utopia_router
   Utopia_router_link
   Utopia_router_route

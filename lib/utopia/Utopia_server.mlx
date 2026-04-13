@@ -1,11 +1,18 @@
 open Utopia_types
 
-type param_value = One of string | Many of string list
+type param_value = Utopia_route_match.param_value = One of string | Many of string list
 
 let warn message = prerr_endline ("[utopia.server] " ^ message)
 
 let matched_api_params_field : (string * param_value) list Dream.field =
   Dream.new_field ~name:"utopia_api_params" ()
+
+(* Request context extracted to Utopia_request_context *)
+module Request_context = Utopia_request_context
+
+let with_render_context = Utopia_request_context.with_render_context
+let with_action_context = Utopia_request_context.with_action_context
+let serialize_pending_cookies = Utopia_request_context.serialize_pending_cookies
 
 type generated_route = {
   route : string;
@@ -349,50 +356,12 @@ let page_cache : (string, cache_entry) Hashtbl.t = Hashtbl.create 64
 let file_mtime file =
   try Some (Unix.stat file).Unix.st_mtime with Unix.Unix_error _ -> None
 
-let parse_matcher_segment segment =
-  if String.length segment >= 2 && String.sub segment 0 2 = "**" then
-    Ok
-      (Param
-         (String.sub segment 2 (String.length segment - 2), Optional_catch_all))
-  else if String.length segment >= 1 && segment.[0] = '*' then
-    Ok (Param (String.sub segment 1 (String.length segment - 1), Catch_all))
-  else if String.length segment >= 1 && segment.[0] = ':' then
-    Ok (Param (String.sub segment 1 (String.length segment - 1), Single))
-  else Ok (Static segment)
-
-let parse_matcher matcher =
-  if matcher = "" then Ok []
-  else
-    matcher |> String.split_on_char '/'
-    |> List.fold_left
-         (fun acc segment ->
-           match (acc, parse_matcher_segment segment) with
-           | (Error _ as error), _ -> error
-           | Ok _, Error message -> Error message
-           | Ok segments, Ok parsed_segment -> Ok (parsed_segment :: segments))
-         (Ok [])
-    |> Result.map List.rev
-
-let specificity_of_segment = function
-  | Static _ -> 4
-  | Param (_, Single) -> 3
-  | Param (_, Catch_all) -> 2
-  | Param (_, Optional_catch_all) -> 1
+(* Route matching primitives extracted to Utopia_route_match *)
+let parse_matcher = Utopia_route_match.parse_matcher
+let specificity_of_segment = Utopia_route_match.specificity_of_segment
 
 let compare_route_specificity (left : route_entry) (right : route_entry) =
-  let rec compare_scores left_scores right_scores =
-    match (left_scores, right_scores) with
-    | [], [] -> 0
-    | _ :: _, [] -> -1
-    | [], _ :: _ -> 1
-    | left_score :: left_rest, right_score :: right_rest ->
-        if left_score > right_score then -1
-        else if left_score < right_score then 1
-        else compare_scores left_rest right_rest
-  in
-  let left_scores = List.map specificity_of_segment left.segments in
-  let right_scores = List.map specificity_of_segment right.segments in
-  compare_scores left_scores right_scores
+  Utopia_route_match.compare_specificity left.segments right.segments
 
 let route_entry_of_generated_route (generated_route : generated_route) =
   match parse_matcher generated_route.matcher with
@@ -447,19 +416,7 @@ let runtime_routes_of_generated_routes (generated_routes : generated_route list)
 
 let compare_api_route_specificity (left : api_route_entry)
     (right : api_route_entry) =
-  let rec compare_scores left_scores right_scores =
-    match (left_scores, right_scores) with
-    | [], [] -> 0
-    | _ :: _, [] -> -1
-    | [], _ :: _ -> 1
-    | left_score :: left_rest, right_score :: right_rest ->
-        if left_score > right_score then -1
-        else if left_score < right_score then 1
-        else compare_scores left_rest right_rest
-  in
-  let left_scores = List.map specificity_of_segment left.segments in
-  let right_scores = List.map specificity_of_segment right.segments in
-  compare_scores left_scores right_scores
+  Utopia_route_match.compare_specificity left.segments right.segments
 
 let api_route_entry_of_generated_route (generated_route : generated_api_route) =
   match parse_matcher generated_route.matcher with
@@ -589,16 +546,7 @@ let serve_asset target =
           ~headers:[ ("Content-Type", content_type_for_asset file) ]
           body
 
-let normalize_target target =
-  let without_query =
-    match String.index_opt target '?' with
-    | Some index -> String.sub target 0 index
-    | None -> target
-  in
-  if without_query = "/" then ""
-  else if String.length without_query > 0 && without_query.[0] = '/' then
-    String.sub without_query 1 (String.length without_query - 1)
-  else without_query
+let normalize_target = Utopia_route_match.normalize_target
 
 let ssg_output_dir = "_utopia/static"
 
@@ -616,46 +564,12 @@ let read_static_html target =
       | None -> None
       | Some path -> Some (read_file path))
 
-let target_segments target =
-  if target = "" then []
-  else
-    target |> String.split_on_char '/'
-    |> List.filter (fun segment -> segment <> "")
-
-let strip_query_and_hash path =
-  let limit = ref (String.length path) in
-  (match String.index_opt path '?' with
-  | Some index -> limit := min !limit index
-  | None -> ());
-  (match String.index_opt path '#' with
-  | Some index -> limit := min !limit index
-  | None -> ());
-  String.sub path 0 !limit
-
-let path_segments path =
-  strip_query_and_hash path |> String.split_on_char '/'
-  |> List.filter (fun segment -> segment <> "")
-
-let render_matcher_segment = function
-  | Static segment -> String.lowercase_ascii segment
-  | Param (name, Single) -> ":" ^ name
-  | Param (name, Catch_all) -> "*" ^ name
-  | Param (name, Optional_catch_all) -> "**" ^ name
-
-let route_definition_of_segments segments =
-  match List.map render_matcher_segment segments with
-  | [] -> "/"
-  | parts -> "/" ^ String.concat "/" parts
-
-let common_prefix_length left right =
-  let rec loop count left right =
-    match (left, right) with
-    | left_head :: left_tail, right_head :: right_tail
-      when left_head = right_head ->
-        loop (count + 1) left_tail right_tail
-    | _ -> count
-  in
-  loop 0 left right
+let target_segments = Utopia_route_match.target_segments
+let strip_query_and_hash = Utopia_route_match.strip_query_and_hash
+let path_segments = Utopia_route_match.path_segments
+let render_matcher_segment = Utopia_route_match.render_matcher_segment
+let route_definition_of_segments = Utopia_route_match.route_definition_of_segments
+let common_prefix_length = Utopia_route_match.common_prefix_length
 
 let bootstrap_module_paths = [ "/dist/client_entry_melange.js" ]
 let dev_overlay_module_path = "/dist/Utopia_dev_client.js"
@@ -1186,20 +1100,7 @@ let route_navigation_model (route_entry : route_entry) request rendered_element
             ])
   | _ -> React.Model.Element (normalize_model_element rendered_element)
 
-let rec match_segments route_segments path_segments params =
-  match (route_segments, path_segments) with
-  | [], [] -> Some (List.rev params)
-  | Static expected :: rest_route, current :: rest_path
-    when expected = String.lowercase_ascii current ->
-      match_segments rest_route rest_path params
-  | Param (name, Single) :: rest_route, current :: rest_path ->
-      match_segments rest_route rest_path ((name, One current) :: params)
-  | [ Param (name, Catch_all) ], rest_path ->
-      if rest_path = [] then None
-      else Some (List.rev ((name, Many rest_path) :: params))
-  | [ Param (name, Optional_catch_all) ], rest_path ->
-      Some (List.rev ((name, Many rest_path) :: params))
-  | _ -> None
+let match_segments = Utopia_route_match.match_segments
 
 let find_match (routes : route_entry list) path_segments =
   routes
@@ -1271,18 +1172,21 @@ let stream_html ?(status = `OK) ~dev_mode element =
   let element = normalize_model_element element in
   Dream.stream ~status
     ~headers:[ ("Content-Type", "text/html; charset=utf-8") ]
-    (fun response_stream ->
+    (fun stream ->
       let open Lwt.Syntax in
       let* html, subscribe =
         ReactServerDOM.render_html
           ~bootstrapModules:(available_bootstrap_module_paths ~dev_mode ())
           element
       in
-      let* () = Dream.write response_stream html in
-      let* () = Dream.flush response_stream in
-      subscribe (fun chunk ->
-          let* () = Dream.write response_stream chunk in
-          Dream.flush response_stream))
+      let* () = Dream.write stream html in
+      let* () = Dream.flush stream in
+      let* () =
+        subscribe (fun chunk ->
+            let* () = Dream.write stream chunk in
+            Dream.flush stream)
+      in
+      Dream.flush stream)
 
 let stream_model ~location model =
   Dream.stream
@@ -1292,13 +1196,16 @@ let stream_model ~location model =
         ("X-Content-Type-Options", "nosniff");
         ("X-Location", location);
       ]
-    (fun response_stream ->
-      ReactServerDOM.render_model_value
-        ~subscribe:(fun chunk ->
-          let open Lwt.Syntax in
-          let* () = Dream.write response_stream chunk in
-          Dream.flush response_stream)
-        model)
+    (fun stream ->
+      let open Lwt.Syntax in
+      let* () =
+        ReactServerDOM.render_model_value
+          ~subscribe:(fun chunk ->
+            let* () = Dream.write stream chunk in
+            Dream.flush stream)
+          model
+      in
+      Dream.flush stream)
 
 let action_id_header = "X-Action-ID"
 let legacy_action_id_header = "ACTION_ID"
@@ -1514,284 +1421,9 @@ let accepts_react_component request =
       loop 0
   | None -> false
 
-(* === Dev event channel === *)
-
-type dev_severity = Dev_error | Dev_warning | Dev_note
-
-type dev_diagnostic = {
-  dev_severity : dev_severity;
-  dev_message : string;
-  dev_location : string option;
-  dev_targets : string list;
-}
-
-type dev_build_status = Dev_building | Dev_failed | Dev_healthy
-
-type dev_build_state = {
-  build_id : int;
-  status : dev_build_status;
-  rebuilding : bool;
-  errors : dev_diagnostic list;
-  warnings : dev_diagnostic list;
-}
-
-let initial_dev_build_state =
-  {
-    build_id = 0;
-    status = Dev_healthy;
-    rebuilding = false;
-    errors = [];
-    warnings = [];
-  }
-
-let dev_build_state_ref = ref initial_dev_build_state
-
-let dev_event_condition : dev_build_state Lwt_condition.t =
-  Lwt_condition.create ()
-
-let dev_publish_token () = Sys.getenv_opt "UTOPIA_DEV_TOKEN"
-
-let json_escape_dev s =
-  let buf = Buffer.create (String.length s) in
-  String.iter
-    (fun c ->
-      match c with
-      | '"' -> Buffer.add_string buf {|\"|}
-      | '\\' -> Buffer.add_string buf {|\\|}
-      | '\n' -> Buffer.add_string buf {|\n|}
-      | '\r' -> Buffer.add_string buf {|\r|}
-      | '\t' -> Buffer.add_string buf {|\t|}
-      | c -> Buffer.add_char buf c)
-    s;
-  Buffer.contents buf
-
-let format_dev_severity = function
-  | Dev_error -> "error"
-  | Dev_warning -> "warning"
-  | Dev_note -> "note"
-
-let format_dev_status = function
-  | Dev_building -> "building"
-  | Dev_failed -> "failed"
-  | Dev_healthy -> "healthy"
-
-let format_dev_diagnostic d =
-  let loc =
-    match d.dev_location with
-    | Some l -> Printf.sprintf {|,"location":"%s"|} (json_escape_dev l)
-    | None -> ""
-  in
-  let targets =
-    d.dev_targets
-    |> List.map (fun t -> Printf.sprintf {|"%s"|} (json_escape_dev t))
-    |> String.concat ","
-  in
-  Printf.sprintf {|{"severity":"%s","message":"%s"%s,"targets":[%s]}|}
-    (format_dev_severity d.dev_severity)
-    (json_escape_dev d.dev_message)
-    loc targets
-
-let format_dev_build_state_json state =
-  let errors =
-    state.errors |> List.map format_dev_diagnostic |> String.concat ","
-  in
-  let warnings =
-    state.warnings |> List.map format_dev_diagnostic |> String.concat ","
-  in
-  Printf.sprintf
-    {|{"kind":"build_state","build_id":%d,"status":"%s","rebuilding":%s,"errors":[%s],"warnings":[%s]}|}
-    state.build_id
-    (format_dev_status state.status)
-    (if state.rebuilding then "true" else "false")
-    errors warnings
-
-let format_sse_event state =
-  Printf.sprintf "data: %s\n\n" (format_dev_build_state_json state)
-
-let handle_dev_events_sse _request =
-  Dream.stream
-    ~headers:
-      [
-        ("Content-Type", "text/event-stream");
-        ("Cache-Control", "no-cache");
-        ("X-Accel-Buffering", "no");
-      ]
-    (fun stream ->
-      let open Lwt.Syntax in
-      let* () = Dream.write stream (format_sse_event !dev_build_state_ref) in
-      let* () = Dream.flush stream in
-      let rec event_loop () =
-        let* state = Lwt_condition.wait dev_event_condition in
-        let* () = Dream.write stream (format_sse_event state) in
-        let* () = Dream.flush stream in
-        event_loop ()
-      in
-      let rec heartbeat_loop () =
-        let* () = Lwt_unix.sleep 30.0 in
-        Lwt.catch
-          (fun () ->
-            let* () = Dream.write stream ": heartbeat\n\n" in
-            let* () = Dream.flush stream in
-            heartbeat_loop ())
-          (fun _exn -> Lwt.return_unit)
-      in
-      Lwt.catch
-        (fun () -> Lwt.pick [ event_loop (); heartbeat_loop () ])
-        (fun _exn -> Lwt.return_unit))
-
-let parse_dev_severity_json = function
-  | "error" -> Dev_error
-  | "warning" -> Dev_warning
-  | _ -> Dev_note
-
-let parse_dev_build_status_json = function
-  | "building" -> Dev_building
-  | "failed" -> Dev_failed
-  | _ -> Dev_healthy
-
-(* Minimal JSON field extractors for the well-known dev event shape *)
-let extract_json_string body field =
-  let pattern = Printf.sprintf {|"%s":"|} field in
-  let plen = String.length pattern in
-  let blen = String.length body in
-  let rec search i =
-    if i + plen > blen then None
-    else if String.sub body i plen = pattern then
-      let start = i + plen in
-      let rec find_end j =
-        if j >= blen then j
-        else if body.[j] = '"' && (j = start || body.[j - 1] <> '\\') then j
-        else find_end (j + 1)
-      in
-      let e = find_end start in
-      Some (String.sub body start (e - start))
-    else search (i + 1)
-  in
-  search 0
-
-let extract_json_int body field =
-  let pattern = Printf.sprintf {|"%s":|} field in
-  let plen = String.length pattern in
-  let blen = String.length body in
-  let rec search i =
-    if i + plen > blen then None
-    else if String.sub body i plen = pattern then
-      let start = i + plen in
-      let rec digits j =
-        if j >= blen then j
-        else match body.[j] with '0' .. '9' -> digits (j + 1) | _ -> j
-      in
-      let e = digits start in
-      try Some (int_of_string (String.sub body start (e - start)))
-      with Failure _ -> None
-    else search (i + 1)
-  in
-  search 0
-
-let extract_json_bool body field =
-  let pattern = Printf.sprintf {|"%s":|} field in
-  let plen = String.length pattern in
-  let blen = String.length body in
-  let rec search i =
-    if i + plen > blen then Some false
-    else if String.sub body i plen = pattern then
-      let start = i + plen in
-      if start + 4 <= blen && String.sub body start 4 = "true" then Some true
-      else Some false
-    else search (i + 1)
-  in
-  search 0
-
-let extract_diagnostics_array body array_field =
-  let pattern = Printf.sprintf {|"%s":[|} array_field in
-  let plen = String.length pattern in
-  let blen = String.length body in
-  let rec search i =
-    if i + plen > blen then []
-    else if String.sub body i plen = pattern then (
-      let start = i + plen in
-      let rec find_end j depth =
-        if j >= blen then j
-        else
-          match body.[j] with
-          | '[' -> find_end (j + 1) (depth + 1)
-          | ']' -> if depth = 0 then j else find_end (j + 1) (depth - 1)
-          | _ -> find_end (j + 1) depth
-      in
-      let e = find_end start 0 in
-      let arr_str = String.sub body start (e - start) in
-      if String.length (String.trim arr_str) = 0 then []
-      else
-        (* Split on top-level commas between objects *)
-        let buf = Buffer.create 256 in
-        let objects = ref [] in
-        let depth = ref 0 in
-        String.iter
-          (fun c ->
-            match c with
-            | '{' ->
-                incr depth;
-                Buffer.add_char buf c
-            | '}' ->
-                decr depth;
-                Buffer.add_char buf c;
-                if !depth = 0 then (
-                  objects := Buffer.contents buf :: !objects;
-                  Buffer.clear buf)
-            | ',' when !depth = 0 -> ()
-            | c -> Buffer.add_char buf c)
-          arr_str;
-        List.rev_map
-          (fun obj ->
-            {
-              dev_severity =
-                parse_dev_severity_json
-                  (Option.value
-                     (extract_json_string obj "severity")
-                     ~default:"note");
-              dev_message =
-                Option.value (extract_json_string obj "message") ~default:"";
-              dev_location = extract_json_string obj "location";
-              dev_targets = [];
-            })
-          !objects)
-    else search (i + 1)
-  in
-  search 0
-
-let parse_dev_build_state_json body =
-  let build_id = Option.value (extract_json_int body "build_id") ~default:0 in
-  let status =
-    parse_dev_build_status_json
-      (Option.value (extract_json_string body "status") ~default:"healthy")
-  in
-  let rebuilding =
-    Option.value (extract_json_bool body "rebuilding") ~default:false
-  in
-  let errors = extract_diagnostics_array body "errors" in
-  let warnings = extract_diagnostics_array body "warnings" in
-  { build_id; status; rebuilding; errors; warnings }
-
-let handle_dev_events_publish request =
-  let open Lwt.Syntax in
-  let expected_token = dev_publish_token () in
-  let auth_header = Dream.header request "Authorization" in
-  let authorized =
-    match (expected_token, auth_header) with
-    | Some expected, Some provided ->
-        String.equal provided ("Bearer " ^ expected)
-    | None, _ -> false
-    | _, None -> false
-  in
-  if not authorized then Dream.respond ~status:`Unauthorized ""
-  else
-    let* body = Dream.body request in
-    let state = parse_dev_build_state_json body in
-    dev_build_state_ref := state;
-    Lwt_condition.broadcast dev_event_condition state;
-    Dream.respond ~status:`OK ""
-
-(* === End dev event channel === *)
+(* Dev event channel extracted to Utopia_dev_events *)
+let handle_dev_events_sse = Utopia_dev_events.handle_dev_events_sse
+let handle_dev_events_publish = Utopia_dev_events.handle_dev_events_publish
 
 let render_not_found_document (nf : generated_not_found) request_target =
   html_page ~title:"Not Found" ~meta:empty_metadata
@@ -1827,47 +1459,54 @@ let route_request (routes : route_entry list)
     if Dream.method_ request = `POST then
       handle_server_function_request ~lookup_server_function request
     else
-      match find_match routes segments with
-      | Some (route_entry, params) ->
-          if accepts_react_component request then
-            stream_model ~location:(Dream.target request)
-              (match (route_entry.router_tree, route_entry.router_subtree) with
-              | Some _, Some _ ->
-                  route_navigation_model route_entry request React.null
-              | _ ->
-                  let rendered_element =
-                    render_route_document route_entry (Dream.target request)
-                      params
-                  in
-                  route_navigation_model route_entry request rendered_element)
-          else if (not dev_mode) && route_entry.static then
-            match read_static_html target with
-            | Some html -> Dream.html html
-            | None ->
+      (* Wrap page rendering with request context so server components
+         can access the Dream request via Request_context *)
+      with_render_context request (fun () ->
+          match find_match routes segments with
+          | Some (route_entry, params) ->
+              if accepts_react_component request then
+                stream_model ~location:(Dream.target request)
+                  (match
+                     (route_entry.router_tree, route_entry.router_subtree)
+                   with
+                  | Some _, Some _ ->
+                      route_navigation_model route_entry request React.null
+                  | _ ->
+                      let rendered_element =
+                        render_route_document route_entry
+                          (Dream.target request) params
+                      in
+                      route_navigation_model route_entry request
+                        rendered_element)
+              else if (not dev_mode) && route_entry.static then
+                match read_static_html target with
+                | Some html -> Dream.html html
+                | None ->
+                    stream_html ~dev_mode
+                      (render_route_document route_entry
+                         (Dream.target request) params)
+              else
                 stream_html ~dev_mode
                   (render_route_document route_entry (Dream.target request)
                      params)
-          else
-            stream_html ~dev_mode
-              (render_route_document route_entry (Dream.target request) params)
-      | None ->
-          let serve_not_found () =
-            match not_found with
-            | Some nf ->
+          | None ->
+              let serve_not_found () =
+                match not_found with
+                | Some nf ->
+                    if accepts_react_component request then
+                      stream_model ~location:(Dream.target request)
+                        (not_found_navigation_model nf)
+                    else
+                      stream_html ~status:`Not_Found ~dev_mode
+                        (render_not_found_document nf (Dream.target request))
+                | None -> Dream.respond ~status:`Not_Found "Route not found"
+              in
+              if dev_mode && segments = [] then
                 if accepts_react_component request then
                   stream_model ~location:(Dream.target request)
-                    (not_found_navigation_model nf)
-                else
-                  stream_html ~status:`Not_Found ~dev_mode
-                    (render_not_found_document nf (Dream.target request))
-            | None -> Dream.respond ~status:`Not_Found "Route not found"
-          in
-          if dev_mode && segments = [] then
-            if accepts_react_component request then
-              stream_model ~location:(Dream.target request)
-                (React.Model.Element (normalize_model_element index_html))
-            else stream_html ~dev_mode index_html
-          else serve_not_found ()
+                    (React.Model.Element (normalize_model_element index_html))
+                else stream_html ~dev_mode index_html
+              else serve_not_found ())
 
 let max_port = 65535
 let valid_port port = port >= 1 && port <= max_port

@@ -18,28 +18,11 @@ let route_segments (entry : Routes.route_entry) =
         | Ok parsed -> parsed
         | Error message -> invalid_arg message)
 
-let specificity_of_segment = function
-  | Static _ -> 4
-  | Param (_, Single) -> 3
-  | Param (_, Catch_all) -> 2
-  | Param (_, Optional_catch_all) -> 1
-
 let compare_route_specificity (left : Routes.route_entry)
     (right : Routes.route_entry) =
-  let rec compare_scores left_scores right_scores =
-    match (left_scores, right_scores) with
-    | [], [] -> 0
-    | _ :: _, [] -> -1
-    | [], _ :: _ -> 1
-    | left_score :: left_rest, right_score :: right_rest ->
-        if left_score > right_score then -1
-        else if left_score < right_score then 1
-        else compare_scores left_rest right_rest
-  in
   let result =
-    compare_scores
-      (List.map specificity_of_segment (route_segments left))
-      (List.map specificity_of_segment (route_segments right))
+    Utopia_route_match.compare_specificity (route_segments left)
+      (route_segments right)
   in
   if result = 0 then String.compare left.Routes.route right.Routes.route
   else result
