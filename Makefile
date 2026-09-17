@@ -13,42 +13,42 @@ help: ## Print this help message
 
 .PHONY: build
 build: ## Build the project, including non installable libraries and executables
-	$(DUNE) build --no-print-directory .
+	$(DUNE) build --root . --no-print-directory .
 
 .PHONY: build-prod
 build-prod: ## Build for production (--profile=prod)
-	$(DUNE) build --no-print-directory .
+	$(DUNE) build --root . --no-print-directory .
 
 .PHONY: dev
 dev: ## Build in watch mode
-	$(DUNE) build --no-print-directory -w @all
+	$(DUNE) build --root . --no-print-directory -w @all
 
 .PHONY: clean
 clean: ## Clean artifacts
-	$(DUNE) clean
+	$(DUNE) clean --root .
 
 .PHONY: test
 test: ## Run the unit tests
-	$(DUNE) build --no-print-directory @runtest
+	$(DUNE) build --root . --no-print-directory @runtest
 
 .PHONY: test-watch
 test-watch: ## Run the unit tests in watch mode
-	$(DUNE) build --no-print-directory @runtest -w
+	$(DUNE) build --root . --no-print-directory @runtest -w
 
 .PHONY: test-promote
 test-promote: ## Updates snapshots and promotes it to correct
-	$(DUNE) build --no-print-directory @runtest --auto-promote
+	$(DUNE) build --root . --no-print-directory @runtest --auto-promote
 
 .PHONY: deps
 deps: $(opam_file) ## Alias to update the opam file and install the needed deps
 
 .PHONY: format
 format: ## Format the codebase with ocamlformat
-	$(DUNE) build --no-print-directory @fmt --auto-promote
+	$(DUNE) build --root . --no-print-directory @fmt --auto-promote
 
 .PHONY: format-check
 format-check: ## Checks if format is correct
-	$(DUNE) build --no-print-directory @fmt
+	$(DUNE) build --root . --no-print-directory @fmt
 
 .PHONY: init
 setup-githooks: ## Setup githooks
@@ -60,7 +60,7 @@ create-switch: ## Create opam switch
 
 .PHONY: install
 install:
-	$(DUNE) build --no-print-directory @install
+	$(DUNE) build --root . --no-print-directory @install
 	opam install . --deps-only --with-test --with-dev-setup -y
 
 .PHONY: pin
@@ -73,7 +73,7 @@ init: setup-githooks create-switch pin install ## Create a local dev enviroment
 
 .PHONY: bench
 bench: ## Run routing micro-benchmarks
-	$(DUNE) exec --no-print-directory bench/bench_routing.exe
+	$(DUNE) exec --root . --no-print-directory bench/bench_routing.exe
 
 .PHONY: bench-http
 bench-http: ## Run HTTP benchmarks with wrk (requires wrk)
